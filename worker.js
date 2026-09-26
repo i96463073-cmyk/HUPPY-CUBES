@@ -245,12 +245,9 @@ export default {
         return await handleIPN(request, env);
       }
 
-      if (
-        request.method === "POST" &&
-        url.pathname === "/api/register-ipn"
-      ) {
-        const result = await registerIPN(env);
-        return Response.json(result);
+      if (url.pathname === "/api/register-ipn") {
+  const result = await registerIPN(env);
+  return Response.json(result);
       }
 
       return env.ASSETS.fetch(request);
