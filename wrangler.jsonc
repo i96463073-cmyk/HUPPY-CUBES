@@ -1,13 +1,22 @@
 {
-  "name": "huppy-cube",
+  "name": "huppy-cubes",
   "main": "worker.js",
   "compatibility_date": "2026-09-26",
   "compatibility_flags": [
     "nodejs_compat"
   ],
+
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application"
-  }
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "huppy-hub-orders",
+      "database_id": "67765968-522f-4e2f-8f38-22ccf2abbccb"
+    }
+  ]
 }
