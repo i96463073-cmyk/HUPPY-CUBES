@@ -16,7 +16,9 @@ function App() {
         <div className="container nav">
           <div className="logo">
             <div className="logo-icon">H</div>
-            <span>HUPPY <b>CUBE</b></span>
+            <span>
+              HUPPY <b>CUBE</b>
+            </span>
           </div>
 
           <nav>
@@ -29,10 +31,13 @@ function App() {
       </header>
 
       <main>
+        {/* HERO */}
         <section className="hero" id="home">
           <div className="container hero-grid">
             <div>
-              <span className="badge">SOCIAL MEDIA MARKETING</span>
+              <span className="badge">
+                SOCIAL MEDIA MARKETING
+              </span>
 
               <h1>
                 Grow your social media
@@ -91,11 +96,14 @@ function App() {
           </div>
         </section>
 
+        {/* SERVICES */}
         <section className="section" id="services">
           <div className="container">
             <span className="eyebrow">OUR SERVICES</span>
 
-            <h2 className="section-title">Social Media Services</h2>
+            <h2 className="section-title">
+              Social Media Services
+            </h2>
 
             <div className="cards">
               <Service
@@ -137,36 +145,167 @@ function App() {
           </div>
         </section>
 
+        {/* PESAPAL PAYMENT */}
         <section className="order-section" id="orders">
           <div className="container order-card">
-            <span className="eyebrow">QUICK ORDER</span>
+            <span className="eyebrow">ADD FUNDS</span>
 
-            <h2>Place Your Order</h2>
+            <h2>Fund Your HUPPY CUBE Wallet</h2>
 
             <p>
-              Choose your service and contact HUPPY CUBE support
-              to complete your order.
+              Enter your details below and continue to secure
+              PesaPal checkout.
             </p>
 
-            <a
-              href="https://wa.me/254796681162"
-              target="_blank"
-              rel="noreferrer"
-              className="primary"
-            >
-              <MessageCircle size={18} />
-              Order Through WhatsApp
-            </a>
+            <div className="payment-form">
+              <label htmlFor="amount">
+                Amount (KES)
+              </label>
+
+              <input
+                id="amount"
+                type="number"
+                min="10"
+                placeholder="Enter amount"
+              />
+
+              <label htmlFor="phone">
+                Phone Number
+              </label>
+
+              <input
+                id="phone"
+                type="tel"
+                placeholder="2547XXXXXXXX"
+              />
+
+              <label htmlFor="email">
+                Email
+              </label>
+
+              <input
+                id="email"
+                type="email"
+                placeholder="you@example.com"
+              />
+
+              <button
+                type="button"
+                className="primary payment-button"
+                onClick={async () => {
+                  const amount = Number(
+                    document.getElementById("amount").value
+                  );
+
+                  const phone =
+                    document
+                      .getElementById("phone")
+                      .value.trim();
+
+                  const email =
+                    document
+                      .getElementById("email")
+                      .value.trim();
+
+                  if (!amount || amount < 10) {
+                    alert(
+                      "Please enter at least KSh 10."
+                    );
+                    return;
+                  }
+
+                  if (!phone) {
+                    alert(
+                      "Please enter your phone number."
+                    );
+                    return;
+                  }
+
+                  const button =
+                    document.querySelector(
+                      ".payment-button"
+                    );
+
+                  try {
+                    button.disabled = true;
+                    button.textContent =
+                      "Connecting to PesaPal...";
+
+                    const response = await fetch(
+                      "/api/payment",
+                      {
+                        method: "POST",
+                        headers: {
+                          "Content-Type":
+                            "application/json"
+                        },
+                        body: JSON.stringify({
+                          amount,
+                          phone,
+                          email
+                        })
+                      }
+                    );
+
+                    const data =
+                      await response.json();
+
+                    if (
+                      !response.ok ||
+                      !data.success
+                    ) {
+                      throw new Error(
+                        data.message ||
+                          "Unable to start PesaPal payment."
+                      );
+                    }
+
+                    if (!data.redirect_url) {
+                      throw new Error(
+                        "PesaPal did not return a checkout URL."
+                      );
+                    }
+
+                    window.location.href =
+                      data.redirect_url;
+                  } catch (error) {
+                    console.error(
+                      "Payment error:",
+                      error
+                    );
+
+                    alert(
+                      error.message ||
+                        "Payment connection failed. Please try again."
+                    );
+
+                    button.disabled = false;
+                    button.textContent =
+                      "Continue to PesaPal";
+                  }
+                }}
+              >
+                Continue to PesaPal
+              </button>
+            </div>
+
+            <p className="payment-note">
+              Secure checkout powered by PesaPal.
+            </p>
           </div>
         </section>
 
+        {/* SUPPORT */}
         <section className="support" id="support">
           <div className="container support-card">
             <MessageCircle size={38} />
 
             <div>
               <h2>Need help?</h2>
-              <p>Our support team is available through WhatsApp.</p>
+
+              <p>
+                Our support team is available through WhatsApp.
+              </p>
             </div>
 
             <a
@@ -181,11 +320,15 @@ function App() {
         </section>
       </main>
 
+      {/* FOOTER */}
       <footer>
         <div className="container footer">
           <div className="logo">
             <div className="logo-icon">H</div>
-            <span>HUPPY <b>CUBE</b></span>
+
+            <span>
+              HUPPY <b>CUBE</b>
+            </span>
           </div>
 
           <p>© 2026 HUPPY CUBE</p>
@@ -201,17 +344,24 @@ function App() {
   );
 }
 
-function Service({ platform, title, price }) {
+function Service({
+  platform,
+  title,
+  price
+}) {
   return (
     <div className="service-card">
       <span>{platform}</span>
 
       <h3>{title}</h3>
 
-      <p>High-quality social media marketing service.</p>
+      <p>
+        High-quality social media marketing service.
+      </p>
 
       <div className="service-bottom">
         <strong>{price}</strong>
+
         <small>per 1K</small>
 
         <a
@@ -226,7 +376,9 @@ function Service({ platform, title, price }) {
   );
 }
 
-createRoot(document.getElementById("root")).render(
+createRoot(
+  document.getElementById("root")
+).render(
   <React.StrictMode>
     <App />
   </React.StrictMode>
