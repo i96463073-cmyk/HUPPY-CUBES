@@ -2,27 +2,22 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   ArrowLeft,
-  ArrowRight,
   CheckCircle2,
   ChevronRight,
-  Clock3,
   Copy,
   CreditCard,
-  ExternalLink,
-  Heart,
   Instagram,
   Loader2,
   Menu,
   MessageCircle,
+  Music2,
   Package,
   Phone,
   RefreshCw,
   Search,
   Send,
   ShoppingCart,
-  Smartphone,
   Sparkles,
-  TikTok,
   Wallet,
   X,
   Zap
@@ -64,12 +59,37 @@ function normalizeService(raw) {
 function serviceIcon(name) {
   const n = name.toLowerCase();
 
-  if (n.includes("instagram")) return <Instagram size={24} />;
-  if (n.includes("tiktok")) return <TikTok size={24} />;
-  if (n.includes("facebook")) return <span style={{ fontWeight: 900 }}>f</span>;
-  if (n.includes("youtube")) return <span style={{ fontWeight: 900 }}>▶</span>;
-  if (n.includes("telegram")) return <Send size={24} />;
-  if (n.includes("whatsapp")) return <MessageCircle size={24} />;
+  if (n.includes("instagram")) {
+    return <Instagram size={24} />;
+  }
+
+  if (n.includes("tiktok")) {
+    return <Music2 size={24} />;
+  }
+
+  if (n.includes("facebook")) {
+    return (
+      <span style={{ fontWeight: 900, fontSize: 24 }}>
+        f
+      </span>
+    );
+  }
+
+  if (n.includes("youtube")) {
+    return (
+      <span style={{ fontWeight: 900, fontSize: 18 }}>
+        ▶
+      </span>
+    );
+  }
+
+  if (n.includes("telegram")) {
+    return <Send size={24} />;
+  }
+
+  if (n.includes("whatsapp")) {
+    return <MessageCircle size={24} />;
+  }
 
   return <Sparkles size={24} />;
 }
@@ -121,15 +141,6 @@ function App() {
 
     if (!qty || qty <= 0) return 0;
 
-    /*
-      The backend uses:
-      customer_rate × quantity / 1000
-
-      Example:
-      KSh 80 per 1,000
-      Quantity 1,000
-      = KSh 80
-    */
     return (selectedService.rate * qty) / 1000;
   }, [selectedService, quantity]);
 
@@ -164,7 +175,13 @@ function App() {
         throw new Error(data.error || "Could not load wallet.");
       }
 
-      setWallet(Number(data.balance || data.wallet?.balance || 0));
+      setWallet(
+        Number(
+          data.balance ??
+            data.wallet?.balance ??
+            0
+        )
+      );
     } catch (err) {
       console.error(err);
     } finally {
@@ -184,10 +201,6 @@ function App() {
         ? data
         : data.services || data.data || [];
 
-      /*
-        If the local service table is empty, try the DenzGains
-        service endpoint directly through the Worker.
-      */
       if (!rawServices.length) {
         response = await fetch("/api/denzgains/services");
         data = await readJson(response);
@@ -199,14 +212,20 @@ function App() {
 
       const normalized = rawServices
         .map(normalizeService)
-        .filter((service) => service.id && service.rate >= 0);
+        .filter(
+          (service) =>
+            service.id &&
+            service.rate >= 0 &&
+            service.active !== false
+        );
 
       setServices(normalized);
     } catch (err) {
       console.error(err);
+
       setError(
         err.message ||
-          "Unable to load services. Please refresh the page and try again."
+          "Unable to load services. Please refresh the page."
       );
     } finally {
       setLoadingServices(false);
@@ -234,7 +253,10 @@ function App() {
     setTimeout(() => {
       document
         .getElementById("order-panel")
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+        ?.scrollIntoView({
+          behavior: "smooth",
+          block: "start"
+        });
     }, 50);
   }
 
@@ -285,7 +307,9 @@ function App() {
 
       if (!response.ok) {
         throw new Error(
-          data.error || data.message || "Unable to start payment."
+          data.error ||
+            data.message ||
+            "Unable to start payment."
         );
       }
 
@@ -305,7 +329,10 @@ function App() {
       );
     } catch (err) {
       console.error(err);
-      setError(err.message || "Payment could not be started.");
+      setError(
+        err.message ||
+          "Payment could not be started."
+      );
     } finally {
       setDepositLoading(false);
     }
@@ -318,7 +345,9 @@ function App() {
     setMessage("");
 
     if (!phone.trim()) {
-      setError("Enter your phone number before placing an order.");
+      setError(
+        "Enter your phone number before placing an order."
+      );
       return;
     }
 
@@ -340,12 +369,16 @@ function App() {
     }
 
     if (qty < selectedService.min) {
-      setError(`Minimum quantity is ${selectedService.min.toLocaleString()}.`);
+      setError(
+        `Minimum quantity is ${selectedService.min.toLocaleString()}.`
+      );
       return;
     }
 
     if (qty > selectedService.max) {
-      setError(`Maximum quantity is ${selectedService.max.toLocaleString()}.`);
+      setError(
+        `Maximum quantity is ${selectedService.max.toLocaleString()}.`
+      );
       return;
     }
 
@@ -385,7 +418,9 @@ function App() {
 
       if (!response.ok) {
         throw new Error(
-          data.error || data.message || "Unable to place order."
+          data.error ||
+            data.message ||
+            "Unable to place order."
         );
       }
 
@@ -399,11 +434,15 @@ function App() {
           order.supplier_order ||
           null,
         serviceName:
-          order.service_name || selectedService.name,
+          order.service_name ||
+          selectedService.name,
         link: link.trim(),
         quantity: qty,
-        amount: Number(order.amount || calculatedTotal),
-        status: order.status || "Pending"
+        amount: Number(
+          order.amount || calculatedTotal
+        ),
+        status:
+          order.status || "Pending"
       });
 
       setMessage(
@@ -418,48 +457,73 @@ function App() {
       setTimeout(() => {
         document
           .getElementById("order-result")
-          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+          ?.scrollIntoView({
+            behavior: "smooth",
+            block: "start"
+          });
       }, 100);
     } catch (err) {
       console.error(err);
-      setError(err.message || "Order could not be placed.");
+
+      setError(
+        err.message ||
+          "Order could not be placed."
+      );
     } finally {
       setOrderLoading(false);
     }
   }
 
   async function checkOrderStatus() {
-    if (!lastOrder?.id && !lastOrder?.supplierOrderId) return;
+    if (
+      !lastOrder?.id &&
+      !lastOrder?.supplierOrderId
+    ) {
+      return;
+    }
 
     setStatusLoading(true);
     setError("");
 
     try {
-      const orderId = lastOrder.id || lastOrder.supplierOrderId;
+      const orderId =
+        lastOrder.id ||
+        lastOrder.supplierOrderId;
 
       const response = await fetch(
-        `/api/smm/status?order_id=${encodeURIComponent(orderId)}`
+        `/api/smm/status?order_id=${encodeURIComponent(
+          orderId
+        )}`
       );
 
       const data = await readJson(response);
 
       if (!response.ok) {
-        throw new Error(data.error || "Unable to check order status.");
+        throw new Error(
+          data.error ||
+            "Unable to check order status."
+        );
       }
 
-      const supplier = data.supplier || data.status || data;
+      const supplier =
+        data.supplier ||
+        data.status ||
+        data;
 
       setLastOrder((previous) => ({
         ...previous,
+
         status:
           supplier.status ||
           data.order?.status ||
           previous.status ||
           "Pending",
+
         remains:
           supplier.remains ??
           data.order?.remains ??
           previous.remains,
+
         startCount:
           supplier.start_count ??
           data.order?.start_count ??
@@ -469,18 +533,27 @@ function App() {
       setMessage("Order status updated.");
     } catch (err) {
       console.error(err);
-      setError(err.message || "Unable to check order status.");
+
+      setError(
+        err.message ||
+          "Unable to check order status."
+      );
     } finally {
       setStatusLoading(false);
     }
   }
 
   function copyOrderId() {
-    const id = lastOrder?.supplierOrderId || lastOrder?.id;
+    const id =
+      lastOrder?.supplierOrderId ||
+      lastOrder?.id;
 
     if (!id) return;
 
-    navigator.clipboard?.writeText(String(id));
+    navigator.clipboard?.writeText(
+      String(id)
+    );
+
     setMessage("Order ID copied.");
   }
 
@@ -729,6 +802,12 @@ function App() {
 
         .hc-btn:hover {
           transform: translateY(-1px);
+        }
+
+        .hc-btn:disabled {
+          opacity: .6;
+          cursor: not-allowed;
+          transform: none;
         }
 
         .hc-btn-primary {
@@ -989,7 +1068,9 @@ function App() {
         }
 
         @keyframes hcspin {
-          to { transform: rotate(360deg); }
+          to {
+            transform: rotate(360deg);
+          }
         }
 
         @media (max-width: 850px) {
@@ -1071,7 +1152,6 @@ function App() {
         }
       `}</style>
 
-      {/* NAVIGATION */}
       <header className="hc-nav">
         <div className="hc-container hc-nav-inner">
           <div className="hc-logo">
@@ -1081,13 +1161,19 @@ function App() {
             HUPPY CUBE
           </div>
 
-          <div className={`hc-nav-links ${mobileMenu ? "mobile-open" : ""}`}>
+          <div
+            className={`hc-nav-links ${
+              mobileMenu ? "mobile-open" : ""
+            }`}
+          >
             <button
               className="hc-nav-btn"
               onClick={() =>
                 document
                   .getElementById("services")
-                  ?.scrollIntoView({ behavior: "smooth" })
+                  ?.scrollIntoView({
+                    behavior: "smooth"
+                  })
               }
             >
               Services
@@ -1098,13 +1184,18 @@ function App() {
               onClick={() =>
                 document
                   .getElementById("deposit")
-                  ?.scrollIntoView({ behavior: "smooth" })
+                  ?.scrollIntoView({
+                    behavior: "smooth"
+                  })
               }
             >
               Deposit
             </button>
 
-            <button className="hc-btn hc-btn-whatsapp" onClick={openWhatsApp}>
+            <button
+              className="hc-btn hc-btn-whatsapp"
+              onClick={openWhatsApp}
+            >
               <MessageCircle size={16} />
               Support
             </button>
@@ -1112,15 +1203,20 @@ function App() {
 
           <button
             className="hc-menu-btn"
-            onClick={() => setMobileMenu((v) => !v)}
+            onClick={() =>
+              setMobileMenu((value) => !value)
+            }
           >
-            {mobileMenu ? <X size={21} /> : <Menu size={21} />}
+            {mobileMenu ? (
+              <X size={21} />
+            ) : (
+              <Menu size={21} />
+            )}
           </button>
         </div>
       </header>
 
       <main className="hc-container">
-        {/* HERO */}
         <section className="hc-hero">
           <span className="hc-badge">
             <Sparkles size={14} />
@@ -1130,22 +1226,30 @@ function App() {
           <h1>
             Grow your social media
             <br />
-            <span className="hc-gradient">without the hassle.</span>
+            <span className="hc-gradient">
+              without the hassle.
+            </span>
           </h1>
 
           <p>
-            Choose a service, enter your link and quantity, pay from your
-            wallet, and your order is automatically sent for processing.
+            Choose a service, enter your link and
+            quantity, pay from your wallet, and your
+            order is automatically sent for processing.
           </p>
         </section>
 
-        {/* WALLET STATS */}
         <section className="hc-grid">
           <div className="hc-stat">
-            <div className="hc-stat-label">Wallet Balance</div>
+            <div className="hc-stat-label">
+              Wallet Balance
+            </div>
+
             <div className="hc-stat-value">
               {loadingWallet ? (
-                <Loader2 className="hc-spin" size={23} />
+                <Loader2
+                  className="hc-spin"
+                  size={23}
+                />
               ) : (
                 money(wallet)
               )}
@@ -1153,17 +1257,26 @@ function App() {
           </div>
 
           <div className="hc-stat">
-            <div className="hc-stat-label">Available Services</div>
-            <div className="hc-stat-value">{services.length}</div>
+            <div className="hc-stat-label">
+              Available Services
+            </div>
+
+            <div className="hc-stat-value">
+              {services.length}
+            </div>
           </div>
 
           <div className="hc-stat">
-            <div className="hc-stat-label">Support</div>
-            <div className="hc-stat-value">24/7</div>
+            <div className="hc-stat-label">
+              Support
+            </div>
+
+            <div className="hc-stat-value">
+              24/7
+            </div>
           </div>
         </section>
 
-        {/* ALERTS */}
         {error && (
           <div className="hc-alert hc-error">
             {error}
@@ -1176,12 +1289,17 @@ function App() {
           </div>
         )}
 
-        {/* DEPOSIT */}
-        <section id="deposit" className="hc-section">
+        <section
+          id="deposit"
+          className="hc-section"
+        >
           <div className="hc-section-head">
             <div>
               <h2>Add money to wallet</h2>
-              <p>Deposit through the secure PesaPal checkout.</p>
+              <p>
+                Deposit through the secure PesaPal
+                checkout.
+              </p>
             </div>
           </div>
 
@@ -1190,14 +1308,21 @@ function App() {
               <div className="hc-form-grid">
                 <div className="hc-field">
                   <label>
-                    <Phone size={13} style={{ verticalAlign: "middle" }} />{" "}
+                    <Phone
+                      size={13}
+                      style={{
+                        verticalAlign: "middle"
+                      }}
+                    />{" "}
                     Phone Number
                   </label>
 
                   <input
                     className="hc-input"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(event) =>
+                      setPhone(event.target.value)
+                    }
                     placeholder="07XXXXXXXX"
                     inputMode="tel"
                   />
@@ -1209,19 +1334,29 @@ function App() {
                   <input
                     className="hc-input"
                     value={depositEmail}
-                    onChange={(e) => setDepositEmail(e.target.value)}
+                    onChange={(event) =>
+                      setDepositEmail(
+                        event.target.value
+                      )
+                    }
                     placeholder="you@example.com"
                     type="email"
                   />
                 </div>
 
                 <div className="hc-field">
-                  <label>Deposit Amount (KSh)</label>
+                  <label>
+                    Deposit Amount (KSh)
+                  </label>
 
                   <input
                     className="hc-input"
                     value={depositAmount}
-                    onChange={(e) => setDepositAmount(e.target.value)}
+                    onChange={(event) =>
+                      setDepositAmount(
+                        event.target.value
+                      )
+                    }
                     placeholder="100"
                     type="number"
                     min="1"
@@ -1239,11 +1374,16 @@ function App() {
                     className="hc-btn hc-btn-primary"
                     type="submit"
                     disabled={depositLoading}
-                    style={{ width: "100%" }}
+                    style={{
+                      width: "100%"
+                    }}
                   >
                     {depositLoading ? (
                       <>
-                        <Loader2 className="hc-spin" size={18} />
+                        <Loader2
+                          className="hc-spin"
+                          size={18}
+                        />
                         Starting payment...
                       </>
                     ) : (
@@ -1259,12 +1399,16 @@ function App() {
           </div>
         </section>
 
-        {/* SERVICES */}
-        <section id="services" className="hc-section">
+        <section
+          id="services"
+          className="hc-section"
+        >
           <div className="hc-section-head">
             <div>
               <h2>Our Services</h2>
-              <p>Tap any service to order directly.</p>
+              <p>
+                Tap any service to order directly.
+              </p>
             </div>
 
             <div className="hc-search">
@@ -1273,7 +1417,9 @@ function App() {
               <input
                 className="hc-input"
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(event) =>
+                  setSearch(event.target.value)
+                }
                 placeholder="Search services..."
               />
             </div>
@@ -1281,13 +1427,22 @@ function App() {
 
           {loadingServices ? (
             <div className="hc-card hc-empty">
-              <Loader2 className="hc-spin" size={28} />
-              <p>Loading live services...</p>
+              <Loader2
+                className="hc-spin"
+                size={28}
+              />
+
+              <p>
+                Loading live services...
+              </p>
             </div>
           ) : filteredServices.length === 0 ? (
             <div className="hc-card hc-empty">
               <Package size={32} />
-              <p>No services found.</p>
+
+              <p>
+                No services found.
+              </p>
 
               <button
                 className="hc-btn hc-btn-secondary"
@@ -1299,52 +1454,77 @@ function App() {
             </div>
           ) : (
             <div className="hc-services">
-              {filteredServices.map((service) => (
-                <div
-                  className="hc-card hc-service"
-                  key={service.id}
-                  onClick={() => openService(service)}
-                >
-                  <div className="hc-service-icon">
-                    {serviceIcon(service.name)}
+              {filteredServices.map(
+                (service) => (
+                  <div
+                    className="hc-card hc-service"
+                    key={service.id}
+                    onClick={() =>
+                      openService(service)
+                    }
+                  >
+                    <div className="hc-service-icon">
+                      {serviceIcon(
+                        service.name
+                      )}
+                    </div>
+
+                    <h3>
+                      {service.name}
+                    </h3>
+
+                    <p>
+                      {service.category ||
+                        `${
+                          service.type ||
+                          "Social media"
+                        } service`}
+                    </p>
+
+                    <div className="hc-service-bottom">
+                      <span className="hc-price">
+                        {money(service.rate)} / 1,000
+                      </span>
+
+                      <span className="hc-order-small">
+                        Order
+                        <ChevronRight
+                          size={15}
+                        />
+                      </span>
+                    </div>
                   </div>
-
-                  <h3>{service.name}</h3>
-
-                  <p>
-                    {service.category ||
-                      `${service.type || "Social media"} service`}
-                  </p>
-
-                  <div className="hc-service-bottom">
-                    <span className="hc-price">
-                      {money(service.rate)} / 1,000
-                    </span>
-
-                    <span className="hc-order-small">
-                      Order
-                      <ChevronRight size={15} />
-                    </span>
-                  </div>
-                </div>
-              ))}
+                )
+              )}
             </div>
           )}
         </section>
 
-        {/* SERVICE ORDER PANEL */}
         {selectedService && (
-          <section id="order-panel" className="hc-section">
+          <section
+            id="order-panel"
+            className="hc-section"
+          >
             <div className="hc-card hc-order">
               <div className="hc-order-header">
                 <div className="hc-order-title">
-                  <div className="hc-service-icon" style={{ margin: 0 }}>
-                    {serviceIcon(selectedService.name)}
+                  <div
+                    className="hc-service-icon"
+                    style={{ margin: 0 }}
+                  >
+                    {serviceIcon(
+                      selectedService.name
+                    )}
                   </div>
 
                   <div>
-                    <h2>{selectedService.name}</h2>
-                    <p>Complete your order below.</p>
+                    <h2>
+                      {selectedService.name}
+                    </h2>
+
+                    <p>
+                      Complete your order below.
+                    </p>
                   </div>
                 </div>
 
@@ -1362,12 +1542,18 @@ function App() {
                 <form onSubmit={placeOrder}>
                   <div className="hc-order-box">
                     <div className="hc-field">
-                      <label>Social Media Link</label>
+                      <label>
+                        Social Media Link
+                      </label>
 
                       <input
                         className="hc-input"
                         value={link}
-                        onChange={(e) => setLink(e.target.value)}
+                        onChange={(event) =>
+                          setLink(
+                            event.target.value
+                          )
+                        }
                         placeholder="https://instagram.com/username"
                         type="url"
                       />
@@ -1375,14 +1561,22 @@ function App() {
 
                     <div
                       className="hc-field"
-                      style={{ marginTop: 16 }}
+                      style={{
+                        marginTop: 16
+                      }}
                     >
-                      <label>Quantity</label>
+                      <label>
+                        Quantity
+                      </label>
 
                       <input
                         className="hc-input"
                         value={quantity}
-                        onChange={(e) => setQuantity(e.target.value)}
+                        onChange={(event) =>
+                          setQuantity(
+                            event.target.value
+                          )
+                        }
                         type="number"
                         min={selectedService.min}
                         max={selectedService.max}
@@ -1399,27 +1593,43 @@ function App() {
 
                     <div className="hc-total">
                       <div>
-                        <div className="hc-muted">Total price</div>
-                        <strong>{money(calculatedTotal)}</strong>
+                        <div className="hc-muted">
+                          Total price
+                        </div>
+
+                        <strong>
+                          {money(
+                            calculatedTotal
+                          )}
+                        </strong>
                       </div>
 
-                      <ShoppingCart size={27} />
+                      <ShoppingCart
+                        size={27}
+                      />
                     </div>
 
                     <button
                       className="hc-btn hc-btn-primary"
                       type="submit"
                       disabled={orderLoading}
-                      style={{ width: "100%" }}
+                      style={{
+                        width: "100%"
+                      }}
                     >
                       {orderLoading ? (
                         <>
-                          <Loader2 className="hc-spin" size={18} />
+                          <Loader2
+                            className="hc-spin"
+                            size={18}
+                          />
                           Placing order...
                         </>
                       ) : (
                         <>
-                          <ShoppingCart size={18} />
+                          <ShoppingCart
+                            size={18}
+                          />
                           PLACE ORDER
                         </>
                       )}
@@ -1428,32 +1638,59 @@ function App() {
                 </form>
 
                 <div className="hc-order-box">
-                  <h3 style={{ marginTop: 0 }}>Order information</h3>
+                  <h3
+                    style={{
+                      marginTop: 0
+                    }}
+                  >
+                    Order information
+                  </h3>
 
                   <div className="hc-info-list">
                     <div className="hc-info-row">
-                      <span>Price</span>
+                      <span>
+                        Price
+                      </span>
+
                       <strong>
-                        {money(selectedService.rate)} / 1,000
+                        {money(
+                          selectedService.rate
+                        )}{" "}
+                        / 1,000
                       </strong>
                     </div>
 
                     <div className="hc-info-row">
-                      <span>Wallet</span>
-                      <strong>{money(wallet)}</strong>
-                    </div>
+                      <span>
+                        Wallet
+                      </span>
 
-                    <div className="hc-info-row">
-                      <span>Refill</span>
                       <strong>
-                        {selectedService.refill ? "Available" : "No"}
+                        {money(wallet)}
                       </strong>
                     </div>
 
                     <div className="hc-info-row">
-                      <span>Cancel</span>
+                      <span>
+                        Refill
+                      </span>
+
                       <strong>
-                        {selectedService.cancel ? "Available" : "No"}
+                        {selectedService.refill
+                          ? "Available"
+                          : "No"}
+                      </strong>
+                    </div>
+
+                    <div className="hc-info-row">
+                      <span>
+                        Cancel
+                      </span>
+
+                      <strong>
+                        {selectedService.cancel
+                          ? "Available"
+                          : "No"}
                       </strong>
                     </div>
                   </div>
@@ -1462,22 +1699,30 @@ function App() {
                     className="hc-alert"
                     style={{
                       marginTop: 18,
-                      background: "rgba(6,182,212,.08)",
-                      border: "1px solid rgba(6,182,212,.15)",
+                      background:
+                        "rgba(6,182,212,.08)",
+                      border:
+                        "1px solid rgba(6,182,212,.15)",
                       color: "#a5f3fc"
                     }}
                   >
-                    Your wallet must have enough funds before the order can
-                    be submitted.
+                    Your wallet must have enough
+                    funds before the order can be
+                    submitted.
                   </div>
 
                   <button
                     type="button"
                     className="hc-btn hc-btn-whatsapp"
                     onClick={openWhatsApp}
-                    style={{ width: "100%", marginTop: 5 }}
+                    style={{
+                      width: "100%",
+                      marginTop: 5
+                    }}
                   >
-                    <MessageCircle size={18} />
+                    <MessageCircle
+                      size={18}
+                    />
                     Need Help?
                   </button>
                 </div>
@@ -1486,66 +1731,112 @@ function App() {
           </section>
         )}
 
-        {/* ORDER RESULT */}
         {lastOrder && (
-          <section id="order-result" className="hc-section">
+          <section
+            id="order-result"
+            className="hc-section"
+          >
             <div className="hc-card hc-result">
               <div className="hc-result-icon">
                 <CheckCircle2 size={30} />
               </div>
 
-              <h2 style={{ margin: 0 }}>Order submitted</h2>
+              <h2 style={{ margin: 0 }}>
+                Order submitted
+              </h2>
 
               <p className="hc-muted">
-                Your order has been submitted successfully.
+                Your order has been submitted
+                successfully.
               </p>
 
-              <div className="hc-info-list" style={{ marginTop: 20 }}>
+              <div
+                className="hc-info-list"
+                style={{
+                  marginTop: 20
+                }}
+              >
                 <div className="hc-info-row">
-                  <span>Service</span>
-                  <strong>{lastOrder.serviceName}</strong>
-                </div>
+                  <span>
+                    Service
+                  </span>
 
-                <div className="hc-info-row">
-                  <span>Quantity</span>
                   <strong>
-                    {Number(lastOrder.quantity).toLocaleString()}
+                    {lastOrder.serviceName}
                   </strong>
                 </div>
 
                 <div className="hc-info-row">
-                  <span>Amount</span>
-                  <strong>{money(lastOrder.amount)}</strong>
+                  <span>
+                    Quantity
+                  </span>
+
+                  <strong>
+                    {Number(
+                      lastOrder.quantity
+                    ).toLocaleString()}
+                  </strong>
                 </div>
 
                 <div className="hc-info-row">
-                  <span>Status</span>
-                  <strong>{lastOrder.status || "Pending"}</strong>
+                  <span>
+                    Amount
+                  </span>
+
+                  <strong>
+                    {money(
+                      lastOrder.amount
+                    )}
+                  </strong>
                 </div>
 
-                {lastOrder.remains !== undefined &&
-                  lastOrder.remains !== null && (
+                <div className="hc-info-row">
+                  <span>
+                    Status
+                  </span>
+
+                  <strong>
+                    {lastOrder.status ||
+                      "Pending"}
+                  </strong>
+                </div>
+
+                {lastOrder.remains !==
+                  undefined &&
+                  lastOrder.remains !==
+                    null && (
                     <div className="hc-info-row">
-                      <span>Remaining</span>
+                      <span>
+                        Remaining
+                      </span>
+
                       <strong>
-                        {Number(lastOrder.remains).toLocaleString()}
+                        {Number(
+                          lastOrder.remains
+                        ).toLocaleString()}
                       </strong>
                     </div>
                   )}
               </div>
 
-              {(lastOrder.supplierOrderId || lastOrder.id) && (
+              {(lastOrder.supplierOrderId ||
+                lastOrder.id) && (
                 <div className="hc-order-id">
                   <span>
                     Supplier Order ID:{" "}
-                    {lastOrder.supplierOrderId || lastOrder.id}
+                    {lastOrder.supplierOrderId ||
+                      lastOrder.id}
                   </span>
 
                   <button
                     type="button"
                     className="hc-btn hc-btn-secondary"
-                    style={{ padding: 8 }}
-                    onClick={copyOrderId}
+                    style={{
+                      padding: 8
+                    }}
+                    onClick={
+                      copyOrderId
+                    }
                     title="Copy order ID"
                   >
                     <Copy size={15} />
@@ -1563,14 +1854,24 @@ function App() {
               >
                 <button
                   className="hc-btn hc-btn-primary"
-                  onClick={checkOrderStatus}
-                  disabled={statusLoading}
+                  onClick={
+                    checkOrderStatus
+                  }
+                  disabled={
+                    statusLoading
+                  }
                 >
                   {statusLoading ? (
-                    <Loader2 className="hc-spin" size={17} />
+                    <Loader2
+                      className="hc-spin"
+                      size={17}
+                    />
                   ) : (
-                    <RefreshCw size={17} />
+                    <RefreshCw
+                      size={17}
+                    />
                   )}
+
                   Check Status
                 </button>
 
@@ -1578,20 +1879,34 @@ function App() {
                   className="hc-btn hc-btn-secondary"
                   onClick={() => {
                     setLastOrder(null);
+
                     document
-                      .getElementById("services")
-                      ?.scrollIntoView({ behavior: "smooth" });
+                      .getElementById(
+                        "services"
+                      )
+                      ?.scrollIntoView({
+                        behavior:
+                          "smooth"
+                      });
                   }}
                 >
-                  <ShoppingCart size={17} />
+                  <ShoppingCart
+                    size={17}
+                  />
+
                   Order Another
                 </button>
 
                 <button
                   className="hc-btn hc-btn-whatsapp"
-                  onClick={openWhatsApp}
+                  onClick={
+                    openWhatsApp
+                  }
                 >
-                  <MessageCircle size={17} />
+                  <MessageCircle
+                    size={17}
+                  />
+
                   WhatsApp Support
                 </button>
               </div>
@@ -1600,7 +1915,6 @@ function App() {
         )}
       </main>
 
-      {/* FOOTER */}
       <footer className="hc-footer">
         <div className="hc-container hc-footer-inner">
           <div>
@@ -1608,10 +1922,16 @@ function App() {
               <div className="hc-logo-mark">
                 <Zap size={19} />
               </div>
+
               HUPPY CUBE
             </div>
 
-            <div className="hc-muted" style={{ marginTop: 9 }}>
+            <div
+              className="hc-muted"
+              style={{
+                marginTop: 9
+              }}
+            >
               Social Media Marketing Panel
             </div>
           </div>
@@ -1629,7 +1949,9 @@ function App() {
   );
 }
 
-createRoot(document.getElementById("root")).render(
+createRoot(
+  document.getElementById("root")
+).render(
   <React.StrictMode>
     <App />
   </React.StrictMode>
