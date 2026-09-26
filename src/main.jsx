@@ -1,43 +1,227 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
+  Wallet,
+  CreditCard,
   ShoppingCart,
   MessageCircle,
   Instagram,
   Facebook,
-  Youtube
+  Youtube,
+  Music2,
+  RefreshCw,
+  ArrowRight,
+  CheckCircle,
+  Menu,
+  X
 } from "lucide-react";
 import "./index.css";
 
+const WHATSAPP_NUMBER = "254796681162";
+
+const services = [
+  {
+    name: "Instagram Followers",
+    price: "KSh 40",
+    icon: Instagram
+  },
+  {
+    name: "Instagram Likes",
+    price: "KSh 30",
+    icon: Instagram
+  },
+  {
+    name: "TikTok Followers",
+    price: "KSh 50",
+    icon: Music2
+  },
+  {
+    name: "TikTok Likes",
+    price: "KSh 35",
+    icon: Music2
+  },
+  {
+    name: "Facebook Page Likes",
+    price: "KSh 45",
+    icon: Facebook
+  },
+  {
+    name: "YouTube Subscribers",
+    price: "KSh 80",
+    icon: Youtube
+  }
+];
+
 function App() {
+  const [phone, setPhone] = useState("");
+  const [amount, setAmount] = useState("");
+  const [email, setEmail] = useState("");
+  const [balance, setBalance] = useState(0);
+  const [loadingBalance, setLoadingBalance] = useState(false);
+  const [paying, setPaying] = useState(false);
+  const [message, setMessage] = useState("");
+  const [success, setSuccess] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  async function loadBalance(phoneNumber = phone) {
+    if (!phoneNumber.trim()) {
+      setBalance(0);
+      return;
+    }
+
+    setLoadingBalance(true);
+    setMessage("");
+
+    try {
+      const response = await fetch(
+        `/api/wallet?phone=${encodeURIComponent(phoneNumber)}`
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Could not load wallet.");
+      }
+
+      setBalance(Number(data.balance || 0));
+    } catch (error) {
+      setMessage(error.message || "Could not load wallet balance.");
+    } finally {
+      setLoadingBalance(false);
+    }
+  }
+
+  async function startPayment(event) {
+    event.preventDefault();
+
+    setMessage("");
+    setSuccess(false);
+
+    const numericAmount = Number(amount);
+
+    if (!phone.trim()) {
+      setMessage("Enter your phone number.");
+      return;
+    }
+
+    if (!numericAmount || numericAmount < 10) {
+      setMessage("Minimum deposit is KSh 10.");
+      return;
+    }
+
+    setPaying(true);
+
+    try {
+      const response = await fetch("/api/payment", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          amount: numericAmount,
+          phone: phone.trim(),
+          email: email.trim(),
+          firstName: "HUPPY",
+          lastName: "CUSTOMER"
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(
+          data.message || "Unable to create PesaPal payment."
+        );
+      }
+
+      if (!data.redirect_url) {
+        throw new Error("PesaPal did not return a payment URL.");
+      }
+
+      window.location.href = data.redirect_url;
+    } catch (error) {
+      setMessage(error.message || "Payment could not be started.");
+      setPaying(false);
+    }
+  }
+
+  function openWhatsApp(serviceName = "") {
+    const text = serviceName
+      ? `Hello HUPPY CUBE, I want to order ${serviceName}.`
+      : "Hello HUPPY CUBE, I need assistance.";
+
+    window.open(
+      `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`,
+      "_blank"
+    );
+  }
+
+  useEffect(() => {
+    const savedPhone = localStorage.getItem("huppy_phone");
+
+    if (savedPhone) {
+      setPhone(savedPhone);
+      loadBalance(savedPhone);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (phone.trim()) {
+      localStorage.setItem("huppy_phone", phone.trim());
+    }
+  }, [phone]);
+
   return (
     <div className="app">
-      <header>
-        <div className="container nav">
-          <div className="logo">
-            <div className="logo-icon">H</div>
-            <span>
-              HUPPY <b>CUBE</b>
-            </span>
-          </div>
+      {/* HEADER */}
+      <header className="header">
+        <div className="container header-inner">
+          <a href="#home" className="logo">
+            HUPPY <span>CUBE</span>
+          </a>
 
-          <nav>
-            <a href="#home">Home</a>
-            <a href="#services">Services</a>
-            <a href="#orders">Orders</a>
-            <a href="#support">Support</a>
+          <button
+            className="mobile-menu"
+            onClick={() => setMenuOpen(!menuOpen)}
+            aria-label="Menu"
+          >
+            {menuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+
+          <nav className={menuOpen ? "nav nav-open" : "nav"}>
+            <a href="#home" onClick={() => setMenuOpen(false)}>
+              Home
+            </a>
+            <a href="#services" onClick={() => setMenuOpen(false)}>
+              Services
+            </a>
+            <a href="#wallet" onClick={() => setMenuOpen(false)}>
+              Wallet
+            </a>
+            <a href="#support" onClick={() => setMenuOpen(false)}>
+              Support
+            </a>
           </nav>
+
+          <button
+            className="header-whatsapp"
+            onClick={() => openWhatsApp()}
+          >
+            <MessageCircle size={18} />
+            WhatsApp
+          </button>
         </div>
       </header>
 
+      {/* HERO */}
       <main>
-        {/* HERO */}
-        <section className="hero" id="home">
+        <section id="home" className="hero">
           <div className="container hero-grid">
-            <div>
-              <span className="badge">
-                SOCIAL MEDIA MARKETING
-              </span>
+            <div className="hero-content">
+              <div className="badge">
+                <span className="badge-dot"></span>
+                HUPPY CUBE SMM PANEL
+              </div>
 
               <h1>
                 Grow your social media
@@ -45,340 +229,271 @@ function App() {
               </h1>
 
               <p>
-                Fast, simple and affordable social media marketing
-                services for creators, businesses and brands.
+                Fast, simple and convenient social media services.
+                Manage your orders and wallet from one place.
               </p>
 
-              <div className="buttons">
-                <a href="#services" className="primary">
+              <div className="hero-buttons">
+                <a href="#services" className="primary-button">
                   View Services
+                  <ArrowRight size={18} />
                 </a>
 
-                <a
-                  href="https://wa.me/254796681162"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="secondary"
+                <button
+                  className="secondary-button"
+                  onClick={() => openWhatsApp()}
                 >
                   <MessageCircle size={18} />
                   WhatsApp Support
-                </a>
+                </button>
+              </div>
+
+              <div className="hero-features">
+                <div>
+                  <CheckCircle size={18} />
+                  <span>24/7 Ordering</span>
+                </div>
+
+                <div>
+                  <CheckCircle size={18} />
+                  <span>Fast Delivery</span>
+                </div>
+
+                <div>
+                  <CheckCircle size={18} />
+                  <span>Easy Management</span>
+                </div>
               </div>
             </div>
 
-            <div className="hero-card">
-              <ShoppingCart size={42} />
-
-              <h2>Everything you need</h2>
-
-              <p>
-                Manage your social media growth from one simple
-                dashboard.
-              </p>
-
-              <div className="stats">
+            {/* WALLET CARD */}
+            <div className="wallet-card" id="wallet">
+              <div className="wallet-card-top">
                 <div>
-                  <strong>24/7</strong>
-                  <small>Ordering</small>
+                  <span className="small-label">YOUR WALLET</span>
+                  <h2>KSh {balance.toFixed(2)}</h2>
                 </div>
 
-                <div>
-                  <strong>Fast</strong>
-                  <small>Delivery</small>
-                </div>
-
-                <div>
-                  <strong>Easy</strong>
-                  <small>Management</small>
+                <div className="wallet-icon">
+                  <Wallet size={28} />
                 </div>
               </div>
+
+              <div className="wallet-divider"></div>
+
+              <label>Phone Number</label>
+
+              <div className="input-box">
+                <span>🇰🇪</span>
+                <input
+                  type="tel"
+                  placeholder="0712 345 678"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                />
+              </div>
+
+              <button
+                className="refresh-button"
+                onClick={() => loadBalance()}
+                disabled={loadingBalance}
+              >
+                <RefreshCw
+                  size={16}
+                  className={loadingBalance ? "spin" : ""}
+                />
+                {loadingBalance ? "Checking..." : "Check Balance"}
+              </button>
+
+              <form onSubmit={startPayment}>
+                <label>Deposit Amount</label>
+
+                <div className="amount-input">
+                  <span>KSh</span>
+                  <input
+                    type="number"
+                    min="10"
+                    step="1"
+                    placeholder="Enter amount"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                  />
+                </div>
+
+                <label>Email (optional)</label>
+
+                <input
+                  className="email-input"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+
+                <button
+                  type="submit"
+                  className="deposit-button"
+                  disabled={paying}
+                >
+                  <CreditCard size={19} />
+
+                  {paying
+                    ? "Connecting to PesaPal..."
+                    : "Deposit with PesaPal"}
+                </button>
+              </form>
+
+              {message && (
+                <div className="message error-message">
+                  {message}
+                </div>
+              )}
+
+              {success && (
+                <div className="message success-message">
+                  <CheckCircle size={18} />
+                  Payment completed successfully.
+                </div>
+              )}
+
+              <p className="payment-note">
+                Secure payment powered by PesaPal.
+              </p>
             </div>
           </div>
         </section>
 
         {/* SERVICES */}
-        <section className="section" id="services">
+        <section id="services" className="section">
           <div className="container">
-            <span className="eyebrow">OUR SERVICES</span>
+            <div className="section-heading">
+              <div className="badge">OUR SERVICES</div>
 
-            <h2 className="section-title">
-              Social Media Services
-            </h2>
+              <h2>Choose a service</h2>
 
-            <div className="cards">
-              <Service
-                platform="Instagram"
-                title="Instagram Followers"
-                price="KSh 40"
-              />
+              <p>
+                Select the service you need and contact us through
+                WhatsApp to place your order.
+              </p>
+            </div>
 
-              <Service
-                platform="Instagram"
-                title="Instagram Likes"
-                price="KSh 30"
-              />
-
-              <Service
-                platform="TikTok"
-                title="TikTok Followers"
-                price="KSh 50"
-              />
-
-              <Service
-                platform="TikTok"
-                title="TikTok Likes"
-                price="KSh 35"
-              />
-
-              <Service
-                platform="Facebook"
-                title="Facebook Page Likes"
-                price="KSh 45"
-              />
-
-              <Service
-                platform="YouTube"
-                title="YouTube Subscribers"
-                price="KSh 80"
-              />
+            <div className="services-grid">
+              {services.map((service) => (
+                <Service
+                  key={service.name}
+                  service={service}
+                  onOrder={() => openWhatsApp(service.name)}
+                />
+              ))}
             </div>
           </div>
         </section>
 
-        {/* PESAPAL PAYMENT */}
-        <section className="order-section" id="orders">
-          <div className="container order-card">
-            <span className="eyebrow">ADD FUNDS</span>
-
-            <h2>Fund Your HUPPY CUBE Wallet</h2>
-
-            <p>
-              Enter your details below and continue to secure
-              PesaPal checkout.
-            </p>
-
-            <div className="payment-form">
-              <label htmlFor="amount">
-                Amount (KES)
-              </label>
-
-              <input
-                id="amount"
-                type="number"
-                min="10"
-                placeholder="Enter amount"
-              />
-
-              <label htmlFor="phone">
-                Phone Number
-              </label>
-
-              <input
-                id="phone"
-                type="tel"
-                placeholder="2547XXXXXXXX"
-              />
-
-              <label htmlFor="email">
-                Email
-              </label>
-
-              <input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-              />
-
-              <button
-                type="button"
-                className="primary payment-button"
-                onClick={async () => {
-                  const amount = Number(
-                    document.getElementById("amount").value
-                  );
-
-                  const phone =
-                    document
-                      .getElementById("phone")
-                      .value.trim();
-
-                  const email =
-                    document
-                      .getElementById("email")
-                      .value.trim();
-
-                  if (!amount || amount < 10) {
-                    alert(
-                      "Please enter at least KSh 10."
-                    );
-                    return;
-                  }
-
-                  if (!phone) {
-                    alert(
-                      "Please enter your phone number."
-                    );
-                    return;
-                  }
-
-                  const button =
-                    document.querySelector(
-                      ".payment-button"
-                    );
-
-                  try {
-                    button.disabled = true;
-                    button.textContent =
-                      "Connecting to PesaPal...";
-
-                    const response = await fetch(
-                      "/api/payment",
-                      {
-                        method: "POST",
-                        headers: {
-                          "Content-Type":
-                            "application/json"
-                        },
-                        body: JSON.stringify({
-                          amount,
-                          phone,
-                          email
-                        })
-                      }
-                    );
-
-                    const data =
-                      await response.json();
-
-                    if (
-                      !response.ok ||
-                      !data.success
-                    ) {
-                      throw new Error(
-                        data.message ||
-                          "Unable to start PesaPal payment."
-                      );
-                    }
-
-                    if (!data.redirect_url) {
-                      throw new Error(
-                        "PesaPal did not return a checkout URL."
-                      );
-                    }
-
-                    window.location.href =
-                      data.redirect_url;
-                  } catch (error) {
-                    console.error(
-                      "Payment error:",
-                      error
-                    );
-
-                    alert(
-                      error.message ||
-                        "Payment connection failed. Please try again."
-                    );
-
-                    button.disabled = false;
-                    button.textContent =
-                      "Continue to PesaPal";
-                  }
-                }}
-              >
-                Continue to PesaPal
-              </button>
+        {/* QUICK ORDER */}
+        <section className="quick-order">
+          <div className="container quick-order-inner">
+            <div>
+              <span className="small-label">READY TO ORDER?</span>
+              <h2>Start growing your social media today.</h2>
+              <p>
+                Contact HUPPY CUBE on WhatsApp and we'll help you
+                with your order.
+              </p>
             </div>
 
-            <p className="payment-note">
-              Secure checkout powered by PesaPal.
-            </p>
+            <button
+              className="primary-button"
+              onClick={() => openWhatsApp()}
+            >
+              <MessageCircle size={19} />
+              Order on WhatsApp
+            </button>
           </div>
         </section>
 
         {/* SUPPORT */}
-        <section className="support" id="support">
+        <section id="support" className="section support-section">
           <div className="container support-card">
-            <MessageCircle size={38} />
+            <div className="support-icon">
+              <MessageCircle size={32} />
+            </div>
 
             <div>
+              <span className="small-label">CUSTOMER SUPPORT</span>
               <h2>Need help?</h2>
-
               <p>
-                Our support team is available through WhatsApp.
+                Our WhatsApp support is available to help you with
+                payments, orders and services.
               </p>
             </div>
 
-            <a
-              href="https://wa.me/254796681162"
-              target="_blank"
-              rel="noreferrer"
-              className="whatsapp"
+            <button
+              className="primary-button"
+              onClick={() => openWhatsApp()}
             >
               Chat on WhatsApp
-            </a>
+              <ArrowRight size={18} />
+            </button>
           </div>
         </section>
       </main>
 
       {/* FOOTER */}
-      <footer>
-        <div className="container footer">
-          <div className="logo">
-            <div className="logo-icon">H</div>
+      <footer className="footer">
+        <div className="container footer-inner">
+          <div>
+            <div className="logo">
+              HUPPY <span>CUBE</span>
+            </div>
 
-            <span>
-              HUPPY <b>CUBE</b>
-            </span>
+            <p>
+              Social Media Marketing Panel
+            </p>
           </div>
 
-          <p>© 2026 HUPPY CUBE</p>
-
-          <div className="socials">
-            <Instagram size={18} />
-            <Facebook size={18} />
-            <Youtube size={18} />
+          <div className="footer-links">
+            <a href="#home">Home</a>
+            <a href="#services">Services</a>
+            <a href="#wallet">Wallet</a>
+            <a href="#support">Support</a>
           </div>
+        </div>
+
+        <div className="container footer-bottom">
+          © {new Date().getFullYear()} HUPPY CUBE. All rights reserved.
         </div>
       </footer>
     </div>
   );
 }
 
-function Service({
-  platform,
-  title,
-  price
-}) {
+function Service({ service, onOrder }) {
+  const Icon = service.icon;
+
   return (
     <div className="service-card">
-      <span>{platform}</span>
-
-      <h3>{title}</h3>
-
-      <p>
-        High-quality social media marketing service.
-      </p>
-
-      <div className="service-bottom">
-        <strong>{price}</strong>
-
-        <small>per 1K</small>
-
-        <a
-          href="https://wa.me/254796681162"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Order
-        </a>
+      <div className="service-icon">
+        <Icon size={24} />
       </div>
+
+      <div className="service-info">
+        <h3>{service.name}</h3>
+        <p>Starting from</p>
+        <strong>{service.price}</strong>
+      </div>
+
+      <button
+        className="service-order"
+        onClick={onOrder}
+      >
+        <ShoppingCart size={17} />
+        Order
+      </button>
     </div>
   );
 }
 
-createRoot(
-  document.getElementById("root")
-).render(
+createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <App />
   </React.StrictMode>
