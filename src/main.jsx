@@ -4,13 +4,10 @@ import {
   Activity,
   ArrowDownToLine,
   ArrowUpRight,
-  BarChart3,
   CheckCircle2,
   ChevronRight,
   CircleDollarSign,
   Clock3,
-  Copy,
-  ExternalLink,
   Facebook,
   History,
   Instagram,
@@ -24,11 +21,9 @@ import {
   RefreshCw,
   Search,
   Send,
-  Settings,
   ShieldCheck,
   ShoppingCart,
   Sparkles,
-  Ticket,
   TrendingUp,
   User,
   UserPlus,
@@ -75,7 +70,7 @@ const PLATFORM_CONFIG = {
   X: {
     icon: ArrowUpRight,
     color: "#ffffff",
-    keywords: ["twitter", " x ", "x.com"]
+    keywords: ["twitter", "x.com"]
   },
   Spotify: {
     icon: Activity,
@@ -169,9 +164,7 @@ function App() {
     loadServices();
     loadOrders();
 
-    if (
-      window.location.pathname === "/payment-success"
-    ) {
+    if (window.location.pathname === "/payment-success") {
       handlePaymentCallback();
     }
   }, [user]);
@@ -197,9 +190,11 @@ function App() {
       };
     }
 
-    if (!response.ok && !data.success) {
+    if (!response.ok) {
       throw new Error(
-        data.error || "Request failed"
+        data.message ||
+          data.error ||
+          "Request failed"
       );
     }
 
@@ -217,8 +212,12 @@ function App() {
     try {
       const data = await api("/api/auth/me");
 
-      if (data.success && data.user) {
+      if (data.authenticated && data.user) {
         setUser(data.user);
+
+        if (data.wallet) {
+          setBalance(Number(data.wallet.balance || 0));
+        }
       }
     } catch {
       setUser(null);
@@ -231,16 +230,13 @@ function App() {
     setAuthLoading(true);
 
     try {
-      const data = await api(
-        "/api/auth/login",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            email: form.email,
-            password: form.password
-          })
-        }
-      );
+      const data = await api("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify({
+          phone: form.phone,
+          pin: form.pin
+        })
+      });
 
       setUser(data.user);
 
@@ -249,10 +245,7 @@ function App() {
         `Welcome back, ${data.user.name}!`
       );
     } catch (error) {
-      showNotice(
-        "error",
-        error.message
-      );
+      showNotice("error", error.message);
     } finally {
       setAuthLoading(false);
     }
@@ -262,13 +255,14 @@ function App() {
     setAuthLoading(true);
 
     try {
-      const data = await api(
-        "/api/auth/register",
-        {
-          method: "POST",
-          body: JSON.stringify(form)
-        }
-      );
+      const data = await api("/api/auth/register", {
+        method: "POST",
+        body: JSON.stringify({
+          name: form.name,
+          phone: form.phone,
+          pin: form.pin
+        })
+      });
 
       setUser(data.user);
 
@@ -277,10 +271,7 @@ function App() {
         "Your HUPPY CUBE account has been created."
       );
     } catch (error) {
-      showNotice(
-        "error",
-        error.message
-      );
+      showNotice("error", error.message);
     } finally {
       setAuthLoading(false);
     }
@@ -288,15 +279,10 @@ function App() {
 
   async function logout() {
     try {
-      await api(
-        "/api/auth/logout",
-        {
-          method: "POST"
-        }
-      );
-    } catch {
-      // Continue logging out locally.
-    }
+      await api("/api/auth/logout", {
+        method: "POST"
+      });
+    } catch {}
 
     setUser(null);
     setServices([]);
@@ -307,19 +293,13 @@ function App() {
 
   async function loadWallet() {
     try {
-      const data =
-        await api("/api/wallet");
+      const data = await api("/api/wallet");
 
-      if (data.success) {
-        setBalance(
-          Number(data.balance || 0)
-        );
+      if (data.balance !== undefined) {
+        setBalance(Number(data.balance || 0));
       }
     } catch (error) {
-      showNotice(
-        "error",
-        error.message
-      );
+      showNotice("error", error.message);
     }
   }
 
@@ -327,8 +307,7 @@ function App() {
     setLoadingServices(true);
 
     try {
-      const data =
-        await api("/api/services");
+      const data = await api("/api/services");
 
       if (data.success) {
         setServices(
@@ -338,10 +317,7 @@ function App() {
         );
       }
     } catch (error) {
-      showNotice(
-        "error",
-        error.message
-      );
+      showNotice("error", error.message);
     } finally {
       setLoadingServices(false);
     }
@@ -351,40 +327,35 @@ function App() {
     setLoadingOrders(true);
 
     try {
-      const data =
-        await api("/api/orders");
+      const data = await api("/api/orders");
 
       if (data.success) {
-        const list =
-          Array.isArray(data.orders)
-            ? data.orders
-            : [];
+        const list = Array.isArray(data.orders)
+          ? data.orders
+          : [];
 
         setOrders(list);
 
-        const totalSpent =
-          list.reduce(
-            (sum, order) =>
-              sum + Number(order.amount || 0),
-            0
-          );
+        const totalSpent = list.reduce(
+          (sum, order) =>
+            sum + Number(order.amount || 0),
+          0
+        );
 
-        const pending =
-          list.filter((order) =>
-            [
-              "Pending",
-              "Processing",
-              "In progress",
-              "Submitting"
-            ].includes(order.status)
-          ).length;
+        const pending = list.filter((order) =>
+          [
+            "Pending",
+            "Processing",
+            "In progress",
+            "Submitting"
+          ].includes(order.status)
+        ).length;
 
-        const completed =
-          list.filter((order) =>
-            String(order.status || "")
-              .toLowerCase()
-              .includes("complete")
-          ).length;
+        const completed = list.filter((order) =>
+          String(order.status || "")
+            .toLowerCase()
+            .includes("complete")
+        ).length;
 
         setStats({
           totalOrders: list.length,
@@ -394,69 +365,55 @@ function App() {
         });
       }
     } catch (error) {
-      showNotice(
-        "error",
-        error.message
-      );
+      showNotice("error", error.message);
     } finally {
       setLoadingOrders(false);
     }
   }
 
   async function handlePaymentCallback() {
-    const params =
-      new URLSearchParams(
-        window.location.search
-      );
+    const params = new URLSearchParams(
+      window.location.search
+    );
+
+    const reference =
+      params.get("OrderMerchantReference") ||
+      params.get("orderMerchantReference") ||
+      params.get("reference");
 
     const trackingId =
-      params.get("OrderTrackingId");
+      params.get("OrderTrackingId") ||
+      params.get("orderTrackingId");
 
-    if (!trackingId) return;
+    if (!reference && !trackingId) return;
 
     try {
-      const data =
-        await api(
-          `/api/payment-status?orderTrackingId=${encodeURIComponent(
-            trackingId
-          )}`
-        );
+      const query = reference
+        ? `reference=${encodeURIComponent(reference)}`
+        : `reference=${encodeURIComponent(trackingId)}`;
+
+      const data = await api(
+        `/api/payment-status?${query}`
+      );
 
       if (
         data.success &&
-        data.payment?.credited
-      ) {
-        showNotice(
-          "success",
-          `${money(
-            data.payment.amount
-          )} has been added to your wallet.`
-        );
-
-        setBalance(
-          Number(data.balance || 0)
-        );
-      } else if (
-        data.payment?.status ===
-        "COMPLETED"
+        data.payment?.status === "COMPLETED"
       ) {
         await loadWallet();
 
         showNotice(
           "success",
-          "Payment completed successfully."
+          "Payment completed and your wallet has been updated."
         );
       } else {
         showNotice(
           "error",
-          "Payment is not completed yet."
+          "Payment is still pending or was not completed."
         );
       }
     } catch (error) {
-      showNotice(
-        "error",
-        error.message
-      );
+      showNotice("error", error.message);
     }
 
     window.history.replaceState(
@@ -467,16 +424,12 @@ function App() {
   }
 
   async function startDeposit() {
-    const amount =
-      Number(depositAmount);
+    const amount = Number(depositAmount);
 
-    if (
-      !Number.isFinite(amount) ||
-      amount <= 0
-    ) {
+    if (!Number.isFinite(amount) || amount < 10) {
       showNotice(
         "error",
-        "Enter a valid deposit amount."
+        "Minimum deposit is KSh 10."
       );
       return;
     }
@@ -484,35 +437,25 @@ function App() {
     setDepositLoading(true);
 
     try {
-      const data =
-        await api(
-          "/api/payment",
-          {
-            method: "POST",
-            body: JSON.stringify({
-              amount
-            })
-          }
-        );
+      const data = await api("/api/payment", {
+        method: "POST",
+        body: JSON.stringify({
+          amount
+        })
+      });
 
-      if (
-        data.success &&
-        data.redirect_url
-      ) {
-        window.location.href =
-          data.redirect_url;
+      if (data.success && data.redirect_url) {
+        window.location.href = data.redirect_url;
         return;
       }
 
       throw new Error(
-        data.error ||
+        data.message ||
+          data.error ||
           "Could not create payment."
       );
     } catch (error) {
-      showNotice(
-        "error",
-        error.message
-      );
+      showNotice("error", error.message);
     } finally {
       setDepositLoading(false);
     }
@@ -540,61 +483,52 @@ function App() {
     );
   }
 
-  const filteredServices =
-    useMemo(() => {
-      const query =
-        search.trim().toLowerCase();
+  const filteredServices = useMemo(() => {
+    const query = search.trim().toLowerCase();
 
-      return services.filter((service) => {
-        const platform =
-          classifyService(service);
+    return services.filter((service) => {
+      const platform = classifyService(service);
 
-        const platformMatch =
-          selectedPlatform === "All" ||
-          platform === selectedPlatform;
+      const platformMatch =
+        selectedPlatform === "All" ||
+        platform === selectedPlatform;
 
-        const searchMatch =
-          !query ||
-          String(service.name || "")
-            .toLowerCase()
-            .includes(query) ||
-          String(service.category || "")
-            .toLowerCase()
-            .includes(query) ||
-          String(service.type || "")
-            .toLowerCase()
-            .includes(query);
+      const searchMatch =
+        !query ||
+        String(service.name || "")
+          .toLowerCase()
+          .includes(query) ||
+        String(service.category || "")
+          .toLowerCase()
+          .includes(query) ||
+        String(service.type || "")
+          .toLowerCase()
+          .includes(query);
 
-        return (
-          platformMatch &&
-          searchMatch
-        );
-      });
-    }, [
-      services,
-      selectedPlatform,
-      search
-    ]);
+      return platformMatch && searchMatch;
+    });
+  }, [
+    services,
+    selectedPlatform,
+    search
+  ]);
 
-  const platformCounts =
-    useMemo(() => {
-      const counts = {
-        All: services.length
-      };
+  const platformCounts = useMemo(() => {
+    const counts = {
+      All: services.length
+    };
 
-      Object.keys(
-        PLATFORM_CONFIG
-      ).forEach((platform) => {
-        counts[platform] =
-          services.filter(
-            (service) =>
-              classifyService(service) ===
-              platform
-          ).length;
-      });
+    Object.keys(PLATFORM_CONFIG).forEach(
+      (platform) => {
+        counts[platform] = services.filter(
+          (service) =>
+            classifyService(service) === platform
+        ).length;
+      }
+    );
 
-      return counts;
-    }, [services]);
+    return counts;
+  }, [services]);
 
   if (checkingAuth) {
     return (
@@ -645,22 +579,16 @@ function App() {
         user={user}
         onLogout={logout}
         open={sidebarOpen}
-        close={() =>
-          setSidebarOpen(false)
-        }
+        close={() => setSidebarOpen(false)}
       />
 
       <main className="main-area">
         <Header
           user={user}
           balance={balance}
-          onMenu={() =>
-            setSidebarOpen(true)
-          }
+          onMenu={() => setSidebarOpen(true)}
           onRefresh={refreshAll}
-          onDeposit={() =>
-            setActivePage("wallet")
-          }
+          onDeposit={() => setActivePage("wallet")}
         />
 
         {activePage === "dashboard" && (
@@ -668,17 +596,10 @@ function App() {
             user={user}
             balance={balance}
             stats={stats}
-            services={services}
             orders={orders}
-            onDeposit={() =>
-              setActivePage("wallet")
-            }
-            onServices={() =>
-              setActivePage("services")
-            }
-            onOrders={() =>
-              setActivePage("orders")
-            }
+            onDeposit={() => setActivePage("wallet")}
+            onServices={() => setActivePage("services")}
+            onOrders={() => setActivePage("orders")}
             onSupport={openWhatsApp}
           />
         )}
@@ -686,22 +607,14 @@ function App() {
         {activePage === "services" && (
           <ServicesPage
             services={filteredServices}
-            platformCounts={
-              platformCounts
-            }
-            selectedPlatform={
-              selectedPlatform
-            }
-            setSelectedPlatform={
-              setSelectedPlatform
-            }
+            platformCounts={platformCounts}
+            selectedPlatform={selectedPlatform}
+            setSelectedPlatform={setSelectedPlatform}
             search={search}
             setSearch={setSearch}
             loading={loadingServices}
             onRefresh={loadServices}
-            onSelect={(service) =>
-              setSelectedService(service)
-            }
+            onSelect={setSelectedService}
           />
         )}
 
@@ -716,12 +629,8 @@ function App() {
         {activePage === "wallet" && (
           <WalletPage
             balance={balance}
-            depositAmount={
-              depositAmount
-            }
-            setDepositAmount={
-              setDepositAmount
-            }
+            depositAmount={depositAmount}
+            setDepositAmount={setDepositAmount}
             loading={depositLoading}
             onDeposit={startDeposit}
             onRefresh={loadWallet}
@@ -748,9 +657,7 @@ function App() {
         <OrderModal
           service={selectedService}
           balance={balance}
-          onClose={() =>
-            setSelectedService(null)
-          }
+          onClose={() => setSelectedService(null)}
           onSuccess={async () => {
             setSelectedService(null);
             await loadWallet();
@@ -774,7 +681,7 @@ function App() {
 
 
 // ============================================================
-// AUTH SCREEN
+// AUTH
 // ============================================================
 
 function AuthScreen({
@@ -784,14 +691,12 @@ function AuthScreen({
   onRegister,
   loading
 }) {
-  const [form, setForm] =
-    useState({
-      name: "",
-      email: "",
-      phone: "",
-      password: "",
-      confirmPassword: ""
-    });
+  const [form, setForm] = useState({
+    name: "",
+    phone: "",
+    pin: "",
+    confirmPin: ""
+  });
 
   function update(key, value) {
     setForm((old) => ({
@@ -804,10 +709,7 @@ function AuthScreen({
     event.preventDefault();
 
     if (mode === "register") {
-      if (
-        form.password !==
-        form.confirmPassword
-      ) {
+      if (form.pin !== form.confirmPin) {
         return;
       }
 
@@ -895,8 +797,8 @@ function AuthScreen({
 
               <p>
                 {mode === "login"
-                  ? "Sign in to your HUPPY CUBE account."
-                  : "Start your social growth journey."}
+                  ? "Sign in with your phone and PIN."
+                  : "Create your free HUPPY CUBE account."}
               </p>
             </div>
           </div>
@@ -906,134 +808,102 @@ function AuthScreen({
             onSubmit={submit}
           >
             {mode === "register" && (
-              <>
-                <label>
-                  Full name
-
-                  <input
-                    value={form.name}
-                    onChange={(e) =>
-                      update(
-                        "name",
-                        e.target.value
-                      )
-                    }
-                    placeholder="Your full name"
-                    required
-                  />
-                </label>
-
-                <label>
-                  Phone number
-
-                  <input
-                    value={form.phone}
-                    onChange={(e) =>
-                      update(
-                        "phone",
-                        e.target.value
-                      )
-                    }
-                    placeholder="07XXXXXXXX"
-                    required
-                  />
-                </label>
-              </>
-            )}
-
-            <label>
-              Email address
-
-              <input
-                type="email"
-                value={form.email}
-                onChange={(e) =>
-                  update(
-                    "email",
-                    e.target.value
-                  )
-                }
-                placeholder="you@example.com"
-                required
-              />
-            </label>
-
-            {mode === "login" && (
               <label>
-                Password
+                Full name
 
                 <input
-                  type="password"
-                  value={form.password}
+                  value={form.name}
                   onChange={(e) =>
                     update(
-                      "password",
+                      "name",
                       e.target.value
                     )
                   }
-                  placeholder="Your password"
+                  placeholder="Your full name"
                   required
                 />
               </label>
             )}
 
+            <label>
+              Phone number
+
+              <input
+                type="tel"
+                value={form.phone}
+                onChange={(e) =>
+                  update(
+                    "phone",
+                    e.target.value
+                  )
+                }
+                placeholder="07XXXXXXXX"
+                inputMode="tel"
+                required
+              />
+            </label>
+
+            <label>
+              6-digit PIN
+
+              <input
+                type="password"
+                value={form.pin}
+                onChange={(e) =>
+                  update(
+                    "pin",
+                    e.target.value
+                      .replace(/\D/g, "")
+                      .slice(0, 6)
+                  )
+                }
+                placeholder="••••••"
+                inputMode="numeric"
+                maxLength={6}
+                pattern="[0-9]{6}"
+                required
+              />
+            </label>
+
             {mode === "register" && (
-              <>
-                <label>
-                  Password
+              <label>
+                Confirm PIN
 
-                  <input
-                    type="password"
-                    value={form.password}
-                    onChange={(e) =>
-                      update(
-                        "password",
-                        e.target.value
-                      )
-                    }
-                    placeholder="At least 8 characters"
-                    minLength={8}
-                    required
-                  />
-                </label>
+                <input
+                  type="password"
+                  value={form.confirmPin}
+                  onChange={(e) =>
+                    update(
+                      "confirmPin",
+                      e.target.value
+                        .replace(/\D/g, "")
+                        .slice(0, 6)
+                    )
+                  }
+                  placeholder="••••••"
+                  inputMode="numeric"
+                  maxLength={6}
+                  pattern="[0-9]{6}"
+                  required
+                />
 
-                <label>
-                  Confirm password
-
-                  <input
-                    type="password"
-                    value={
-                      form.confirmPassword
-                    }
-                    onChange={(e) =>
-                      update(
-                        "confirmPassword",
-                        e.target.value
-                      )
-                    }
-                    placeholder="Repeat password"
-                    minLength={8}
-                    required
-                  />
-
-                  {form.confirmPassword &&
-                    form.password !==
-                      form.confirmPassword && (
-                      <small className="field-error">
-                        Passwords do not match.
-                      </small>
-                    )}
-                </label>
-              </>
+                {form.confirmPin &&
+                  form.pin !==
+                    form.confirmPin && (
+                    <small className="field-error">
+                      PINs do not match.
+                    </small>
+                  )}
+              </label>
             )}
 
             <button
               className="primary-button auth-submit"
               disabled={
                 loading ||
+                form.pin.length !== 6 ||
                 (mode === "register" &&
-                  form.password !==
-                    form.confirmPassword)
+                  form.pin !== form.confirmPin)
               }
             >
               {loading ? (
@@ -1086,8 +956,7 @@ function AuthScreen({
 
           <div className="auth-security">
             <ShieldCheck size={15} />
-            Your account is protected with
-            secure authentication.
+            Secure phone + PIN authentication.
           </div>
         </div>
       </div>
@@ -1159,6 +1028,7 @@ function Sidebar({
             <div className="brand-name">
               HUPPY <span>CUBE</span>
             </div>
+
             <div className="brand-subtitle">
               SOCIAL GROWTH
             </div>
@@ -1181,7 +1051,7 @@ function Sidebar({
 
           <div className="sidebar-user-info">
             <strong>{user.name}</strong>
-            <span>{user.email}</span>
+            <span>{user.phone}</span>
           </div>
         </div>
 
@@ -1226,7 +1096,7 @@ function Sidebar({
 
           <div>
             <strong>Need help?</strong>
-            <span>Support is available.</span>
+            <span>WhatsApp support available.</span>
           </div>
         </div>
 
@@ -1274,7 +1144,10 @@ function Header({
 
         <h1>
           Good day,{" "}
-          <span>{user.name?.split(" ")[0]}</span>
+          <span>
+            {user.name?.split(" ")[0]}
+          </span>
+
           <span className="wave">✦</span>
         </h1>
       </div>
@@ -1317,15 +1190,13 @@ function Dashboard({
   user,
   balance,
   stats,
-  services,
   orders,
   onDeposit,
   onServices,
   onOrders,
   onSupport
 }) {
-  const latestOrders =
-    orders.slice(0, 5);
+  const latestOrders = orders.slice(0, 5);
 
   return (
     <section className="content">
@@ -1333,7 +1204,7 @@ function Dashboard({
         <div className="hero-content">
           <div className="hero-badge">
             <Sparkles size={14} />
-            HUPPY CUBE PRO
+            HUPPY CUBE
           </div>
 
           <h2>
@@ -1426,6 +1297,7 @@ function Dashboard({
               <span className="section-kicker">
                 QUICK START
               </span>
+
               <h3>Popular platforms</h3>
             </div>
 
@@ -1448,9 +1320,7 @@ function Dashboard({
               "WhatsApp"
             ].map((platform) => {
               const config =
-                PLATFORM_CONFIG[
-                  platform
-                ];
+                PLATFORM_CONFIG[platform];
 
               const Icon = config.icon;
 
@@ -1471,17 +1341,11 @@ function Dashboard({
                   </div>
 
                   <div>
-                    <strong>
-                      {platform}
-                    </strong>
-                    <span>
-                      Social services
-                    </span>
+                    <strong>{platform}</strong>
+                    <span>Social services</span>
                   </div>
 
-                  <ChevronRight
-                    size={16}
-                  />
+                  <ChevronRight size={16} />
                 </button>
               );
             })}
@@ -1522,6 +1386,7 @@ function Dashboard({
             <span className="section-kicker">
               RECENT ACTIVITY
             </span>
+
             <h3>Recent orders</h3>
           </div>
 
@@ -1543,9 +1408,7 @@ function Dashboard({
             onClick={onServices}
           />
         ) : (
-          <OrderList
-            orders={latestOrders}
-          />
+          <OrderList orders={latestOrders} />
         )}
       </div>
 
@@ -1555,12 +1418,10 @@ function Dashboard({
         </div>
 
         <div>
-          <strong>
-            Need help with an order?
-          </strong>
+          <strong>Need help with an order?</strong>
           <span>
-            Contact HUPPY CUBE support
-            directly on WhatsApp.
+            Contact HUPPY CUBE support directly
+            on WhatsApp.
           </span>
         </div>
 
@@ -1569,7 +1430,7 @@ function Dashboard({
           onClick={onSupport}
         >
           Chat with support
-          <ExternalLink size={16} />
+          <ArrowUpRight size={16} />
         </button>
       </div>
     </section>
@@ -1641,9 +1502,7 @@ function ServicesPage({
 
           {search && (
             <button
-              onClick={() =>
-                setSearch("")
-              }
+              onClick={() => setSearch("")}
             >
               <X size={16} />
             </button>
@@ -1657,11 +1516,7 @@ function ServicesPage({
         >
           <RefreshCw
             size={18}
-            className={
-              loading
-                ? "spin"
-                : ""
-            }
+            className={loading ? "spin" : ""}
           />
         </button>
       </div>
@@ -1669,39 +1524,30 @@ function ServicesPage({
       <div className="platform-tabs">
         <PlatformTab
           name="All"
-          count={
-            platformCounts.All || 0
-          }
-          active={
-            selectedPlatform === "All"
-          }
+          count={platformCounts.All || 0}
+          active={selectedPlatform === "All"}
           onClick={() =>
             setSelectedPlatform("All")
           }
         />
 
-        {Object.keys(
-          PLATFORM_CONFIG
-        ).map((platform) => (
-          <PlatformTab
-            key={platform}
-            name={platform}
-            count={
-              platformCounts[
-                platform
-              ] || 0
-            }
-            active={
-              selectedPlatform ===
-              platform
-            }
-            onClick={() =>
-              setSelectedPlatform(
-                platform
-              )
-            }
-          />
-        ))}
+        {Object.keys(PLATFORM_CONFIG).map(
+          (platform) => (
+            <PlatformTab
+              key={platform}
+              name={platform}
+              count={
+                platformCounts[platform] || 0
+              }
+              active={
+                selectedPlatform === platform
+              }
+              onClick={() =>
+                setSelectedPlatform(platform)
+              }
+            />
+          )
+        )}
       </div>
 
       {loading ? (
@@ -1722,30 +1568,23 @@ function ServicesPage({
           <div className="service-result-bar">
             <span>
               Showing{" "}
-              <strong>
-                {services.length}
-              </strong>{" "}
+              <strong>{services.length}</strong>{" "}
               services
             </span>
 
             <span className="service-note">
-              Prices include your service
-              rate
+              Customer prices shown
             </span>
           </div>
 
           <div className="services-grid">
-            {services.map(
-              (service) => (
-                <ServiceCard
-                  key={
-                    service.service_id
-                  }
-                  service={service}
-                  onSelect={onSelect}
-                />
-              )
-            )}
+            {services.map((service) => (
+              <ServiceCard
+                key={service.service_id}
+                service={service}
+                onSelect={onSelect}
+              />
+            ))}
           </div>
         </>
       )}
@@ -1759,11 +1598,8 @@ function PlatformTab({
   active,
   onClick
 }) {
-  const config =
-    PLATFORM_CONFIG[name];
-
-  const Icon =
-    config?.icon || Sparkles;
+  const config = PLATFORM_CONFIG[name];
+  const Icon = config?.icon || Sparkles;
 
   return (
     <button
@@ -1773,9 +1609,7 @@ function PlatformTab({
       onClick={onClick}
     >
       <Icon size={16} />
-
       <span>{name}</span>
-
       <b>{count}</b>
     </button>
   );
@@ -1785,16 +1619,17 @@ function ServiceCard({
   service,
   onSelect
 }) {
-  const platform =
-    classifyService(service);
-
-  const config =
-    PLATFORM_CONFIG[platform];
-
+  const platform = classifyService(service);
+  const config = PLATFORM_CONFIG[platform];
   const Icon = config.icon;
 
-  const customerRate =
-    Number(service.customer_rate || 0);
+  /*
+   * New backend returns `rate`,
+   * not customer_rate.
+   */
+  const customerRate = Number(
+    service.rate || 0
+  );
 
   return (
     <div className="service-card">
@@ -1802,35 +1637,31 @@ function ServiceCard({
         <div
           className="service-platform-icon"
           style={{
-            "--platform":
-              config.color
+            "--platform": config.color
           }}
         >
           <Icon size={20} />
         </div>
 
         <span className="service-type">
-          {service.type ||
-            "Social service"}
+          {service.type || "Social service"}
         </span>
       </div>
 
-      <h3>
-        {service.name}
-      </h3>
+      <h3>{service.name}</h3>
 
       <div className="service-meta">
         <span>
           Min{" "}
           {Number(
-            service.min_quantity || 0
+            service.min || 0
           ).toLocaleString()}
         </span>
 
         <span>
           Max{" "}
           {Number(
-            service.max_quantity || 0
+            service.max || 0
           ).toLocaleString()}
         </span>
       </div>
@@ -1838,21 +1669,15 @@ function ServiceCard({
       <div className="service-price">
         <div>
           <strong>
-            {money(
-              customerRate
-            )}
+            {money(customerRate)}
           </strong>
 
-          <span>
-            / 1,000
-          </span>
+          <span>/ 1,000</span>
         </div>
 
         <button
           className="order-button"
-          onClick={() =>
-            onSelect(service)
-          }
+          onClick={() => onSelect(service)}
         >
           Order
           <ArrowUpRight size={16} />
@@ -1875,33 +1700,25 @@ function OrderModal({
   api,
   showNotice
 }) {
-  const [link, setLink] =
-    useState("");
+  const [link, setLink] = useState("");
 
-  const [quantity, setQuantity] =
-    useState(
-      Number(service.min_quantity || 100)
-    );
+  const [quantity, setQuantity] = useState(
+    Number(service.min || 100)
+  );
 
-  const [loading, setLoading] =
-    useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const rate =
-    Number(
-      service.customer_rate || 0
-    );
+  const rate = Number(service.rate || 0);
 
-  const cost =
-    Number(
-      (
-        rate *
-        Number(quantity || 0) /
-        1000
-      ).toFixed(2)
-    );
+  const cost = Number(
+    (
+      rate *
+      Number(quantity || 0) /
+      1000
+    ).toFixed(2)
+  );
 
-  const insufficient =
-    balance < cost;
+  const insufficient = balance < cost;
 
   async function submit(event) {
     event.preventDefault();
@@ -1914,24 +1731,22 @@ function OrderModal({
       return;
     }
 
-    if (
-      quantity <
-      Number(service.min_quantity)
-    ) {
+    if (quantity < Number(service.min)) {
       showNotice(
         "error",
-        `Minimum quantity is ${service.min_quantity}.`
+        `Minimum quantity is ${Number(
+          service.min
+        ).toLocaleString()}.`
       );
       return;
     }
 
-    if (
-      quantity >
-      Number(service.max_quantity)
-    ) {
+    if (quantity > Number(service.max)) {
       showNotice(
         "error",
-        `Maximum quantity is ${service.max_quantity}.`
+        `Maximum quantity is ${Number(
+          service.max
+        ).toLocaleString()}.`
       );
       return;
     }
@@ -1947,43 +1762,35 @@ function OrderModal({
     setLoading(true);
 
     try {
-      const data =
-        await api(
-          "/api/smm/order",
-          {
-            method: "POST",
-            body: JSON.stringify({
-              service_id:
-                Number(
-                  service.service_id
-                ),
-              link:
-                link.trim(),
-              quantity:
-                Number(quantity)
-            })
-          }
-        );
+      const data = await api("/api/smm/order", {
+        method: "POST",
+        body: JSON.stringify({
+          service_id: Number(
+            service.service_id
+          ),
+          link: link.trim(),
+          quantity: Number(quantity)
+        })
+      });
 
       if (!data.success) {
         throw new Error(
-          data.error ||
+          data.message ||
+            data.error ||
             "Order failed"
         );
       }
 
       showNotice(
         "success",
-        `Order #${data.order_id} created successfully.`
+        `Order #${
+          data.order?.id || ""
+        } created successfully.`
       );
 
       await onSuccess();
-
     } catch (error) {
-      showNotice(
-        "error",
-        error.message
-      );
+      showNotice("error", error.message);
     } finally {
       setLoading(false);
     }
@@ -2009,25 +1816,23 @@ function OrderModal({
               SERVICE #{service.service_id}
             </span>
 
-            <h2>
-              {service.name}
-            </h2>
+            <h2>{service.name}</h2>
           </div>
         </div>
 
         <div className="order-price-box">
           <div>
             <span>Your price</span>
+
             <strong>
               {money(rate)}
-              <small>
-                / 1,000
-              </small>
+              <small>/ 1,000</small>
             </strong>
           </div>
 
           <div>
             <span>Wallet</span>
+
             <strong>
               {money(balance)}
             </strong>
@@ -2044,9 +1849,7 @@ function OrderModal({
             <input
               value={link}
               onChange={(e) =>
-                setLink(
-                  e.target.value
-                )
+                setLink(e.target.value)
               }
               placeholder="https://..."
               required
@@ -2059,17 +1862,11 @@ function OrderModal({
             <input
               type="number"
               value={quantity}
-              min={
-                service.min_quantity
-              }
-              max={
-                service.max_quantity
-              }
+              min={service.min}
+              max={service.max}
               onChange={(e) =>
                 setQuantity(
-                  Number(
-                    e.target.value
-                  )
+                  Number(e.target.value)
                 )
               }
               required
@@ -2078,23 +1875,18 @@ function OrderModal({
             <small className="input-help">
               Min{" "}
               {Number(
-                service.min_quantity
+                service.min
               ).toLocaleString()}
               {" "}— Max{" "}
               {Number(
-                service.max_quantity
+                service.max
               ).toLocaleString()}
             </small>
           </label>
 
           <div className="order-summary">
-            <span>
-              Order total
-            </span>
-
-            <strong>
-              {money(cost)}
-            </strong>
+            <span>Order total</span>
+            <strong>{money(cost)}</strong>
           </div>
 
           {insufficient && (
@@ -2103,9 +1895,7 @@ function OrderModal({
 
               <span>
                 You need{" "}
-                {money(
-                  cost - balance
-                )}{" "}
+                {money(cost - balance)}{" "}
                 more in your wallet.
               </span>
             </div>
@@ -2113,10 +1903,7 @@ function OrderModal({
 
           <button
             className="primary-button full"
-            disabled={
-              loading ||
-              insufficient
-            }
+            disabled={loading || insufficient}
           >
             {loading ? (
               <>
@@ -2162,11 +1949,7 @@ function OrdersPage({
           >
             <RefreshCw
               size={18}
-              className={
-                loading
-                  ? "spin"
-                  : ""
-              }
+              className={loading ? "spin" : ""}
             />
           </button>
         }
@@ -2194,67 +1977,51 @@ function OrdersPage({
               </thead>
 
               <tbody>
-                {orders.map(
-                  (order) => (
-                    <tr
-                      key={order.id}
-                    >
-                      <td>
-                        <strong>
-                          #
-                          {
-                            order.id
-                          }
-                        </strong>
-                      </td>
+                {orders.map((order) => (
+                  <tr key={order.id}>
+                    <td>
+                      <strong>
+                        #{order.id}
+                      </strong>
+                    </td>
 
-                      <td>
-                        <div className="order-service">
-                          <div className="mini-icon">
-                            <Sparkles
-                              size={14}
-                            />
-                          </div>
-
-                          <span>
-                            {
-                              order.service_name
-                            }
-                          </span>
+                    <td>
+                      <div className="order-service">
+                        <div className="mini-icon">
+                          <Sparkles size={14} />
                         </div>
-                      </td>
 
-                      <td>
-                        {Number(
-                          order.quantity ||
-                            0
-                        ).toLocaleString()}
-                      </td>
+                        <span>
+                          {order.service_name}
+                        </span>
+                      </div>
+                    </td>
 
-                      <td>
-                        <strong>
-                          {money(
-                            order.amount
-                          )}
-                        </strong>
-                      </td>
+                    <td>
+                      {Number(
+                        order.quantity || 0
+                      ).toLocaleString()}
+                    </td>
 
-                      <td>
-                        <StatusBadge
-                          status={
-                            order.status
-                          }
-                        />
-                      </td>
+                    <td>
+                      <strong>
+                        {money(order.amount)}
+                      </strong>
+                    </td>
 
-                      <td>
-                        {formatDate(
-                          order.created_at
-                        )}
-                      </td>
-                    </tr>
-                  )
-                )}
+                    <td>
+                      <StatusBadge
+                        status={order.status}
+                      />
+                    </td>
+
+                    <td>
+                      {formatDate(
+                        order.created_at
+                      )}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -2264,9 +2031,7 @@ function OrdersPage({
   );
 }
 
-function OrderList({
-  orders
-}) {
+function OrderList({ orders }) {
   return (
     <div className="recent-orders">
       {orders.map((order) => (
@@ -2280,8 +2045,7 @@ function OrderList({
 
           <div className="recent-order-info">
             <strong>
-              #{order.id} ·{" "}
-              {order.service_name}
+              #{order.id} · {order.service_name}
             </strong>
 
             <span>
@@ -2307,22 +2071,17 @@ function OrderList({
   );
 }
 
-function StatusBadge({
-  status
-}) {
-  const value =
-    String(status || "Pending");
+function StatusBadge({ status }) {
+  const value = String(
+    status || "Pending"
+  );
 
-  const normalized =
-    value.toLowerCase();
+  const normalized = value.toLowerCase();
 
   let className =
     "status-badge pending";
 
-  if (
-    normalized.includes("complete") ||
-    normalized === "completed"
-  ) {
+  if (normalized.includes("complete")) {
     className =
       "status-badge completed";
   } else if (
@@ -2389,13 +2148,9 @@ function WalletPage({
 
           <div className="wallet-card-header">
             <div>
-              <span>
-                AVAILABLE BALANCE
-              </span>
+              <span>AVAILABLE BALANCE</span>
 
-              <h2>
-                {money(balance)}
-              </h2>
+              <h2>{money(balance)}</h2>
             </div>
 
             <div className="wallet-large-icon">
@@ -2404,9 +2159,7 @@ function WalletPage({
           </div>
 
           <div className="wallet-card-footer">
-            <span>
-              Ready to spend
-            </span>
+            <span>Ready to spend</span>
 
             <div className="wallet-secure">
               <ShieldCheck size={15} />
@@ -2420,14 +2173,11 @@ function WalletPage({
             ADD FUNDS
           </div>
 
-          <h3>
-            Deposit with PesaPal
-          </h3>
+          <h3>Deposit with PesaPal</h3>
 
           <p>
-            Enter the amount you want
-            to add to your HUPPY CUBE
-            wallet.
+            Enter the amount you want to add
+            to your HUPPY CUBE wallet.
           </p>
 
           <label className="deposit-input">
@@ -2435,7 +2185,7 @@ function WalletPage({
 
             <input
               type="number"
-              min="1"
+              min="10"
               value={depositAmount}
               onChange={(e) =>
                 setDepositAmount(
@@ -2447,21 +2197,19 @@ function WalletPage({
           </label>
 
           <div className="quick-amounts">
-            {quickAmounts.map(
-              (amount) => (
-                <button
-                  key={amount}
-                  onClick={() =>
-                    setDepositAmount(
-                      String(amount)
-                    )
-                  }
-                >
-                  KSh{" "}
-                  {amount.toLocaleString()}
-                </button>
-              )
-            )}
+            {quickAmounts.map((amount) => (
+              <button
+                key={amount}
+                onClick={() =>
+                  setDepositAmount(
+                    String(amount)
+                  )
+                }
+              >
+                KSh{" "}
+                {amount.toLocaleString()}
+              </button>
+            ))}
           </div>
 
           <button
@@ -2543,7 +2291,7 @@ function ProfilePage({
       <PageIntro
         kicker="ACCOUNT"
         title="Your profile"
-        description="Manage your HUPPY CUBE account information."
+        description="Your HUPPY CUBE account information."
       />
 
       <div className="profile-card section-card">
@@ -2556,6 +2304,7 @@ function ProfilePage({
 
           <div>
             <h2>{user.name}</h2>
+
             <span>
               HUPPY CUBE customer
             </span>
@@ -2567,12 +2316,6 @@ function ProfilePage({
             icon={User}
             label="Full name"
             value={user.name}
-          />
-
-          <ProfileField
-            icon={Ticket}
-            label="Email address"
-            value={user.email}
           />
 
           <ProfileField
@@ -2615,7 +2358,7 @@ function ProfileField({
 
 
 // ============================================================
-// COMMON COMPONENTS
+// COMMON
 // ============================================================
 
 function PageIntro({
@@ -2677,19 +2420,19 @@ function EmptyState({
 function ServiceSkeleton() {
   return (
     <div className="services-grid">
-      {Array.from({
-        length: 8
-      }).map((_, index) => (
-        <div
-          className="service-skeleton"
-          key={index}
-        >
-          <div />
-          <div />
-          <div />
-          <div />
-        </div>
-      ))}
+      {Array.from({ length: 8 }).map(
+        (_, index) => (
+          <div
+            className="service-skeleton"
+            key={index}
+          >
+            <div />
+            <div />
+            <div />
+            <div />
+          </div>
+        )
+      )}
     </div>
   );
 }
@@ -2706,8 +2449,7 @@ function Notice({
           : "notice-error"
       }`}
     >
-      {notice.type ===
-      "success" ? (
+      {notice.type === "success" ? (
         <CheckCircle2 size={19} />
       ) : (
         <X size={19} />
@@ -2715,9 +2457,7 @@ function Notice({
 
       <span>{notice.message}</span>
 
-      <button
-        onClick={onClose}
-      >
+      <button onClick={onClose}>
         <X size={16} />
       </button>
     </div>
@@ -2727,19 +2467,11 @@ function Notice({
 function formatDate(value) {
   if (!value) return "-";
 
-  const date =
-    new Date(
-      String(value).replace(
-        " ",
-        "T"
-      ) + "Z"
-    );
+  const date = new Date(
+    String(value).replace(" ", "T") + "Z"
+  );
 
-  if (
-    Number.isNaN(
-      date.getTime()
-    )
-  ) {
+  if (Number.isNaN(date.getTime())) {
     return value;
   }
 
