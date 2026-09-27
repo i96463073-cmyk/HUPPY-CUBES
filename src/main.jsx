@@ -1,114 +1,110 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { createRoot } from "react-dom/client";
 import {
-  ArrowLeft,
+  Activity,
+  ArrowDownToLine,
+  ArrowUpRight,
+  BarChart3,
   CheckCircle2,
   ChevronRight,
-  CreditCard,
+  CircleDollarSign,
+  Clock3,
+  Copy,
+  ExternalLink,
+  Facebook,
+  History,
   Instagram,
-  Loader2,
+  LayoutDashboard,
+  LogIn,
+  LogOut,
   Menu,
   MessageCircle,
-  Music2,
   Package,
+  Plus,
   RefreshCw,
   Search,
   Send,
+  Settings,
+  ShieldCheck,
   ShoppingCart,
   Sparkles,
+  Ticket,
+  TrendingUp,
+  User,
+  UserPlus,
   Wallet,
   X,
-  Zap
+  Youtube
 } from "lucide-react";
-import { createRoot } from "react-dom/client";
 
-const SUPPORT_NUMBER = "254796681162";
+import "./index.css";
+
+const WHATSAPP = "254796681162";
 
 const PLATFORM_CONFIG = {
   Facebook: {
-    icon: "🔵",
-    color: "#1877F2",
-    keywords: ["facebook", "fb ", "fb likes", "fb followers", "fb comments"]
+    icon: Facebook,
+    color: "#1877f2",
+    keywords: ["facebook", "fb"]
   },
   Instagram: {
-    icon: "📸",
-    color: "#E1306C",
-    keywords: ["instagram", "ig ", "ig likes", "ig followers", "ig comments"]
+    icon: Instagram,
+    color: "#e1306c",
+    keywords: ["instagram", "ig"]
   },
   TikTok: {
-    icon: "🎵",
-    color: "#111111",
-    keywords: ["tiktok", "tik tok", "tt followers", "tt likes", "tt views"]
+    icon: Activity,
+    color: "#25f4ee",
+    keywords: ["tiktok"]
   },
   YouTube: {
-    icon: "▶️",
-    color: "#FF0000",
-    keywords: ["youtube", "yt ", "yt views", "yt subscribers", "yt likes"]
+    icon: Youtube,
+    color: "#ff0000",
+    keywords: ["youtube", "yt"]
   },
   Telegram: {
-    icon: "✈️",
-    color: "#229ED9",
-    keywords: ["telegram", "tg ", "telegram members", "telegram views"]
-  },
-  "X / Twitter": {
-    icon: "𝕏",
-    color: "#111111",
-    keywords: ["twitter", "x followers", "x likes", "x retweets"]
+    icon: Send,
+    color: "#229ed9",
+    keywords: ["telegram", "tg"]
   },
   WhatsApp: {
-    icon: "💬",
-    color: "#25D366",
-    keywords: ["whatsapp", "wa followers", "wa channel"]
+    icon: MessageCircle,
+    color: "#25d366",
+    keywords: ["whatsapp", "wa"]
+  },
+  X: {
+    icon: ArrowUpRight,
+    color: "#ffffff",
+    keywords: ["twitter", " x ", "x.com"]
   },
   Spotify: {
-    icon: "🎧",
-    color: "#1DB954",
-    keywords: ["spotify", "spotify plays", "spotify followers"]
+    icon: Activity,
+    color: "#1ed760",
+    keywords: ["spotify"]
   },
   Other: {
-    icon: "✨",
-    color: "#7c3aed",
+    icon: Sparkles,
+    color: "#a855f7",
     keywords: []
   }
 };
 
-function getSavedPhone() {
-  try {
-    return window.localStorage.getItem("huppy_phone") || "";
-  } catch {
-    return "";
-  }
+function money(value) {
+  return `KSh ${Number(value || 0).toLocaleString("en-KE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })}`;
 }
 
-function savePhone(value) {
-  try {
-    window.localStorage.setItem("huppy_phone", value);
-  } catch {
-    // Ignore storage errors.
-  }
-}
+function classifyService(service) {
+  const text =
+    `${service.name || ""} ${service.category || ""} ${service.type || ""}`
+      .toLowerCase();
 
-function detectPlatform(service) {
-  const text = `${service?.name || ""} ${service?.category || ""} ${
-    service?.type || ""
-  }`.toLowerCase();
-
-  const platforms = [
-    "Facebook",
-    "Instagram",
-    "TikTok",
-    "YouTube",
-    "Telegram",
-    "X / Twitter",
-    "WhatsApp",
-    "Spotify"
-  ];
-
-  for (const platform of platforms) {
-    const keywords = PLATFORM_CONFIG[platform]?.keywords || [];
-
+  for (const [platform, config] of Object.entries(PLATFORM_CONFIG)) {
     if (
-      keywords.some((keyword) =>
-        text.includes(String(keyword).toLowerCase())
+      config.keywords.some((keyword) =>
+        text.includes(keyword.toLowerCase())
       )
     ) {
       return platform;
@@ -118,2148 +114,2649 @@ function detectPlatform(service) {
   return "Other";
 }
 
-function formatMoney(value) {
-  const number = Number(value || 0);
-
-  return `KSh ${number.toLocaleString("en-KE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })}`;
-}
-
-function normalizeService(service, index = 0) {
-  const supplierRate = Number(
-    service?.supplier_rate ?? service?.rate ?? 0
-  );
-
-  const customerRate = Number(
-    service?.customer_rate ?? supplierRate * 2
-  );
-
-  const serviceId = Number(
-    service?.service_id ?? service?.service ?? index + 1
-  );
-
-  const minQuantity = Number(
-    service?.min_quantity ?? service?.min ?? 1
-  );
-
-  const maxQuantity = Number(
-    service?.max_quantity ?? service?.max ?? 1000000
-  );
-
-  return {
-    service: serviceId,
-    service_id: serviceId,
-    name: String(service?.name || "Unnamed Service"),
-    type: String(service?.type || ""),
-    category: String(service?.category || ""),
-    rate: supplierRate,
-    supplier_rate: supplierRate,
-    customer_rate: customerRate,
-    min: minQuantity,
-    max: maxQuantity,
-    min_quantity: minQuantity,
-    max_quantity: maxQuantity,
-    refill:
-      service?.refill === true ||
-      service?.refill === 1 ||
-      service?.refill === "1",
-    cancel:
-      service?.cancel === true ||
-      service?.cancel === 1 ||
-      service?.cancel === "1"
-  };
-}
-
-function calculatePrice(service, quantity) {
-  if (!service) return 0;
-
-  const rate = Number(service.customer_rate || 0);
-  const qty = Number(quantity || 0);
-
-  if (!rate || !qty) return 0;
-
-  return (rate * qty) / 1000;
-}
-
-async function readJson(response) {
-  const text = await response.text();
-
-  if (!text) {
-    return {};
-  }
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new Error(
-      "The server returned an invalid response. Please try again."
-    );
-  }
-}
-
 function App() {
+  const [user, setUser] = useState(null);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  const [authMode, setAuthMode] = useState("login");
+  const [authLoading, setAuthLoading] = useState(false);
+
   const [services, setServices] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [balance, setBalance] = useState(0);
 
-  const [selectedPlatform, setSelectedPlatform] = useState(null);
-  const [selectedService, setSelectedService] = useState(null);
-
-  const [loadingServices, setLoadingServices] = useState(true);
-  const [loadingWallet, setLoadingWallet] = useState(false);
-  const [placingOrder, setPlacingOrder] = useState(false);
-  const [checkingStatus, setCheckingStatus] = useState(false);
-
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-
-  const [wallet, setWallet] = useState(0);
-
-  const [phone, setPhone] = useState(getSavedPhone());
-
-  const [depositAmount, setDepositAmount] = useState("");
+  const [activePage, setActivePage] = useState("dashboard");
+  const [selectedPlatform, setSelectedPlatform] = useState("All");
 
   const [search, setSearch] = useState("");
-  const [serviceSearch, setServiceSearch] = useState("");
+  const [selectedService, setSelectedService] = useState(null);
 
-  const [link, setLink] = useState("");
-  const [quantity, setQuantity] = useState("");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const [orderId, setOrderId] = useState("");
-  const [orderStatus, setOrderStatus] = useState(null);
+  const [depositAmount, setDepositAmount] = useState("");
+  const [depositLoading, setDepositLoading] = useState(false);
 
-  const [mobileMenu, setMobileMenu] = useState(false);
+  const [loadingServices, setLoadingServices] = useState(false);
+  const [loadingOrders, setLoadingOrders] = useState(false);
+
+  const [notice, setNotice] = useState(null);
+
+  const [stats, setStats] = useState({
+    totalOrders: 0,
+    pendingOrders: 0,
+    completedOrders: 0,
+    totalSpent: 0
+  });
 
   useEffect(() => {
-    loadServices();
+    checkAuth();
   }, []);
 
   useEffect(() => {
-    const cleaned = phone.trim();
+    if (!notice) return;
 
-    if (cleaned) {
-      savePhone(cleaned);
-      loadWallet(cleaned);
+    const timer = setTimeout(() => {
+      setNotice(null);
+    }, 4500);
+
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    loadWallet();
+    loadServices();
+    loadOrders();
+
+    if (
+      window.location.pathname === "/payment-success"
+    ) {
+      handlePaymentCallback();
     }
-  }, [phone]);
+  }, [user]);
+
+  async function api(path, options = {}) {
+    const response = await fetch(path, {
+      credentials: "include",
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {})
+      }
+    });
+
+    let data;
+
+    try {
+      data = await response.json();
+    } catch {
+      data = {
+        success: false,
+        error: "Invalid server response"
+      };
+    }
+
+    if (!response.ok && !data.success) {
+      throw new Error(
+        data.error || "Request failed"
+      );
+    }
+
+    return data;
+  }
+
+  function showNotice(type, message) {
+    setNotice({
+      type,
+      message
+    });
+  }
+
+  async function checkAuth() {
+    try {
+      const data = await api("/api/auth/me");
+
+      if (data.success && data.user) {
+        setUser(data.user);
+      }
+    } catch {
+      setUser(null);
+    } finally {
+      setCheckingAuth(false);
+    }
+  }
+
+  async function handleLogin(form) {
+    setAuthLoading(true);
+
+    try {
+      const data = await api(
+        "/api/auth/login",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            email: form.email,
+            password: form.password
+          })
+        }
+      );
+
+      setUser(data.user);
+
+      showNotice(
+        "success",
+        `Welcome back, ${data.user.name}!`
+      );
+    } catch (error) {
+      showNotice(
+        "error",
+        error.message
+      );
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function handleRegister(form) {
+    setAuthLoading(true);
+
+    try {
+      const data = await api(
+        "/api/auth/register",
+        {
+          method: "POST",
+          body: JSON.stringify(form)
+        }
+      );
+
+      setUser(data.user);
+
+      showNotice(
+        "success",
+        "Your HUPPY CUBE account has been created."
+      );
+    } catch (error) {
+      showNotice(
+        "error",
+        error.message
+      );
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  async function logout() {
+    try {
+      await api(
+        "/api/auth/logout",
+        {
+          method: "POST"
+        }
+      );
+    } catch {
+      // Continue logging out locally.
+    }
+
+    setUser(null);
+    setServices([]);
+    setOrders([]);
+    setBalance(0);
+    setActivePage("dashboard");
+  }
+
+  async function loadWallet() {
+    try {
+      const data =
+        await api("/api/wallet");
+
+      if (data.success) {
+        setBalance(
+          Number(data.balance || 0)
+        );
+      }
+    } catch (error) {
+      showNotice(
+        "error",
+        error.message
+      );
+    }
+  }
 
   async function loadServices() {
     setLoadingServices(true);
-    setError("");
 
     try {
-      const response = await fetch("/api/services", {
-        method: "GET",
-        headers: {
-          Accept: "application/json"
-        }
-      });
+      const data =
+        await api("/api/services");
 
-      const data = await readJson(response);
-
-      if (!response.ok) {
-        throw new Error(
-          data?.error || "Unable to load services."
-        );
-      }
-
-      const list = Array.isArray(data)
-        ? data
-        : Array.isArray(data?.services)
-        ? data.services
-        : [];
-
-      setServices(
-        list.map((service, index) =>
-          normalizeService(service, index)
-        )
-      );
-    } catch (firstError) {
-      try {
-        const response = await fetch(
-          "/api/denzgains/services",
-          {
-            method: "GET",
-            headers: {
-              Accept: "application/json"
-            }
-          }
-        );
-
-        const data = await readJson(response);
-
-        if (!response.ok) {
-          throw new Error(
-            data?.error || "Unable to load services."
-          );
-        }
-
-        const list = Array.isArray(data)
-          ? data
-          : Array.isArray(data?.services)
-          ? data.services
-          : [];
-
+      if (data.success) {
         setServices(
-          list.map((service, index) =>
-            normalizeService(service, index)
-          )
-        );
-      } catch (secondError) {
-        setServices([]);
-        setError(
-          secondError?.message ||
-            firstError?.message ||
-            "Unable to load services."
+          Array.isArray(data.services)
+            ? data.services
+            : []
         );
       }
+    } catch (error) {
+      showNotice(
+        "error",
+        error.message
+      );
     } finally {
       setLoadingServices(false);
     }
   }
 
-  async function loadWallet(userPhone = phone) {
-    const cleanedPhone = String(userPhone || "").trim();
-
-    if (!cleanedPhone) {
-      return;
-    }
-
-    setLoadingWallet(true);
+  async function loadOrders() {
+    setLoadingOrders(true);
 
     try {
-      const response = await fetch(
-        `/api/wallet?phone=${encodeURIComponent(cleanedPhone)}`,
-        {
-          method: "GET",
-          headers: {
-            Accept: "application/json"
-          }
-        }
-      );
+      const data =
+        await api("/api/orders");
 
-      const data = await readJson(response);
+      if (data.success) {
+        const list =
+          Array.isArray(data.orders)
+            ? data.orders
+            : [];
 
-      if (response.ok) {
-        setWallet(Number(data?.balance || 0));
+        setOrders(list);
+
+        const totalSpent =
+          list.reduce(
+            (sum, order) =>
+              sum + Number(order.amount || 0),
+            0
+          );
+
+        const pending =
+          list.filter((order) =>
+            [
+              "Pending",
+              "Processing",
+              "In progress",
+              "Submitting"
+            ].includes(order.status)
+          ).length;
+
+        const completed =
+          list.filter((order) =>
+            String(order.status || "")
+              .toLowerCase()
+              .includes("complete")
+          ).length;
+
+        setStats({
+          totalOrders: list.length,
+          pendingOrders: pending,
+          completedOrders: completed,
+          totalSpent
+        });
       }
-    } catch {
-      // Keep existing wallet balance.
+    } catch (error) {
+      showNotice(
+        "error",
+        error.message
+      );
     } finally {
-      setLoadingWallet(false);
+      setLoadingOrders(false);
     }
   }
 
-  async function deposit() {
-    setError("");
-    setSuccess("");
+  async function handlePaymentCallback() {
+    const params =
+      new URLSearchParams(
+        window.location.search
+      );
 
-    const cleanedPhone = phone.trim();
-    const amount = Number(depositAmount);
+    const trackingId =
+      params.get("OrderTrackingId");
 
-    if (!cleanedPhone) {
-      setError("Enter your phone number first.");
-      return;
-    }
-
-    if (!amount || amount < 1) {
-      setError("Enter a valid deposit amount.");
-      return;
-    }
+    if (!trackingId) return;
 
     try {
-      const response = await fetch("/api/payment", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json"
-        },
-        body: JSON.stringify({
-          phone: cleanedPhone,
-          amount,
-          email: `${cleanedPhone.replace(/\D/g, "")}@huppycube.com`
-        })
-      });
+      const data =
+        await api(
+          `/api/payment-status?orderTrackingId=${encodeURIComponent(
+            trackingId
+          )}`
+        );
 
-      const data = await readJson(response);
+      if (
+        data.success &&
+        data.payment?.credited
+      ) {
+        showNotice(
+          "success",
+          `${money(
+            data.payment.amount
+          )} has been added to your wallet.`
+        );
 
-      if (!response.ok) {
-        throw new Error(
-          data?.error || "Could not start payment."
+        setBalance(
+          Number(data.balance || 0)
+        );
+      } else if (
+        data.payment?.status ===
+        "COMPLETED"
+      ) {
+        await loadWallet();
+
+        showNotice(
+          "success",
+          "Payment completed successfully."
+        );
+      } else {
+        showNotice(
+          "error",
+          "Payment is not completed yet."
         );
       }
+    } catch (error) {
+      showNotice(
+        "error",
+        error.message
+      );
+    }
 
-      if (data?.redirect_url) {
-        window.location.href = data.redirect_url;
+    window.history.replaceState(
+      {},
+      document.title,
+      "/"
+    );
+  }
+
+  async function startDeposit() {
+    const amount =
+      Number(depositAmount);
+
+    if (
+      !Number.isFinite(amount) ||
+      amount <= 0
+    ) {
+      showNotice(
+        "error",
+        "Enter a valid deposit amount."
+      );
+      return;
+    }
+
+    setDepositLoading(true);
+
+    try {
+      const data =
+        await api(
+          "/api/payment",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              amount
+            })
+          }
+        );
+
+      if (
+        data.success &&
+        data.redirect_url
+      ) {
+        window.location.href =
+          data.redirect_url;
         return;
       }
 
       throw new Error(
-        "PesaPal did not return a payment link."
+        data.error ||
+          "Could not create payment."
       );
-    } catch (err) {
-      setError(
-        err?.message || "Unable to start payment."
-      );
-    }
-  }
-
-  const platformGroups = useMemo(() => {
-    const groups = {};
-
-    Object.keys(PLATFORM_CONFIG).forEach((platform) => {
-      groups[platform] = [];
-    });
-
-    services.forEach((service) => {
-      const platform = detectPlatform(service);
-
-      if (!groups[platform]) {
-        groups[platform] = [];
-      }
-
-      groups[platform].push(service);
-    });
-
-    return groups;
-  }, [services]);
-
-  const visiblePlatforms = useMemo(() => {
-    const query = search.trim().toLowerCase();
-
-    const allPlatforms = Object.keys(PLATFORM_CONFIG);
-
-    if (!query) {
-      return allPlatforms.filter(
-        (platform) =>
-          (platformGroups[platform] || []).length > 0
-      );
-    }
-
-    return allPlatforms.filter((platform) => {
-      const platformMatches = platform
-        .toLowerCase()
-        .includes(query);
-
-      const serviceMatches = (
-        platformGroups[platform] || []
-      ).some((service) => {
-        return (
-          service.name.toLowerCase().includes(query) ||
-          service.category.toLowerCase().includes(query) ||
-          service.type.toLowerCase().includes(query)
-        );
-      });
-
-      return platformMatches || serviceMatches;
-    });
-  }, [search, platformGroups]);
-
-  const selectedPlatformServices = useMemo(() => {
-    if (!selectedPlatform) {
-      return [];
-    }
-
-    let list =
-      platformGroups[selectedPlatform] || [];
-
-    const query = serviceSearch.trim().toLowerCase();
-
-    if (query) {
-      list = list.filter((service) => {
-        return (
-          service.name.toLowerCase().includes(query) ||
-          service.category.toLowerCase().includes(query) ||
-          service.type.toLowerCase().includes(query)
-        );
-      });
-    }
-
-    return list;
-  }, [
-    selectedPlatform,
-    platformGroups,
-    serviceSearch
-  ]);
-
-  const estimatedPrice = useMemo(() => {
-    return calculatePrice(
-      selectedService,
-      quantity
-    );
-  }, [selectedService, quantity]);
-
-  function clearMessages() {
-    setError("");
-    setSuccess("");
-  }
-
-  function openPlatform(platform) {
-    clearMessages();
-
-    setSearch("");
-    setServiceSearch("");
-    setSelectedPlatform(platform);
-    setSelectedService(null);
-    setOrderStatus(null);
-
-    window.setTimeout(() => {
-      document
-        .getElementById("services")
-        ?.scrollIntoView({
-          behavior: "smooth",
-          block: "start"
-        });
-    }, 50);
-  }
-
-  function openService(service) {
-    clearMessages();
-
-    setSelectedService(service);
-    setLink("");
-    setQuantity(
-      String(
-        service.min_quantity ||
-          service.min ||
-          1
-      )
-    );
-    setOrderStatus(null);
-  }
-
-  function goBackToPlatforms() {
-    clearMessages();
-
-    setSelectedPlatform(null);
-    setSelectedService(null);
-    setServiceSearch("");
-    setLink("");
-    setQuantity("");
-    setOrderStatus(null);
-  }
-
-  function goBackToServices() {
-    clearMessages();
-
-    setSelectedService(null);
-    setLink("");
-    setQuantity("");
-    setOrderStatus(null);
-  }
-
-  async function placeOrder() {
-    clearMessages();
-
-    const cleanedPhone = phone.trim();
-
-    if (!cleanedPhone) {
-      setError("Enter your phone number first.");
-      return;
-    }
-
-    if (!selectedService) {
-      setError("Please select a service.");
-      return;
-    }
-
-    if (!link.trim()) {
-      setError("Enter the social media link.");
-      return;
-    }
-
-    const qty = Number(quantity);
-
-    if (!Number.isFinite(qty)) {
-      setError("Enter a valid quantity.");
-      return;
-    }
-
-    if (
-      qty <
-      Number(selectedService.min_quantity)
-    ) {
-      setError(
-        `Minimum quantity is ${Number(
-          selectedService.min_quantity
-        ).toLocaleString()}`
-      );
-      return;
-    }
-
-    if (
-      qty >
-      Number(selectedService.max_quantity)
-    ) {
-      setError(
-        `Maximum quantity is ${Number(
-          selectedService.max_quantity
-        ).toLocaleString()}`
-      );
-      return;
-    }
-
-    if (estimatedPrice <= 0) {
-      setError("Unable to calculate the order price.");
-      return;
-    }
-
-    if (estimatedPrice > wallet) {
-      setError(
-        `Insufficient wallet balance. You need ${formatMoney(
-          estimatedPrice
-        )}.`
-      );
-      return;
-    }
-
-    setPlacingOrder(true);
-
-    try {
-      const response = await fetch(
-        "/api/smm/order",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json"
-          },
-          body: JSON.stringify({
-            phone: cleanedPhone,
-            service_id:
-              selectedService.service_id,
-            service_name:
-              selectedService.name,
-            link: link.trim(),
-            quantity: qty
-          })
-        }
-      );
-
-      const data = await readJson(response);
-
-      if (!response.ok) {
-        throw new Error(
-          data?.error ||
-            "Order could not be placed."
-        );
-      }
-
-      const createdOrderId =
-        data?.order_id ??
-        data?.id ??
-        data?.order ??
-        data?.smm_order_id;
-
-      if (createdOrderId !== undefined) {
-        setOrderId(String(createdOrderId));
-      }
-
-      setSuccess(
-        `Order placed successfully${
-          createdOrderId
-            ? ` (#${createdOrderId})`
-            : ""
-        }.`
-      );
-
-      await loadWallet(cleanedPhone);
-    } catch (err) {
-      setError(
-        err?.message || "Order failed."
+    } catch (error) {
+      showNotice(
+        "error",
+        error.message
       );
     } finally {
-      setPlacingOrder(false);
+      setDepositLoading(false);
     }
   }
 
-  async function checkOrderStatus() {
-    clearMessages();
+  async function refreshAll() {
+    await Promise.all([
+      loadWallet(),
+      loadOrders(),
+      loadServices()
+    ]);
 
-    const cleanedOrderId =
-      orderId.trim();
-
-    if (!cleanedOrderId) {
-      setError("Enter an order ID.");
-      return;
-    }
-
-    setCheckingStatus(true);
-
-    try {
-      const response = await fetch(
-        `/api/smm/status?order_id=${encodeURIComponent(
-          cleanedOrderId
-        )}`,
-        {
-          method: "GET",
-          headers: {
-            Accept: "application/json"
-          }
-        }
-      );
-
-      const data = await readJson(response);
-
-      if (!response.ok) {
-        throw new Error(
-          data?.error ||
-            "Could not check order."
-        );
-      }
-
-      setOrderStatus(data);
-    } catch (err) {
-      setError(
-        err?.message ||
-          "Could not check order status."
-      );
-    } finally {
-      setCheckingStatus(false);
-    }
+    showNotice(
+      "success",
+      "Dashboard refreshed."
+    );
   }
 
   function openWhatsApp() {
-    const message = encodeURIComponent(
-      "Hello HUPPY CUBE support, I need help with my order."
-    );
-
     window.open(
-      `https://wa.me/${SUPPORT_NUMBER}?text=${message}`,
-      "_blank",
-      "noopener,noreferrer"
+      `https://wa.me/${WHATSAPP}?text=${encodeURIComponent(
+        "Hello HUPPY CUBE Support, I need help."
+      )}`,
+      "_blank"
     );
   }
 
-  function scrollToServices() {
-    document
-      .getElementById("services")
-      ?.scrollIntoView({
-        behavior: "smooth"
+  const filteredServices =
+    useMemo(() => {
+      const query =
+        search.trim().toLowerCase();
+
+      return services.filter((service) => {
+        const platform =
+          classifyService(service);
+
+        const platformMatch =
+          selectedPlatform === "All" ||
+          platform === selectedPlatform;
+
+        const searchMatch =
+          !query ||
+          String(service.name || "")
+            .toLowerCase()
+            .includes(query) ||
+          String(service.category || "")
+            .toLowerCase()
+            .includes(query) ||
+          String(service.type || "")
+            .toLowerCase()
+            .includes(query);
+
+        return (
+          platformMatch &&
+          searchMatch
+        );
       });
+    }, [
+      services,
+      selectedPlatform,
+      search
+    ]);
+
+  const platformCounts =
+    useMemo(() => {
+      const counts = {
+        All: services.length
+      };
+
+      Object.keys(
+        PLATFORM_CONFIG
+      ).forEach((platform) => {
+        counts[platform] =
+          services.filter(
+            (service) =>
+              classifyService(service) ===
+              platform
+          ).length;
+      });
+
+      return counts;
+    }, [services]);
+
+  if (checkingAuth) {
+    return (
+      <div className="loading-screen">
+        <div className="loading-orb">
+          <Sparkles size={30} />
+        </div>
+
+        <h2>HUPPY CUBE</h2>
+        <p>Loading your workspace...</p>
+      </div>
+    );
   }
 
-  function scrollToWallet() {
-    document
-      .getElementById("wallet")
-      ?.scrollIntoView({
-        behavior: "smooth"
-      });
-  }
+  if (!user) {
+    return (
+      <>
+        <AuthScreen
+          mode={authMode}
+          setMode={setAuthMode}
+          onLogin={handleLogin}
+          onRegister={handleRegister}
+          loading={authLoading}
+        />
 
-  function getPlatformIcon(platform) {
-    if (platform === "Instagram") {
-      return <Instagram size={30} />;
-    }
-
-    if (platform === "TikTok") {
-      return <Music2 size={30} />;
-    }
-
-    if (platform === "Facebook") {
-      return (
-        <span className="platform-emoji">
-          🔵
-        </span>
-      );
-    }
-
-    if (platform === "YouTube") {
-      return (
-        <span className="platform-emoji">
-          ▶️
-        </span>
-      );
-    }
-
-    if (platform === "Telegram") {
-      return (
-        <span className="platform-emoji">
-          ✈️
-        </span>
-      );
-    }
-
-    if (platform === "X / Twitter") {
-      return (
-        <span className="platform-x">
-          𝕏
-        </span>
-      );
-    }
-
-    if (platform === "WhatsApp") {
-      return (
-        <span className="platform-emoji">
-          💬
-        </span>
-      );
-    }
-
-    if (platform === "Spotify") {
-      return (
-        <span className="platform-emoji">
-          🎧
-        </span>
-      );
-    }
-
-    return <Sparkles size={30} />;
+        {notice && (
+          <Notice
+            notice={notice}
+            onClose={() => setNotice(null)}
+          />
+        )}
+      </>
+    );
   }
 
   return (
-    <div className="app">
-      <style>{`
-        * {
-          box-sizing: border-box;
-        }
-
-        html {
-          scroll-behavior: smooth;
-        }
-
-        body {
-          margin: 0;
-          font-family: Inter, Arial, Helvetica, sans-serif;
-          background: #f5f7fb;
-          color: #111827;
-        }
-
-        button,
-        input {
-          font: inherit;
-        }
-
-        button {
-          cursor: pointer;
-        }
-
-        .app {
-          min-height: 100vh;
-          background:
-            radial-gradient(
-              circle at top right,
-              rgba(124,58,237,.10),
-              transparent 30%
-            ),
-            #f5f7fb;
-        }
-
-        .header {
-          position: sticky;
-          top: 0;
-          z-index: 50;
-          background: rgba(255,255,255,.96);
-          backdrop-filter: blur(12px);
-          border-bottom: 1px solid #e5e7eb;
-        }
-
-        .header-inner {
-          max-width: 1180px;
-          margin: auto;
-          min-height: 70px;
-          padding: 12px 20px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 20px;
-        }
-
-        .brand {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          font-weight: 900;
-          font-size: 20px;
-          letter-spacing: -.5px;
-        }
-
-        .brand-icon {
-          width: 40px;
-          height: 40px;
-          border-radius: 12px;
-          display: grid;
-          place-items: center;
-          color: white;
-          background: linear-gradient(
-            135deg,
-            #7c3aed,
-            #2563eb
-          );
-          box-shadow:
-            0 8px 20px rgba(79,70,229,.25);
-        }
-
-        .nav {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-
-        .nav-btn {
-          border: 0;
-          background: transparent;
-          padding: 10px 14px;
-          border-radius: 10px;
-          font-weight: 700;
-          color: #4b5563;
-        }
-
-        .nav-btn:hover {
-          background: #f3f4f6;
-        }
-
-        .wallet-mini {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          padding: 9px 13px;
-          border-radius: 12px;
-          background: #f3f4f6;
-          font-weight: 800;
-          white-space: nowrap;
-        }
-
-        .menu-btn {
-          display: none;
-          border: 0;
-          background: transparent;
-          color: #111827;
-          padding: 8px;
-        }
-
-        .container {
-          max-width: 1180px;
-          margin: auto;
-          padding: 28px 20px 70px;
-        }
-
-        .hero {
-          border-radius: 24px;
-          padding: 34px;
-          color: white;
-          background:
-            radial-gradient(
-              circle at 85% 15%,
-              rgba(255,255,255,.20),
-              transparent 25%
-            ),
-            linear-gradient(
-              135deg,
-              #111827,
-              #312e81 55%,
-              #7c3aed
-            );
-          box-shadow:
-            0 20px 50px rgba(31,41,55,.18);
-          margin-bottom: 22px;
-        }
-
-        .hero h1 {
-          margin: 0 0 10px;
-          font-size: clamp(30px,5vw,48px);
-          letter-spacing: -1.5px;
-        }
-
-        .hero p {
-          margin: 0;
-          color: #e5e7eb;
-          max-width: 650px;
-          line-height: 1.6;
-        }
-
-        .hero-actions {
-          display: flex;
-          gap: 10px;
-          flex-wrap: wrap;
-          margin-top: 22px;
-        }
-
-        .primary-btn,
-        .whatsapp-btn {
-          border: 0;
-          border-radius: 12px;
-          padding: 12px 17px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          font-weight: 800;
-        }
-
-        .primary-btn {
-          background: white;
-          color: #312e81;
-        }
-
-        .whatsapp-btn {
-          background: #25d366;
-          color: white;
-        }
-
-        .stats {
-          display: grid;
-          grid-template-columns: repeat(3,1fr);
-          gap: 14px;
-          margin-bottom: 24px;
-        }
-
-        .stat {
-          background: white;
-          border: 1px solid #e5e7eb;
-          border-radius: 16px;
-          padding: 18px;
-          display: flex;
-          align-items: center;
-          gap: 13px;
-        }
-
-        .stat-icon {
-          width: 44px;
-          height: 44px;
-          border-radius: 12px;
-          display: grid;
-          place-items: center;
-          background: #f3f4f6;
-          color: #4f46e5;
-          flex-shrink: 0;
-        }
-
-        .stat strong {
-          display: block;
-          font-size: 20px;
-        }
-
-        .stat span {
-          color: #6b7280;
-          font-size: 13px;
-        }
-
-        .section {
-          margin-top: 25px;
-        }
-
-        .section-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 15px;
-          margin-bottom: 14px;
-        }
-
-        .section-title {
-          margin: 0;
-          font-size: 23px;
-          font-weight: 900;
-        }
-
-        .section-subtitle {
-          margin: 4px 0 0;
-          color: #6b7280;
-          font-size: 14px;
-          line-height: 1.5;
-        }
-
-        .search-box {
-          position: relative;
-          max-width: 420px;
-          width: 100%;
-        }
-
-        .search-box svg {
-          position: absolute;
-          left: 13px;
-          top: 50%;
-          transform: translateY(-50%);
-          color: #9ca3af;
-          pointer-events: none;
-        }
-
-        .search-box input {
-          width: 100%;
-          border: 1px solid #d1d5db;
-          background: white;
-          border-radius: 13px;
-          padding: 13px 14px 13px 42px;
-          outline: none;
-        }
-
-        .search-box input:focus,
-        .input:focus {
-          border-color: #6366f1;
-          box-shadow:
-            0 0 0 3px rgba(99,102,241,.10);
-        }
-
-        .platform-grid {
-          display: grid;
-          grid-template-columns: repeat(4,1fr);
-          gap: 15px;
-        }
-
-        .platform-card {
-          border: 1px solid #e5e7eb;
-          background: white;
-          border-radius: 20px;
-          padding: 20px;
-          text-align: left;
-          transition: .18s ease;
-          position: relative;
-          overflow: hidden;
-        }
-
-        .platform-card:hover {
-          transform: translateY(-3px);
-          box-shadow:
-            0 14px 30px rgba(17,24,39,.10);
-          border-color: #c7d2fe;
-        }
-
-        .platform-icon {
-          width: 58px;
-          height: 58px;
-          border-radius: 17px;
-          display: grid;
-          place-items: center;
-          background: #f3f4f6;
-          margin-bottom: 17px;
-        }
-
-        .platform-emoji {
-          font-size: 28px;
-          line-height: 1;
-        }
-
-        .platform-x {
-          font-size: 31px;
-          font-weight: 900;
-          line-height: 1;
-        }
-
-        .platform-card h3 {
-          margin: 0 0 5px;
-          font-size: 17px;
-        }
-
-        .platform-card p {
-          margin: 0;
-          color: #6b7280;
-          font-size: 13px;
-        }
-
-        .platform-arrow {
-          position: absolute;
-          right: 16px;
-          bottom: 18px;
-          color: #9ca3af;
-        }
-
-        .services-grid {
-          display: grid;
-          grid-template-columns: repeat(3,1fr);
-          gap: 14px;
-        }
-
-        .service-card {
-          background: white;
-          border: 1px solid #e5e7eb;
-          border-radius: 17px;
-          padding: 17px;
-          transition: .18s ease;
-        }
-
-        .service-card:hover {
-          border-color: #c7d2fe;
-          box-shadow:
-            0 12px 25px rgba(17,24,39,.07);
-        }
-
-        .service-name {
-          font-weight: 850;
-          line-height: 1.35;
-          margin-bottom: 7px;
-        }
-
-        .service-category {
-          color: #6b7280;
-          font-size: 12px;
-          line-height: 1.45;
-          min-height: 35px;
-        }
-
-        .service-meta {
-          display: flex;
-          justify-content: space-between;
-          gap: 10px;
-          margin: 14px 0;
-          font-size: 12px;
-          color: #6b7280;
-        }
-
-        .service-rate {
-          font-weight: 900;
-          color: #111827;
-        }
-
-        .select-btn {
-          width: 100%;
-          border: 0;
-          border-radius: 11px;
-          padding: 11px;
-          background: #111827;
-          color: white;
-          font-weight: 800;
-        }
-
-        .select-btn:hover {
-          background: #312e81;
-        }
-
-        .panel {
-          background: white;
-          border: 1px solid #e5e7eb;
-          border-radius: 20px;
-          padding: 22px;
-          margin-bottom: 22px;
-        }
-
-        .back-btn {
-          border: 0;
-          background: #f3f4f6;
-          border-radius: 10px;
-          padding: 9px 13px;
-          display: inline-flex;
-          align-items: center;
-          gap: 7px;
-          font-weight: 750;
-          margin-bottom: 18px;
-        }
-
-        .form-grid {
-          display: grid;
-          grid-template-columns: repeat(2,1fr);
-          gap: 14px;
-        }
-
-        .form-group {
-          display: flex;
-          flex-direction: column;
-          gap: 7px;
-        }
-
-        .form-group.full {
-          grid-column: 1/-1;
-        }
-
-        .label {
-          font-size: 13px;
-          font-weight: 800;
-        }
-
-        .input {
-          width: 100%;
-          padding: 13px;
-          border: 1px solid #d1d5db;
-          border-radius: 11px;
-          outline: none;
-          background: white;
-        }
-
-        .price-box {
-          background: #f5f3ff;
-          border: 1px solid #ddd6fe;
-          border-radius: 14px;
-          padding: 15px;
-        }
-
-        .price-box span {
-          color: #6b7280;
-          font-size: 12px;
-        }
-
-        .price-box strong {
-          display: block;
-          color: #4c1d95;
-          font-size: 23px;
-          margin-top: 3px;
-        }
-
-        .order-btn {
-          width: 100%;
-          border: 0;
-          border-radius: 12px;
-          padding: 14px;
-          background:
-            linear-gradient(
-              135deg,
-              #4f46e5,
-              #7c3aed
-            );
-          color: white;
-          font-weight: 900;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          gap: 8px;
-        }
-
-        .order-btn:disabled,
-        .deposit-btn:disabled {
-          opacity: .65;
-          cursor: not-allowed;
-        }
-
-        .notice {
-          padding: 13px 15px;
-          border-radius: 12px;
-          margin-bottom: 15px;
-          font-size: 14px;
-          font-weight: 650;
-        }
-
-        .error {
-          background: #fef2f2;
-          border: 1px solid #fecaca;
-          color: #991b1b;
-        }
-
-        .success {
-          background: #f0fdf4;
-          border: 1px solid #bbf7d0;
-          color: #166534;
-        }
-
-        .deposit-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr auto;
-          gap: 10px;
-          align-items: end;
-        }
-
-        .deposit-btn {
-          min-height: 47px;
-          border: 0;
-          border-radius: 11px;
-          background: #111827;
-          color: white;
-          padding: 0 18px;
-          font-weight: 850;
-        }
-
-        .status-box {
-          margin-top: 15px;
-          background: #f9fafb;
-          border: 1px solid #e5e7eb;
-          border-radius: 14px;
-          padding: 15px;
-        }
-
-        .status-row {
-          display: flex;
-          justify-content: space-between;
-          padding: 7px 0;
-          gap: 15px;
-          border-bottom: 1px solid #e5e7eb;
-        }
-
-        .status-row:last-child {
-          border-bottom: 0;
-        }
-
-        .status-row span:first-child {
-          color: #6b7280;
-        }
-
-        .status-row strong {
-          text-align: right;
-          word-break: break-word;
-        }
-
-        .empty {
-          padding: 40px 20px;
-          text-align: center;
-          color: #6b7280;
-          background: white;
-          border: 1px dashed #d1d5db;
-          border-radius: 18px;
-        }
-
-        .loading {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 10px;
-          padding: 45px;
-          color: #6b7280;
-          background: white;
-          border-radius: 18px;
-          border: 1px solid #e5e7eb;
-        }
-
-        .spin {
-          animation: spin 1s linear infinite;
-        }
-
-        .floating-support {
-          position: fixed;
-          right: 18px;
-          bottom: 18px;
-          z-index: 40;
-          border: 0;
-          border-radius: 999px;
-          padding: 13px 18px;
-          background: #25d366;
-          color: white;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-weight: 850;
-          box-shadow:
-            0 12px 30px rgba(37,211,102,.30);
-        }
-
-        @keyframes spin {
-          to {
-            transform: rotate(360deg);
+    <div className="app-shell">
+      <div className="ambient ambient-one" />
+      <div className="ambient ambient-two" />
+      <div className="ambient ambient-three" />
+
+      <Sidebar
+        activePage={activePage}
+        setActivePage={(page) => {
+          setActivePage(page);
+          setSidebarOpen(false);
+        }}
+        user={user}
+        onLogout={logout}
+        open={sidebarOpen}
+        close={() =>
+          setSidebarOpen(false)
+        }
+      />
+
+      <main className="main-area">
+        <Header
+          user={user}
+          balance={balance}
+          onMenu={() =>
+            setSidebarOpen(true)
           }
-        }
-
-        @media (max-width: 900px) {
-          .platform-grid {
-            grid-template-columns: repeat(3,1fr);
+          onRefresh={refreshAll}
+          onDeposit={() =>
+            setActivePage("wallet")
           }
+        />
 
-          .services-grid {
-            grid-template-columns: repeat(2,1fr);
+        {activePage === "dashboard" && (
+          <Dashboard
+            user={user}
+            balance={balance}
+            stats={stats}
+            services={services}
+            orders={orders}
+            onDeposit={() =>
+              setActivePage("wallet")
+            }
+            onServices={() =>
+              setActivePage("services")
+            }
+            onOrders={() =>
+              setActivePage("orders")
+            }
+            onSupport={openWhatsApp}
+          />
+        )}
+
+        {activePage === "services" && (
+          <ServicesPage
+            services={filteredServices}
+            platformCounts={
+              platformCounts
+            }
+            selectedPlatform={
+              selectedPlatform
+            }
+            setSelectedPlatform={
+              setSelectedPlatform
+            }
+            search={search}
+            setSearch={setSearch}
+            loading={loadingServices}
+            onRefresh={loadServices}
+            onSelect={(service) =>
+              setSelectedService(service)
+            }
+          />
+        )}
+
+        {activePage === "orders" && (
+          <OrdersPage
+            orders={orders}
+            loading={loadingOrders}
+            onRefresh={loadOrders}
+          />
+        )}
+
+        {activePage === "wallet" && (
+          <WalletPage
+            balance={balance}
+            depositAmount={
+              depositAmount
+            }
+            setDepositAmount={
+              setDepositAmount
+            }
+            loading={depositLoading}
+            onDeposit={startDeposit}
+            onRefresh={loadWallet}
+          />
+        )}
+
+        {activePage === "profile" && (
+          <ProfilePage
+            user={user}
+            onLogout={logout}
+          />
+        )}
+      </main>
+
+      <button
+        className="whatsapp-float"
+        onClick={openWhatsApp}
+        title="WhatsApp Support"
+      >
+        <MessageCircle size={24} />
+      </button>
+
+      {selectedService && (
+        <OrderModal
+          service={selectedService}
+          balance={balance}
+          onClose={() =>
+            setSelectedService(null)
           }
-        }
+          onSuccess={async () => {
+            setSelectedService(null);
+            await loadWallet();
+            await loadOrders();
+            setActivePage("orders");
+          }}
+          api={api}
+          showNotice={showNotice}
+        />
+      )}
 
-        @media (max-width: 700px) {
-          .header-inner {
-            padding: 10px 14px;
-          }
+      {notice && (
+        <Notice
+          notice={notice}
+          onClose={() => setNotice(null)}
+        />
+      )}
+    </div>
+  );
+}
 
-          .nav {
-            display: none;
-          }
 
-          .menu-btn {
-            display: block;
-          }
+// ============================================================
+// AUTH SCREEN
+// ============================================================
 
-          .stats {
-            grid-template-columns: 1fr;
-          }
+function AuthScreen({
+  mode,
+  setMode,
+  onLogin,
+  onRegister,
+  loading
+}) {
+  const [form, setForm] =
+    useState({
+      name: "",
+      email: "",
+      phone: "",
+      password: "",
+      confirmPassword: ""
+    });
 
-          .hero {
-            padding: 25px;
-          }
+  function update(key, value) {
+    setForm((old) => ({
+      ...old,
+      [key]: value
+    }));
+  }
 
-          .platform-grid {
-            grid-template-columns: repeat(2,1fr);
-          }
+  function submit(event) {
+    event.preventDefault();
 
-          .services-grid {
-            grid-template-columns: 1fr;
-          }
+    if (mode === "register") {
+      if (
+        form.password !==
+        form.confirmPassword
+      ) {
+        return;
+      }
 
-          .form-grid,
-          .deposit-grid {
-            grid-template-columns: 1fr;
-          }
+      onRegister(form);
+    } else {
+      onLogin(form);
+    }
+  }
 
-          .form-group.full {
-            grid-column: auto;
-          }
+  return (
+    <div className="auth-page">
+      <div className="auth-glow glow-a" />
+      <div className="auth-glow glow-b" />
 
-          .section-header {
-            flex-direction: column;
-            align-items: stretch;
-          }
-
-          .search-box {
-            max-width: none;
-          }
-
-          .floating-support {
-            right: 12px;
-            bottom: 12px;
-          }
-        }
-
-        @media (max-width: 390px) {
-          .container {
-            padding-left: 12px;
-            padding-right: 12px;
-          }
-
-          .platform-grid {
-            gap: 9px;
-          }
-
-          .platform-card {
-            padding: 14px;
-          }
-
-          .platform-icon {
-            width: 48px;
-            height: 48px;
-          }
-
-          .platform-card h3 {
-            font-size: 14px;
-          }
-
-          .platform-card p {
-            font-size: 12px;
-          }
-        }
-      `}</style>
-
-      <header className="header">
-        <div className="header-inner">
-          <div className="brand">
-            <div className="brand-icon">
-              <Zap size={21} />
-            </div>
-            HUPPY CUBE
+      <div className="auth-layout">
+        <div className="auth-brand">
+          <div className="brand-logo large">
+            <Sparkles size={30} />
           </div>
 
-          <div className="nav">
-            <button
-              className="nav-btn"
-              onClick={() => {
-                setSelectedPlatform(null);
-                setSelectedService(null);
-                scrollToServices();
-              }}
-            >
-              Services
-            </button>
+          <div>
+            <div className="brand-name">
+              HUPPY <span>CUBE</span>
+            </div>
+
+            <div className="brand-subtitle">
+              SOCIAL GROWTH PLATFORM
+            </div>
+          </div>
+
+          <div className="auth-promo">
+            <span>
+              <Sparkles size={15} />
+              Powerful social growth
+            </span>
+
+            <h1>
+              Grow your social
+              <br />
+              presence.
+            </h1>
+
+            <p>
+              One powerful workspace for
+              social media services,
+              instant ordering and wallet
+              management.
+            </p>
+
+            <div className="promo-points">
+              <div>
+                <CheckCircle2 size={18} />
+                Fast service delivery
+              </div>
+
+              <div>
+                <CheckCircle2 size={18} />
+                Secure customer accounts
+              </div>
+
+              <div>
+                <CheckCircle2 size={18} />
+                Easy wallet payments
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="auth-card glass-card">
+          <div className="auth-card-top">
+            <div className="auth-icon">
+              {mode === "login" ? (
+                <LogIn size={22} />
+              ) : (
+                <UserPlus size={22} />
+              )}
+            </div>
+
+            <div>
+              <h2>
+                {mode === "login"
+                  ? "Welcome back"
+                  : "Create account"}
+              </h2>
+
+              <p>
+                {mode === "login"
+                  ? "Sign in to your HUPPY CUBE account."
+                  : "Start your social growth journey."}
+              </p>
+            </div>
+          </div>
+
+          <form
+            className="auth-form"
+            onSubmit={submit}
+          >
+            {mode === "register" && (
+              <>
+                <label>
+                  Full name
+
+                  <input
+                    value={form.name}
+                    onChange={(e) =>
+                      update(
+                        "name",
+                        e.target.value
+                      )
+                    }
+                    placeholder="Your full name"
+                    required
+                  />
+                </label>
+
+                <label>
+                  Phone number
+
+                  <input
+                    value={form.phone}
+                    onChange={(e) =>
+                      update(
+                        "phone",
+                        e.target.value
+                      )
+                    }
+                    placeholder="07XXXXXXXX"
+                    required
+                  />
+                </label>
+              </>
+            )}
+
+            <label>
+              Email address
+
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) =>
+                  update(
+                    "email",
+                    e.target.value
+                  )
+                }
+                placeholder="you@example.com"
+                required
+              />
+            </label>
+
+            {mode === "login" && (
+              <label>
+                Password
+
+                <input
+                  type="password"
+                  value={form.password}
+                  onChange={(e) =>
+                    update(
+                      "password",
+                      e.target.value
+                    )
+                  }
+                  placeholder="Your password"
+                  required
+                />
+              </label>
+            )}
+
+            {mode === "register" && (
+              <>
+                <label>
+                  Password
+
+                  <input
+                    type="password"
+                    value={form.password}
+                    onChange={(e) =>
+                      update(
+                        "password",
+                        e.target.value
+                      )
+                    }
+                    placeholder="At least 8 characters"
+                    minLength={8}
+                    required
+                  />
+                </label>
+
+                <label>
+                  Confirm password
+
+                  <input
+                    type="password"
+                    value={
+                      form.confirmPassword
+                    }
+                    onChange={(e) =>
+                      update(
+                        "confirmPassword",
+                        e.target.value
+                      )
+                    }
+                    placeholder="Repeat password"
+                    minLength={8}
+                    required
+                  />
+
+                  {form.confirmPassword &&
+                    form.password !==
+                      form.confirmPassword && (
+                      <small className="field-error">
+                        Passwords do not match.
+                      </small>
+                    )}
+                </label>
+              </>
+            )}
 
             <button
-              className="nav-btn"
-              onClick={scrollToWallet}
+              className="primary-button auth-submit"
+              disabled={
+                loading ||
+                (mode === "register" &&
+                  form.password !==
+                    form.confirmPassword)
+              }
             >
-              Wallet
+              {loading ? (
+                <>
+                  <RefreshCw
+                    size={18}
+                    className="spin"
+                  />
+                  Please wait...
+                </>
+              ) : mode === "login" ? (
+                <>
+                  <LogIn size={18} />
+                  Sign in
+                </>
+              ) : (
+                <>
+                  <UserPlus size={18} />
+                  Create account
+                </>
+              )}
             </button>
+          </form>
 
-            <div className="wallet-mini">
-              <Wallet size={17} />
-              {loadingWallet
-                ? "..."
-                : formatMoney(wallet)}
+          <div className="auth-switch">
+            {mode === "login" ? (
+              <>
+                Don't have an account?
+                <button
+                  onClick={() =>
+                    setMode("register")
+                  }
+                >
+                  Create one
+                </button>
+              </>
+            ) : (
+              <>
+                Already have an account?
+                <button
+                  onClick={() =>
+                    setMode("login")
+                  }
+                >
+                  Sign in
+                </button>
+              </>
+            )}
+          </div>
+
+          <div className="auth-security">
+            <ShieldCheck size={15} />
+            Your account is protected with
+            secure authentication.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+// ============================================================
+// SIDEBAR
+// ============================================================
+
+function Sidebar({
+  activePage,
+  setActivePage,
+  user,
+  onLogout,
+  open,
+  close
+}) {
+  const items = [
+    {
+      id: "dashboard",
+      label: "Dashboard",
+      icon: LayoutDashboard
+    },
+    {
+      id: "services",
+      label: "Services",
+      icon: ShoppingCart
+    },
+    {
+      id: "orders",
+      label: "My Orders",
+      icon: History
+    },
+    {
+      id: "wallet",
+      label: "Wallet",
+      icon: Wallet
+    },
+    {
+      id: "profile",
+      label: "Profile",
+      icon: User
+    }
+  ];
+
+  return (
+    <>
+      {open && (
+        <div
+          className="mobile-overlay"
+          onClick={close}
+        />
+      )}
+
+      <aside
+        className={`sidebar ${
+          open ? "sidebar-open" : ""
+        }`}
+      >
+        <div className="sidebar-brand">
+          <div className="brand-logo">
+            <Sparkles size={21} />
+          </div>
+
+          <div>
+            <div className="brand-name">
+              HUPPY <span>CUBE</span>
+            </div>
+            <div className="brand-subtitle">
+              SOCIAL GROWTH
             </div>
           </div>
 
           <button
-            className="menu-btn"
-            aria-label="Menu"
-            onClick={() =>
-              setMobileMenu((value) => !value)
-            }
+            className="sidebar-close"
+            onClick={close}
           >
-            {mobileMenu ? <X /> : <Menu />}
+            <X size={19} />
           </button>
         </div>
 
-        {mobileMenu && (
-          <div
-            style={{
-              padding: "10px 15px 15px",
-              borderTop:
-                "1px solid #e5e7eb",
-              background: "white"
-            }}
-          >
-            <button
-              className="nav-btn"
-              onClick={() => {
-                setMobileMenu(false);
-                setSelectedPlatform(null);
-                setSelectedService(null);
-                scrollToServices();
-              }}
-            >
-              Services
-            </button>
-
-            <button
-              className="nav-btn"
-              onClick={() => {
-                setMobileMenu(false);
-                scrollToWallet();
-              }}
-            >
-              Wallet
-            </button>
+        <div className="sidebar-user">
+          <div className="avatar">
+            {user.name
+              ?.charAt(0)
+              .toUpperCase()}
           </div>
-        )}
-      </header>
 
-      <main className="container">
-        <section className="hero">
-          <h1>Grow Your Social Media</h1>
+          <div className="sidebar-user-info">
+            <strong>{user.name}</strong>
+            <span>{user.email}</span>
+          </div>
+        </div>
+
+        <div className="nav-label">
+          MAIN MENU
+        </div>
+
+        <nav className="sidebar-nav">
+          {items.map((item) => {
+            const Icon = item.icon;
+
+            return (
+              <button
+                key={item.id}
+                className={
+                  activePage === item.id
+                    ? "nav-item active"
+                    : "nav-item"
+                }
+                onClick={() =>
+                  setActivePage(item.id)
+                }
+              >
+                <Icon size={19} />
+                <span>{item.label}</span>
+
+                {activePage === item.id && (
+                  <ChevronRight
+                    size={16}
+                    className="nav-arrow"
+                  />
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        <div className="sidebar-spacer" />
+
+        <div className="sidebar-support">
+          <Sparkles size={18} />
+
+          <div>
+            <strong>Need help?</strong>
+            <span>Support is available.</span>
+          </div>
+        </div>
+
+        <button
+          className="logout-button"
+          onClick={onLogout}
+        >
+          <LogOut size={18} />
+          Sign out
+        </button>
+
+        <div className="sidebar-footer">
+          HUPPY CUBE © 2026
+        </div>
+      </aside>
+    </>
+  );
+}
+
+
+// ============================================================
+// HEADER
+// ============================================================
+
+function Header({
+  user,
+  balance,
+  onMenu,
+  onRefresh,
+  onDeposit
+}) {
+  return (
+    <header className="topbar">
+      <button
+        className="mobile-menu"
+        onClick={onMenu}
+      >
+        <Menu size={22} />
+      </button>
+
+      <div className="topbar-title">
+        <span className="eyebrow">
+          CONTROL CENTER
+        </span>
+
+        <h1>
+          Good day,{" "}
+          <span>{user.name?.split(" ")[0]}</span>
+          <span className="wave">✦</span>
+        </h1>
+      </div>
+
+      <div className="topbar-actions">
+        <button
+          className="icon-button"
+          onClick={onRefresh}
+          title="Refresh"
+        >
+          <RefreshCw size={18} />
+        </button>
+
+        <button
+          className="balance-pill"
+          onClick={onDeposit}
+        >
+          <div className="balance-icon">
+            <Wallet size={17} />
+          </div>
+
+          <div>
+            <span>Wallet</span>
+            <strong>{money(balance)}</strong>
+          </div>
+
+          <Plus size={17} />
+        </button>
+      </div>
+    </header>
+  );
+}
+
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+
+function Dashboard({
+  user,
+  balance,
+  stats,
+  services,
+  orders,
+  onDeposit,
+  onServices,
+  onOrders,
+  onSupport
+}) {
+  const latestOrders =
+    orders.slice(0, 5);
+
+  return (
+    <section className="content">
+      <div className="hero-card">
+        <div className="hero-content">
+          <div className="hero-badge">
+            <Sparkles size={14} />
+            HUPPY CUBE PRO
+          </div>
+
+          <h2>
+            Your social growth,
+            <br />
+            <span>powered by you.</span>
+          </h2>
 
           <p>
-            Choose your social media platform,
-            select the service you need, enter
-            your link and place your order
-            quickly.
+            Manage your services, orders
+            and wallet from one powerful
+            dashboard.
           </p>
 
-          <div className="hero-actions">
+          <div className="hero-buttons">
             <button
-              className="primary-btn"
-              onClick={scrollToServices}
+              className="primary-button"
+              onClick={onServices}
             >
               <ShoppingCart size={18} />
-              Browse Services
+              Browse services
             </button>
 
             <button
-              className="whatsapp-btn"
-              onClick={openWhatsApp}
+              className="ghost-button"
+              onClick={onDeposit}
             >
-              <MessageCircle size={18} />
-              WhatsApp Support
+              <Plus size={18} />
+              Add funds
             </button>
           </div>
-        </section>
+        </div>
 
-        <section className="stats">
-          <div className="stat">
-            <div className="stat-icon">
-              <Package size={21} />
-            </div>
+        <div className="hero-visual">
+          <div className="orbit orbit-one" />
+          <div className="orbit orbit-two" />
 
+          <div className="hero-orb">
+            <Sparkles size={48} />
+          </div>
+
+          <div className="floating-stat stat-top">
+            <TrendingUp size={16} />
+            <span>Growing</span>
+          </div>
+
+          <div className="floating-stat stat-bottom">
+            <CheckCircle2 size={16} />
+            <span>Orders active</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="stats-grid">
+        <StatCard
+          icon={Wallet}
+          title="Wallet Balance"
+          value={money(balance)}
+          description="Available to spend"
+          onClick={onDeposit}
+        />
+
+        <StatCard
+          icon={Package}
+          title="Total Orders"
+          value={stats.totalOrders}
+          description="All your orders"
+          onClick={onOrders}
+        />
+
+        <StatCard
+          icon={Clock3}
+          title="Pending"
+          value={stats.pendingOrders}
+          description="Currently processing"
+        />
+
+        <StatCard
+          icon={CircleDollarSign}
+          title="Total Spent"
+          value={money(stats.totalSpent)}
+          description="Across your orders"
+        />
+      </div>
+
+      <div className="dashboard-grid">
+        <div className="section-card">
+          <div className="section-heading">
             <div>
-              <strong>
-                {services.length}
-              </strong>
-              <span>
-                Available services
+              <span className="section-kicker">
+                QUICK START
               </span>
-            </div>
-          </div>
-
-          <div className="stat">
-            <div className="stat-icon">
-              <Wallet size={21} />
-            </div>
-
-            <div>
-              <strong>
-                {formatMoney(wallet)}
-              </strong>
-              <span>
-                Wallet balance
-              </span>
-            </div>
-          </div>
-
-          <div className="stat">
-            <div className="stat-icon">
-              <MessageCircle size={21} />
-            </div>
-
-            <div>
-              <strong>24/7</strong>
-              <span>
-                Customer support
-              </span>
-            </div>
-          </div>
-        </section>
-
-        {error && (
-          <div className="notice error">
-            {error}
-          </div>
-        )}
-
-        {success && (
-          <div className="notice success">
-            <CheckCircle2
-              size={17}
-              style={{
-                verticalAlign: "middle",
-                marginRight: 6
-              }}
-            />
-            {success}
-          </div>
-        )}
-
-        <section
-          id="wallet"
-          className="panel"
-        >
-          <div className="section-header">
-            <div>
-              <h2 className="section-title">
-                Wallet
-              </h2>
-
-              <p className="section-subtitle">
-                Add funds to your HUPPY CUBE
-                wallet using PesaPal.
-              </p>
-            </div>
-
-            <div className="wallet-mini">
-              <Wallet size={17} />
-              {formatMoney(wallet)}
-            </div>
-          </div>
-
-          <div className="deposit-grid">
-            <div className="form-group">
-              <label className="label">
-                Phone number
-              </label>
-
-              <input
-                className="input"
-                type="tel"
-                inputMode="tel"
-                placeholder="07XXXXXXXX"
-                value={phone}
-                onChange={(event) =>
-                  setPhone(event.target.value)
-                }
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="label">
-                Deposit amount
-              </label>
-
-              <input
-                className="input"
-                type="number"
-                min="1"
-                placeholder="e.g. 100"
-                value={depositAmount}
-                onChange={(event) =>
-                  setDepositAmount(
-                    event.target.value
-                  )
-                }
-              />
+              <h3>Popular platforms</h3>
             </div>
 
             <button
-              className="deposit-btn"
-              onClick={deposit}
+              className="text-button"
+              onClick={onServices}
             >
-              <CreditCard
-                size={17}
-                style={{
-                  verticalAlign: "middle",
-                  marginRight: 5
-                }}
-              />
-              Deposit
+              View all
+              <ChevronRight size={16} />
             </button>
           </div>
-        </section>
 
-        <section
-          id="services"
-          className="section"
-        >
-          {!selectedPlatform &&
-            !selectedService && (
-              <>
-                <div className="section-header">
-                  <div>
-                    <h2 className="section-title">
-                      Choose Platform
-                    </h2>
+          <div className="platform-grid">
+            {[
+              "Facebook",
+              "Instagram",
+              "TikTok",
+              "YouTube",
+              "Telegram",
+              "WhatsApp"
+            ].map((platform) => {
+              const config =
+                PLATFORM_CONFIG[
+                  platform
+                ];
 
-                    <p className="section-subtitle">
-                      Select a platform to view
-                      only its available services.
-                    </p>
-                  </div>
+              const Icon = config.icon;
 
-                  <div className="search-box">
-                    <Search size={18} />
-
-                    <input
-                      placeholder="Search platform or service..."
-                      value={search}
-                      onChange={(event) =>
-                        setSearch(
-                          event.target.value
-                        )
-                      }
-                    />
-                  </div>
-                </div>
-
-                {loadingServices ? (
-                  <div className="loading">
-                    <Loader2 className="spin" />
-                    Loading services...
-                  </div>
-                ) : visiblePlatforms.length ===
-                  0 ? (
-                  <div className="empty">
-                    No matching platforms or
-                    services found.
-                  </div>
-                ) : (
-                  <div className="platform-grid">
-                    {visiblePlatforms.map(
-                      (platform) => {
-                        const count =
-                          platformGroups[
-                            platform
-                          ]?.length || 0;
-
-                        const config =
-                          PLATFORM_CONFIG[
-                            platform
-                          ];
-
-                        return (
-                          <button
-                            key={platform}
-                            className="platform-card"
-                            onClick={() =>
-                              openPlatform(
-                                platform
-                              )
-                            }
-                          >
-                            <div
-                              className="platform-icon"
-                              style={{
-                                color:
-                                  config?.color ||
-                                  "#7c3aed"
-                              }}
-                            >
-                              {getPlatformIcon(
-                                platform
-                              )}
-                            </div>
-
-                            <h3>
-                              {platform}
-                            </h3>
-
-                            <p>
-                              {count} service
-                              {count === 1
-                                ? ""
-                                : "s"}
-                            </p>
-
-                            <ChevronRight
-                              className="platform-arrow"
-                              size={20}
-                            />
-                          </button>
-                        );
-                      }
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-
-          {selectedPlatform &&
-            !selectedService && (
-              <>
+              return (
                 <button
-                  className="back-btn"
-                  onClick={
-                    goBackToPlatforms
-                  }
-                >
-                  <ArrowLeft size={17} />
-                  All Platforms
-                </button>
-
-                <div className="section-header">
-                  <div>
-                    <h2 className="section-title">
-                      {
-                        PLATFORM_CONFIG[
-                          selectedPlatform
-                        ]?.icon
-                      }{" "}
-                      {selectedPlatform}
-                    </h2>
-
-                    <p className="section-subtitle">
-                      Select the service you
-                      want.
-                    </p>
-                  </div>
-
-                  <div className="search-box">
-                    <Search size={18} />
-
-                    <input
-                      placeholder={`Search ${selectedPlatform} services...`}
-                      value={
-                        serviceSearch
-                      }
-                      onChange={(event) =>
-                        setServiceSearch(
-                          event.target.value
-                        )
-                      }
-                    />
-                  </div>
-                </div>
-
-                {selectedPlatformServices.length ===
-                0 ? (
-                  <div className="empty">
-                    No services found for this
-                    platform.
-                  </div>
-                ) : (
-                  <div className="services-grid">
-                    {selectedPlatformServices.map(
-                      (service) => (
-                        <div
-                          className="service-card"
-                          key={`${service.service_id}-${service.name}`}
-                        >
-                          <div className="service-name">
-                            {service.name}
-                          </div>
-
-                          <div className="service-category">
-                            {service.category ||
-                              "Social media service"}
-                          </div>
-
-                          <div className="service-meta">
-                            <span>
-                              Min:{" "}
-                              {Number(
-                                service.min_quantity
-                              ).toLocaleString()}
-                            </span>
-
-                            <span>
-                              Max:{" "}
-                              {Number(
-                                service.max_quantity
-                              ).toLocaleString()}
-                            </span>
-                          </div>
-
-                          <div className="service-meta">
-                            <span className="service-rate">
-                              {formatMoney(
-                                service.customer_rate
-                              )}{" "}
-                              / 1K
-                            </span>
-
-                            <span>
-                              {service.refill
-                                ? "Refill"
-                                : ""}
-                            </span>
-                          </div>
-
-                          <button
-                            className="select-btn"
-                            onClick={() =>
-                              openService(
-                                service
-                              )
-                            }
-                          >
-                            Select Service
-                          </button>
-                        </div>
-                      )
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-
-          {selectedService && (
-            <>
-              <button
-                className="back-btn"
-                onClick={goBackToServices}
-              >
-                <ArrowLeft size={17} />
-                {selectedPlatform} Services
-              </button>
-
-              <div className="panel">
-                <div
-                  style={{
-                    marginBottom: 20
-                  }}
+                  className="platform-card"
+                  key={platform}
+                  onClick={onServices}
                 >
                   <div
+                    className="platform-icon"
                     style={{
-                      fontSize: 13,
-                      color: "#6b7280",
-                      marginBottom: 6
+                      "--platform":
+                        config.color
                     }}
                   >
-                    {selectedPlatform}
+                    <Icon size={22} />
                   </div>
 
-                  <h2
-                    style={{
-                      margin: 0,
-                      fontSize: 24,
-                      fontWeight: 900
-                    }}
-                  >
-                    {selectedService.name}
-                  </h2>
-
-                  <p
-                    style={{
-                      color: "#6b7280",
-                      fontSize: 14,
-                      lineHeight: 1.5
-                    }}
-                  >
-                    {selectedService.category ||
-                      "Enter your social media link and quantity."}
-                  </p>
-                </div>
-
-                <div className="form-grid">
-                  <div className="form-group full">
-                    <label className="label">
-                      Social media link
-                    </label>
-
-                    <input
-                      className="input"
-                      type="url"
-                      placeholder="https://..."
-                      value={link}
-                      onChange={(event) =>
-                        setLink(
-                          event.target.value
-                        )
-                      }
-                    />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="label">
-                      Quantity
-                    </label>
-
-                    <input
-                      className="input"
-                      type="number"
-                      min={
-                        selectedService.min_quantity
-                      }
-                      max={
-                        selectedService.max_quantity
-                      }
-                      value={quantity}
-                      onChange={(event) =>
-                        setQuantity(
-                          event.target.value
-                        )
-                      }
-                    />
-
-                    <small
-                      style={{
-                        color: "#6b7280"
-                      }}
-                    >
-                      Min{" "}
-                      {Number(
-                        selectedService.min_quantity
-                      ).toLocaleString()}
-                      {" • "}
-                      Max{" "}
-                      {Number(
-                        selectedService.max_quantity
-                      ).toLocaleString()}
-                    </small>
-                  </div>
-
-                  <div className="price-box">
-                    <span>
-                      Estimated price
-                    </span>
-
+                  <div>
                     <strong>
-                      {formatMoney(
-                        estimatedPrice
-                      )}
+                      {platform}
                     </strong>
+                    <span>
+                      Social services
+                    </span>
                   </div>
 
-                  <div className="form-group full">
-                    <button
-                      className="order-btn"
-                      onClick={placeOrder}
-                      disabled={
-                        placingOrder
-                      }
-                    >
-                      {placingOrder ? (
-                        <>
-                          <Loader2
-                            className="spin"
-                            size={18}
-                          />
-                          Placing Order...
-                        </>
-                      ) : (
-                        <>
-                          <Send size={18} />
-                          Place Order
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
+                  <ChevronRight
+                    size={16}
+                  />
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
-                <div
-                  style={{
-                    marginTop: 14,
-                    padding: 13,
-                    background: "#f9fafb",
-                    borderRadius: 12,
-                    color: "#6b7280",
-                    fontSize: 13
-                  }}
-                >
-                  Wallet balance:{" "}
-                  <strong
-                    style={{
-                      color: "#111827"
-                    }}
-                  >
-                    {formatMoney(wallet)}
-                  </strong>
-                </div>
-              </div>
-            </>
-          )}
-        </section>
+        <div className="section-card balance-card">
+          <div className="balance-glow" />
 
-        <section
-          className="panel"
-          style={{ marginTop: 25 }}
+          <div className="section-kicker">
+            YOUR WALLET
+          </div>
+
+          <h3>Available balance</h3>
+
+          <div className="big-balance">
+            {money(balance)}
+          </div>
+
+          <p>
+            Add funds through PesaPal and
+            start ordering instantly.
+          </p>
+
+          <button
+            className="primary-button full"
+            onClick={onDeposit}
+          >
+            <ArrowDownToLine size={18} />
+            Deposit funds
+          </button>
+        </div>
+      </div>
+
+      <div className="section-card">
+        <div className="section-heading">
+          <div>
+            <span className="section-kicker">
+              RECENT ACTIVITY
+            </span>
+            <h3>Recent orders</h3>
+          </div>
+
+          <button
+            className="text-button"
+            onClick={onOrders}
+          >
+            View orders
+            <ChevronRight size={16} />
+          </button>
+        </div>
+
+        {latestOrders.length === 0 ? (
+          <EmptyState
+            icon={Package}
+            title="No orders yet"
+            description="Your recent orders will appear here."
+            button="Browse services"
+            onClick={onServices}
+          />
+        ) : (
+          <OrderList
+            orders={latestOrders}
+          />
+        )}
+      </div>
+
+      <div className="support-banner">
+        <div className="support-icon">
+          <MessageCircle size={24} />
+        </div>
+
+        <div>
+          <strong>
+            Need help with an order?
+          </strong>
+          <span>
+            Contact HUPPY CUBE support
+            directly on WhatsApp.
+          </span>
+        </div>
+
+        <button
+          className="ghost-button"
+          onClick={onSupport}
         >
-          <div className="section-header">
-            <div>
-              <h2 className="section-title">
-                Check Order Status
-              </h2>
+          Chat with support
+          <ExternalLink size={16} />
+        </button>
+      </div>
+    </section>
+  );
+}
 
-              <p className="section-subtitle">
-                Enter your HUPPY CUBE order ID
-                to check its current status.
-              </p>
+function StatCard({
+  icon: Icon,
+  title,
+  value,
+  description,
+  onClick
+}) {
+  return (
+    <button
+      className={`stat-card ${
+        onClick ? "clickable" : ""
+      }`}
+      onClick={onClick}
+    >
+      <div className="stat-icon">
+        <Icon size={19} />
+      </div>
+
+      <div className="stat-info">
+        <span>{title}</span>
+        <strong>{value}</strong>
+        <small>{description}</small>
+      </div>
+    </button>
+  );
+}
+
+
+// ============================================================
+// SERVICES
+// ============================================================
+
+function ServicesPage({
+  services,
+  platformCounts,
+  selectedPlatform,
+  setSelectedPlatform,
+  search,
+  setSearch,
+  loading,
+  onRefresh,
+  onSelect
+}) {
+  return (
+    <section className="content">
+      <PageIntro
+        kicker="SERVICE MARKETPLACE"
+        title="Choose a service"
+        description="Select a platform, choose a service and place your order instantly."
+      />
+
+      <div className="service-toolbar">
+        <div className="search-box">
+          <Search size={18} />
+
+          <input
+            value={search}
+            onChange={(e) =>
+              setSearch(e.target.value)
+            }
+            placeholder="Search services..."
+          />
+
+          {search && (
+            <button
+              onClick={() =>
+                setSearch("")
+              }
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+
+        <button
+          className="icon-button"
+          onClick={onRefresh}
+          title="Refresh services"
+        >
+          <RefreshCw
+            size={18}
+            className={
+              loading
+                ? "spin"
+                : ""
+            }
+          />
+        </button>
+      </div>
+
+      <div className="platform-tabs">
+        <PlatformTab
+          name="All"
+          count={
+            platformCounts.All || 0
+          }
+          active={
+            selectedPlatform === "All"
+          }
+          onClick={() =>
+            setSelectedPlatform("All")
+          }
+        />
+
+        {Object.keys(
+          PLATFORM_CONFIG
+        ).map((platform) => (
+          <PlatformTab
+            key={platform}
+            name={platform}
+            count={
+              platformCounts[
+                platform
+              ] || 0
+            }
+            active={
+              selectedPlatform ===
+              platform
+            }
+            onClick={() =>
+              setSelectedPlatform(
+                platform
+              )
+            }
+          />
+        ))}
+      </div>
+
+      {loading ? (
+        <ServiceSkeleton />
+      ) : services.length === 0 ? (
+        <EmptyState
+          icon={Search}
+          title="No services found"
+          description="Try another search or refresh the services."
+          button="Clear search"
+          onClick={() => {
+            setSearch("");
+            setSelectedPlatform("All");
+          }}
+        />
+      ) : (
+        <>
+          <div className="service-result-bar">
+            <span>
+              Showing{" "}
+              <strong>
+                {services.length}
+              </strong>{" "}
+              services
+            </span>
+
+            <span className="service-note">
+              Prices include your service
+              rate
+            </span>
+          </div>
+
+          <div className="services-grid">
+            {services.map(
+              (service) => (
+                <ServiceCard
+                  key={
+                    service.service_id
+                  }
+                  service={service}
+                  onSelect={onSelect}
+                />
+              )
+            )}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+function PlatformTab({
+  name,
+  count,
+  active,
+  onClick
+}) {
+  const config =
+    PLATFORM_CONFIG[name];
+
+  const Icon =
+    config?.icon || Sparkles;
+
+  return (
+    <button
+      className={`platform-tab ${
+        active ? "active" : ""
+      }`}
+      onClick={onClick}
+    >
+      <Icon size={16} />
+
+      <span>{name}</span>
+
+      <b>{count}</b>
+    </button>
+  );
+}
+
+function ServiceCard({
+  service,
+  onSelect
+}) {
+  const platform =
+    classifyService(service);
+
+  const config =
+    PLATFORM_CONFIG[platform];
+
+  const Icon = config.icon;
+
+  const customerRate =
+    Number(service.customer_rate || 0);
+
+  return (
+    <div className="service-card">
+      <div className="service-card-top">
+        <div
+          className="service-platform-icon"
+          style={{
+            "--platform":
+              config.color
+          }}
+        >
+          <Icon size={20} />
+        </div>
+
+        <span className="service-type">
+          {service.type ||
+            "Social service"}
+        </span>
+      </div>
+
+      <h3>
+        {service.name}
+      </h3>
+
+      <div className="service-meta">
+        <span>
+          Min{" "}
+          {Number(
+            service.min_quantity || 0
+          ).toLocaleString()}
+        </span>
+
+        <span>
+          Max{" "}
+          {Number(
+            service.max_quantity || 0
+          ).toLocaleString()}
+        </span>
+      </div>
+
+      <div className="service-price">
+        <div>
+          <strong>
+            {money(
+              customerRate
+            )}
+          </strong>
+
+          <span>
+            / 1,000
+          </span>
+        </div>
+
+        <button
+          className="order-button"
+          onClick={() =>
+            onSelect(service)
+          }
+        >
+          Order
+          <ArrowUpRight size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+// ============================================================
+// ORDER MODAL
+// ============================================================
+
+function OrderModal({
+  service,
+  balance,
+  onClose,
+  onSuccess,
+  api,
+  showNotice
+}) {
+  const [link, setLink] =
+    useState("");
+
+  const [quantity, setQuantity] =
+    useState(
+      Number(service.min_quantity || 100)
+    );
+
+  const [loading, setLoading] =
+    useState(false);
+
+  const rate =
+    Number(
+      service.customer_rate || 0
+    );
+
+  const cost =
+    Number(
+      (
+        rate *
+        Number(quantity || 0) /
+        1000
+      ).toFixed(2)
+    );
+
+  const insufficient =
+    balance < cost;
+
+  async function submit(event) {
+    event.preventDefault();
+
+    if (!link.trim()) {
+      showNotice(
+        "error",
+        "Enter the target link."
+      );
+      return;
+    }
+
+    if (
+      quantity <
+      Number(service.min_quantity)
+    ) {
+      showNotice(
+        "error",
+        `Minimum quantity is ${service.min_quantity}.`
+      );
+      return;
+    }
+
+    if (
+      quantity >
+      Number(service.max_quantity)
+    ) {
+      showNotice(
+        "error",
+        `Maximum quantity is ${service.max_quantity}.`
+      );
+      return;
+    }
+
+    if (insufficient) {
+      showNotice(
+        "error",
+        "Your wallet balance is too low."
+      );
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const data =
+        await api(
+          "/api/smm/order",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              service_id:
+                Number(
+                  service.service_id
+                ),
+              link:
+                link.trim(),
+              quantity:
+                Number(quantity)
+            })
+          }
+        );
+
+      if (!data.success) {
+        throw new Error(
+          data.error ||
+            "Order failed"
+        );
+      }
+
+      showNotice(
+        "success",
+        `Order #${data.order_id} created successfully.`
+      );
+
+      await onSuccess();
+
+    } catch (error) {
+      showNotice(
+        "error",
+        error.message
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="modal-backdrop">
+      <div className="order-modal glass-card">
+        <button
+          className="modal-close"
+          onClick={onClose}
+        >
+          <X size={20} />
+        </button>
+
+        <div className="modal-heading">
+          <div className="modal-service-icon">
+            <Sparkles size={21} />
+          </div>
+
+          <div>
+            <span>
+              SERVICE #{service.service_id}
+            </span>
+
+            <h2>
+              {service.name}
+            </h2>
+          </div>
+        </div>
+
+        <div className="order-price-box">
+          <div>
+            <span>Your price</span>
+            <strong>
+              {money(rate)}
+              <small>
+                / 1,000
+              </small>
+            </strong>
+          </div>
+
+          <div>
+            <span>Wallet</span>
+            <strong>
+              {money(balance)}
+            </strong>
+          </div>
+        </div>
+
+        <form
+          className="order-form"
+          onSubmit={submit}
+        >
+          <label>
+            Target link
+
+            <input
+              value={link}
+              onChange={(e) =>
+                setLink(
+                  e.target.value
+                )
+              }
+              placeholder="https://..."
+              required
+            />
+          </label>
+
+          <label>
+            Quantity
+
+            <input
+              type="number"
+              value={quantity}
+              min={
+                service.min_quantity
+              }
+              max={
+                service.max_quantity
+              }
+              onChange={(e) =>
+                setQuantity(
+                  Number(
+                    e.target.value
+                  )
+                )
+              }
+              required
+            />
+
+            <small className="input-help">
+              Min{" "}
+              {Number(
+                service.min_quantity
+              ).toLocaleString()}
+              {" "}— Max{" "}
+              {Number(
+                service.max_quantity
+              ).toLocaleString()}
+            </small>
+          </label>
+
+          <div className="order-summary">
+            <span>
+              Order total
+            </span>
+
+            <strong>
+              {money(cost)}
+            </strong>
+          </div>
+
+          {insufficient && (
+            <div className="warning-box">
+              <Wallet size={17} />
+
+              <span>
+                You need{" "}
+                {money(
+                  cost - balance
+                )}{" "}
+                more in your wallet.
+              </span>
             </div>
+          )}
 
+          <button
+            className="primary-button full"
+            disabled={
+              loading ||
+              insufficient
+            }
+          >
+            {loading ? (
+              <>
+                <RefreshCw
+                  size={18}
+                  className="spin"
+                />
+                Placing order...
+              </>
+            ) : (
+              <>
+                <ShoppingCart size={18} />
+                Place order
+              </>
+            )}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+
+// ============================================================
+// ORDERS
+// ============================================================
+
+function OrdersPage({
+  orders,
+  loading,
+  onRefresh
+}) {
+  return (
+    <section className="content">
+      <PageIntro
+        kicker="ORDER MANAGEMENT"
+        title="My orders"
+        description="Track all your HUPPY CUBE orders from one place."
+        action={
+          <button
+            className="icon-button"
+            onClick={onRefresh}
+          >
             <RefreshCw
-              size={20}
-              color="#6b7280"
+              size={18}
+              className={
+                loading
+                  ? "spin"
+                  : ""
+              }
+            />
+          </button>
+        }
+      />
+
+      {orders.length === 0 ? (
+        <EmptyState
+          icon={Package}
+          title="No orders yet"
+          description="Once you place an order, it will appear here."
+        />
+      ) : (
+        <div className="orders-card section-card">
+          <div className="orders-table-wrap">
+            <table className="orders-table">
+              <thead>
+                <tr>
+                  <th>Order</th>
+                  <th>Service</th>
+                  <th>Quantity</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {orders.map(
+                  (order) => (
+                    <tr
+                      key={order.id}
+                    >
+                      <td>
+                        <strong>
+                          #
+                          {
+                            order.id
+                          }
+                        </strong>
+                      </td>
+
+                      <td>
+                        <div className="order-service">
+                          <div className="mini-icon">
+                            <Sparkles
+                              size={14}
+                            />
+                          </div>
+
+                          <span>
+                            {
+                              order.service_name
+                            }
+                          </span>
+                        </div>
+                      </td>
+
+                      <td>
+                        {Number(
+                          order.quantity ||
+                            0
+                        ).toLocaleString()}
+                      </td>
+
+                      <td>
+                        <strong>
+                          {money(
+                            order.amount
+                          )}
+                        </strong>
+                      </td>
+
+                      <td>
+                        <StatusBadge
+                          status={
+                            order.status
+                          }
+                        />
+                      </td>
+
+                      <td>
+                        {formatDate(
+                          order.created_at
+                        )}
+                      </td>
+                    </tr>
+                  )
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function OrderList({
+  orders
+}) {
+  return (
+    <div className="recent-orders">
+      {orders.map((order) => (
+        <div
+          className="recent-order"
+          key={order.id}
+        >
+          <div className="recent-order-icon">
+            <Package size={18} />
+          </div>
+
+          <div className="recent-order-info">
+            <strong>
+              #{order.id} ·{" "}
+              {order.service_name}
+            </strong>
+
+            <span>
+              {Number(
+                order.quantity || 0
+              ).toLocaleString()}{" "}
+              units
+            </span>
+          </div>
+
+          <div className="recent-order-right">
+            <strong>
+              {money(order.amount)}
+            </strong>
+
+            <StatusBadge
+              status={order.status}
             />
           </div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
-          <div className="deposit-grid">
-            <div className="form-group">
-              <label className="label">
-                Order ID
-              </label>
+function StatusBadge({
+  status
+}) {
+  const value =
+    String(status || "Pending");
 
-              <input
-                className="input"
-                type="text"
-                placeholder="e.g. 123"
-                value={orderId}
-                onChange={(event) =>
-                  setOrderId(
-                    event.target.value
-                  )
-                }
-              />
+  const normalized =
+    value.toLowerCase();
+
+  let className =
+    "status-badge pending";
+
+  if (
+    normalized.includes("complete") ||
+    normalized === "completed"
+  ) {
+    className =
+      "status-badge completed";
+  } else if (
+    normalized.includes("fail") ||
+    normalized.includes("cancel")
+  ) {
+    className =
+      "status-badge failed";
+  } else if (
+    normalized.includes("process")
+  ) {
+    className =
+      "status-badge processing";
+  }
+
+  return (
+    <span className={className}>
+      <span className="status-dot" />
+      {value}
+    </span>
+  );
+}
+
+
+// ============================================================
+// WALLET
+// ============================================================
+
+function WalletPage({
+  balance,
+  depositAmount,
+  setDepositAmount,
+  loading,
+  onDeposit,
+  onRefresh
+}) {
+  const quickAmounts = [
+    100,
+    250,
+    500,
+    1000,
+    2500
+  ];
+
+  return (
+    <section className="content">
+      <PageIntro
+        kicker="WALLET"
+        title="Manage your funds"
+        description="Deposit funds through PesaPal and use your balance for instant orders."
+        action={
+          <button
+            className="icon-button"
+            onClick={onRefresh}
+          >
+            <RefreshCw size={18} />
+          </button>
+        }
+      />
+
+      <div className="wallet-grid">
+        <div className="wallet-main-card">
+          <div className="wallet-card-glow" />
+
+          <div className="wallet-card-header">
+            <div>
+              <span>
+                AVAILABLE BALANCE
+              </span>
+
+              <h2>
+                {money(balance)}
+              </h2>
             </div>
 
-            <div />
-
-            <button
-              className="deposit-btn"
-              onClick={checkOrderStatus}
-              disabled={checkingStatus}
-            >
-              {checkingStatus ? (
-                <>
-                  <Loader2
-                    className="spin"
-                    size={17}
-                  />
-                </>
-              ) : (
-                "Check Status"
-              )}
-            </button>
+            <div className="wallet-large-icon">
+              <Wallet size={26} />
+            </div>
           </div>
 
-          {orderStatus && (
-            <div className="status-box">
-              {Object.entries(
-                orderStatus
-              ).map(([key, value]) => (
-                <div
-                  className="status-row"
-                  key={key}
-                >
-                  <span>{key}</span>
+          <div className="wallet-card-footer">
+            <span>
+              Ready to spend
+            </span>
 
-                  <strong>
-                    {String(value)}
-                  </strong>
-                </div>
-              ))}
+            <div className="wallet-secure">
+              <ShieldCheck size={15} />
+              Secure wallet
             </div>
-          )}
-        </section>
-      </main>
+          </div>
+        </div>
+
+        <div className="deposit-card section-card">
+          <div className="section-kicker">
+            ADD FUNDS
+          </div>
+
+          <h3>
+            Deposit with PesaPal
+          </h3>
+
+          <p>
+            Enter the amount you want
+            to add to your HUPPY CUBE
+            wallet.
+          </p>
+
+          <label className="deposit-input">
+            <span>KSh</span>
+
+            <input
+              type="number"
+              min="1"
+              value={depositAmount}
+              onChange={(e) =>
+                setDepositAmount(
+                  e.target.value
+                )
+              }
+              placeholder="0.00"
+            />
+          </label>
+
+          <div className="quick-amounts">
+            {quickAmounts.map(
+              (amount) => (
+                <button
+                  key={amount}
+                  onClick={() =>
+                    setDepositAmount(
+                      String(amount)
+                    )
+                  }
+                >
+                  KSh{" "}
+                  {amount.toLocaleString()}
+                </button>
+              )
+            )}
+          </div>
+
+          <button
+            className="primary-button full"
+            onClick={onDeposit}
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <RefreshCw
+                  size={18}
+                  className="spin"
+                />
+                Connecting to PesaPal...
+              </>
+            ) : (
+              <>
+                <ArrowDownToLine size={18} />
+                Continue to PesaPal
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      <div className="payment-info-grid">
+        <InfoCard
+          icon={ShieldCheck}
+          title="Secure payments"
+          text="Payments are handled through PesaPal."
+        />
+
+        <InfoCard
+          icon={Clock3}
+          title="Fast crediting"
+          text="Completed deposits are added to your wallet."
+        />
+
+        <InfoCard
+          icon={CircleDollarSign}
+          title="KES wallet"
+          text="Your HUPPY CUBE balance is maintained in Kenyan Shillings."
+        />
+      </div>
+    </section>
+  );
+}
+
+function InfoCard({
+  icon: Icon,
+  title,
+  text
+}) {
+  return (
+    <div className="info-card">
+      <div className="info-icon">
+        <Icon size={18} />
+      </div>
+
+      <div>
+        <strong>{title}</strong>
+        <span>{text}</span>
+      </div>
+    </div>
+  );
+}
+
+
+// ============================================================
+// PROFILE
+// ============================================================
+
+function ProfilePage({
+  user,
+  onLogout
+}) {
+  return (
+    <section className="content">
+      <PageIntro
+        kicker="ACCOUNT"
+        title="Your profile"
+        description="Manage your HUPPY CUBE account information."
+      />
+
+      <div className="profile-card section-card">
+        <div className="profile-header">
+          <div className="profile-avatar">
+            {user.name
+              ?.charAt(0)
+              .toUpperCase()}
+          </div>
+
+          <div>
+            <h2>{user.name}</h2>
+            <span>
+              HUPPY CUBE customer
+            </span>
+          </div>
+        </div>
+
+        <div className="profile-fields">
+          <ProfileField
+            icon={User}
+            label="Full name"
+            value={user.name}
+          />
+
+          <ProfileField
+            icon={Ticket}
+            label="Email address"
+            value={user.email}
+          />
+
+          <ProfileField
+            icon={MessageCircle}
+            label="Phone number"
+            value={user.phone}
+          />
+        </div>
+
+        <button
+          className="danger-button"
+          onClick={onLogout}
+        >
+          <LogOut size={18} />
+          Sign out
+        </button>
+      </div>
+    </section>
+  );
+}
+
+function ProfileField({
+  icon: Icon,
+  label,
+  value
+}) {
+  return (
+    <div className="profile-field">
+      <div className="profile-field-icon">
+        <Icon size={17} />
+      </div>
+
+      <div>
+        <span>{label}</span>
+        <strong>{value}</strong>
+      </div>
+    </div>
+  );
+}
+
+
+// ============================================================
+// COMMON COMPONENTS
+// ============================================================
+
+function PageIntro({
+  kicker,
+  title,
+  description,
+  action
+}) {
+  return (
+    <div className="page-intro">
+      <div>
+        <span className="section-kicker">
+          {kicker}
+        </span>
+
+        <h2>{title}</h2>
+
+        <p>{description}</p>
+      </div>
+
+      {action && (
+        <div className="page-intro-action">
+          {action}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EmptyState({
+  icon: Icon,
+  title,
+  description,
+  button,
+  onClick
+}) {
+  return (
+    <div className="empty-state">
+      <div className="empty-icon">
+        <Icon size={27} />
+      </div>
+
+      <h3>{title}</h3>
+
+      <p>{description}</p>
+
+      {button && onClick && (
+        <button
+          className="primary-button"
+          onClick={onClick}
+        >
+          {button}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function ServiceSkeleton() {
+  return (
+    <div className="services-grid">
+      {Array.from({
+        length: 8
+      }).map((_, index) => (
+        <div
+          className="service-skeleton"
+          key={index}
+        >
+          <div />
+          <div />
+          <div />
+          <div />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Notice({
+  notice,
+  onClose
+}) {
+  return (
+    <div
+      className={`notice ${
+        notice.type === "success"
+          ? "notice-success"
+          : "notice-error"
+      }`}
+    >
+      {notice.type ===
+      "success" ? (
+        <CheckCircle2 size={19} />
+      ) : (
+        <X size={19} />
+      )}
+
+      <span>{notice.message}</span>
 
       <button
-        className="floating-support"
-        onClick={openWhatsApp}
+        onClick={onClose}
       >
-        <MessageCircle size={19} />
-        Support
+        <X size={16} />
       </button>
     </div>
   );
 }
 
-const rootElement =
-  document.getElementById("root");
+function formatDate(value) {
+  if (!value) return "-";
 
-if (!rootElement) {
-  document.body.innerHTML =
-    "<div style='padding:30px;font-family:Arial'>HUPPY CUBE could not find the application root.</div>";
-} else {
-  createRoot(rootElement).render(
-    <App />
+  const date =
+    new Date(
+      String(value).replace(
+        " ",
+        "T"
+      ) + "Z"
+    );
+
+  if (
+    Number.isNaN(
+      date.getTime()
+    )
+  ) {
+    return value;
+  }
+
+  return date.toLocaleDateString(
+    "en-KE",
+    {
+      day: "2-digit",
+      month: "short",
+      year: "numeric"
+    }
   );
-          }
+}
+
+createRoot(
+  document.getElementById("root")
+).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
