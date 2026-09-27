@@ -1,10 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { createRoot } from "react-dom/client";
 import {
   ArrowLeft,
   CheckCircle2,
   ChevronRight,
-  Copy,
   CreditCard,
   Instagram,
   Loader2,
@@ -22,275 +20,254 @@ import {
   X,
   Zap
 } from "lucide-react";
-import "./index.css";
 
-const WHATSAPP_NUMBER = "254796681162";
+const SUPPORT_NUMBER = "254796681162";
 
-const money = (value) =>
-  `KSh ${Number(value || 0).toLocaleString("en-KE", {
+const PLATFORM_CONFIG = {
+  Facebook: {
+    icon: "🔵",
+    color: "#1877F2",
+    keywords: [
+      "facebook",
+      "fb ",
+      "fb likes",
+      "fb followers",
+      "fb comments",
+      "facebook page"
+    ]
+  },
+  Instagram: {
+    icon: "📸",
+    color: "#E1306C",
+    keywords: ["instagram", "ig ", "ig likes", "ig followers", "ig comments"]
+  },
+  TikTok: {
+    icon: "🎵",
+    color: "#111111",
+    keywords: ["tiktok", "tik tok", "tt followers", "tt likes", "tt views"]
+  },
+  YouTube: {
+    icon: "▶️",
+    color: "#FF0000",
+    keywords: ["youtube", "yt ", "yt views", "yt subscribers", "yt likes"]
+  },
+  Telegram: {
+    icon: "✈️",
+    color: "#229ED9",
+    keywords: ["telegram", "tg ", "telegram members", "telegram views"]
+  },
+  "X / Twitter": {
+    icon: "𝕏",
+    color: "#111111",
+    keywords: ["twitter", "x followers", "x likes", "x retweets", " x "]
+  },
+  WhatsApp: {
+    icon: "💬",
+    color: "#25D366",
+    keywords: ["whatsapp", "wa followers", "wa channel"]
+  },
+  Spotify: {
+    icon: "🎧",
+    color: "#1DB954",
+    keywords: ["spotify", "spotify plays", "spotify followers"]
+  },
+  Other: {
+    icon: "✨",
+    color: "#7c3aed",
+    keywords: []
+  }
+};
+
+function detectPlatform(service) {
+  const text = `${service.name || ""} ${service.category || ""} ${
+    service.type || ""
+  }`.toLowerCase();
+
+  const orderedPlatforms = [
+    "Facebook",
+    "Instagram",
+    "TikTok",
+    "YouTube",
+    "Telegram",
+    "X / Twitter",
+    "WhatsApp",
+    "Spotify"
+  ];
+
+  for (const platform of orderedPlatforms) {
+    const config = PLATFORM_CONFIG[platform];
+
+    if (
+      config.keywords.some((keyword) =>
+        text.includes(keyword.toLowerCase())
+      )
+    ) {
+      return platform;
+    }
+  }
+
+  return "Other";
+}
+
+function formatMoney(value) {
+  const number = Number(value || 0);
+
+  return `KSh ${number.toLocaleString("en-KE", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   })}`;
-
-function getSavedPhone() {
-  return localStorage.getItem("huppy_phone") || "";
 }
 
-function savePhone(phone) {
-  localStorage.setItem("huppy_phone", phone);
+function calculatePrice(service, quantity) {
+  const rate = Number(service.customer_rate ?? service.rate ?? 0);
+  return (rate * Number(quantity || 0)) / 1000;
 }
 
-function normalizeService(raw) {
+function normalizeService(service) {
   return {
-    id: Number(raw.service_id ?? raw.service ?? raw.id),
-    name: raw.name || "Social Media Service",
-    type: raw.type || "",
-    category: raw.category || "",
-    rate: Number(raw.customer_rate ?? raw.rate ?? 0),
-    supplierRate: Number(raw.supplier_rate ?? raw.rate ?? 0),
-    min: Number(raw.min_quantity ?? raw.min ?? 1),
-    max: Number(raw.max_quantity ?? raw.max ?? 1000000),
-    refill: Boolean(raw.refill),
-    cancel: Boolean(raw.cancel),
-    active: raw.active === undefined ? true : Boolean(raw.active)
+    service: Number(service.service ?? service.service_id),
+    service_id: Number(service.service_id ?? service.service),
+    name: service.name || "Unnamed Service",
+    type: service.type || "",
+    category: service.category || "",
+    rate: Number(service.rate ?? service.supplier_rate ?? 0),
+    supplier_rate: Number(service.supplier_rate ?? service.rate ?? 0),
+    customer_rate: Number(
+      service.customer_rate ?? Number(service.rate ?? 0) * 2
+    ),
+    min: Number(service.min ?? service.min_quantity ?? 1),
+    max: Number(service.max ?? service.max_quantity ?? 1000000),
+    min_quantity: Number(service.min_quantity ?? service.min ?? 1),
+    max_quantity: Number(service.max_quantity ?? service.max ?? 1000000),
+    refill: Boolean(service.refill),
+    cancel: Boolean(service.cancel)
   };
 }
 
-function serviceIcon(name) {
-  const n = name.toLowerCase();
-
-  if (n.includes("instagram")) {
-    return <Instagram size={24} />;
-  }
-
-  if (n.includes("tiktok")) {
-    return <Music2 size={24} />;
-  }
-
-  if (n.includes("facebook")) {
-    return (
-      <span style={{ fontWeight: 900, fontSize: 24 }}>
-        f
-      </span>
-    );
-  }
-
-  if (n.includes("youtube")) {
-    return (
-      <span style={{ fontWeight: 900, fontSize: 18 }}>
-        ▶
-      </span>
-    );
-  }
-
-  if (n.includes("telegram")) {
-    return <Send size={24} />;
-  }
-
-  if (n.includes("whatsapp")) {
-    return <MessageCircle size={24} />;
-  }
-
-  return <Sparkles size={24} />;
-}
-
-function App() {
-  const [phone, setPhone] = useState(getSavedPhone());
-  const [wallet, setWallet] = useState(0);
-
+export default function App() {
   const [services, setServices] = useState([]);
-  const [loadingServices, setLoadingServices] = useState(true);
-
+  const [selectedPlatform, setSelectedPlatform] = useState(null);
   const [selectedService, setSelectedService] = useState(null);
+
+  const [loadingServices, setLoadingServices] = useState(true);
+  const [loadingWallet, setLoadingWallet] = useState(false);
+  const [placingOrder, setPlacingOrder] = useState(false);
+
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const [wallet, setWallet] = useState(0);
+  const [phone, setPhone] = useState(
+    localStorage.getItem("huppy_phone") || ""
+  );
+
+  const [depositAmount, setDepositAmount] = useState("");
+
   const [search, setSearch] = useState("");
+  const [serviceSearch, setServiceSearch] = useState("");
 
   const [link, setLink] = useState("");
   const [quantity, setQuantity] = useState("");
 
-  const [depositAmount, setDepositAmount] = useState("");
-  const [depositEmail, setDepositEmail] = useState("");
-
-  const [loadingWallet, setLoadingWallet] = useState(false);
-  const [depositLoading, setDepositLoading] = useState(false);
-  const [orderLoading, setOrderLoading] = useState(false);
-
-  const [message, setMessage] = useState("");
-  const [error, setError] = useState("");
-
-  const [lastOrder, setLastOrder] = useState(null);
-  const [statusLoading, setStatusLoading] = useState(false);
+  const [orderId, setOrderId] = useState("");
+  const [orderStatus, setOrderStatus] = useState(null);
+  const [checkingStatus, setCheckingStatus] = useState(false);
 
   const [mobileMenu, setMobileMenu] = useState(false);
-
-  const filteredServices = useMemo(() => {
-    const q = search.trim().toLowerCase();
-
-    if (!q) return services;
-
-    return services.filter((service) =>
-      `${service.name} ${service.type} ${service.category}`
-        .toLowerCase()
-        .includes(q)
-    );
-  }, [services, search]);
-
-  const calculatedTotal = useMemo(() => {
-    if (!selectedService) return 0;
-
-    const qty = Number(quantity || 0);
-
-    if (!qty || qty <= 0) return 0;
-
-    return (selectedService.rate * qty) / 1000;
-  }, [selectedService, quantity]);
-
-  async function readJson(response) {
-    const text = await response.text();
-
-    try {
-      return JSON.parse(text);
-    } catch {
-      throw new Error(
-        `Server returned an invalid response (${response.status}).`
-      );
-    }
-  }
-
-  async function loadWallet(currentPhone = phone) {
-    if (!currentPhone) {
-      setWallet(0);
-      return;
-    }
-
-    setLoadingWallet(true);
-
-    try {
-      const response = await fetch(
-        `/api/wallet?phone=${encodeURIComponent(currentPhone)}`
-      );
-
-      const data = await readJson(response);
-
-      if (!response.ok) {
-        throw new Error(data.error || "Could not load wallet.");
-      }
-
-      setWallet(
-        Number(
-          data.balance ??
-            data.wallet?.balance ??
-            0
-        )
-      );
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoadingWallet(false);
-    }
-  }
-
-  async function loadServices() {
-    setLoadingServices(true);
-    setError("");
-
-    try {
-      let response = await fetch("/api/services");
-      let data = await readJson(response);
-
-      let rawServices = Array.isArray(data)
-        ? data
-        : data.services || data.data || [];
-
-      if (!rawServices.length) {
-        response = await fetch("/api/denzgains/services");
-        data = await readJson(response);
-
-        rawServices = Array.isArray(data)
-          ? data
-          : data.services || data.data || [];
-      }
-
-      const normalized = rawServices
-        .map(normalizeService)
-        .filter(
-          (service) =>
-            service.id &&
-            service.rate >= 0 &&
-            service.active !== false
-        );
-
-      setServices(normalized);
-    } catch (err) {
-      console.error(err);
-
-      setError(
-        err.message ||
-          "Unable to load services. Please refresh the page."
-      );
-    } finally {
-      setLoadingServices(false);
-    }
-  }
 
   useEffect(() => {
     loadServices();
   }, []);
 
   useEffect(() => {
-    if (phone) {
-      savePhone(phone);
-      loadWallet(phone);
+    if (phone.trim()) {
+      localStorage.setItem("huppy_phone", phone.trim());
+      loadWallet(phone.trim());
     }
   }, [phone]);
 
-  function openService(service) {
-    setSelectedService(service);
-    setLink("");
-    setQuantity(String(service.min));
-    setMessage("");
+  async function loadServices() {
+    setLoadingServices(true);
     setError("");
 
-    setTimeout(() => {
-      document
-        .getElementById("order-panel")
-        ?.scrollIntoView({
-          behavior: "smooth",
-          block: "start"
-        });
-    }, 50);
+    try {
+      const response = await fetch("/api/services");
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || "Unable to load services");
+      }
+
+      const list = Array.isArray(data)
+        ? data
+        : Array.isArray(data.services)
+        ? data.services
+        : [];
+
+      setServices(list.map(normalizeService));
+    } catch (firstError) {
+      try {
+        const response = await fetch("/api/denzgains/services");
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data?.error || "Unable to load services");
+        }
+
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data.services)
+          ? data.services
+          : [];
+
+        setServices(list.map(normalizeService));
+      } catch (secondError) {
+        setError(secondError.message || "Unable to load services");
+      }
+    } finally {
+      setLoadingServices(false);
+    }
   }
 
-  function closeService() {
-    setSelectedService(null);
-    setLink("");
-    setQuantity("");
-    setError("");
-    setMessage("");
+  async function loadWallet(userPhone = phone) {
+    if (!userPhone.trim()) return;
+
+    setLoadingWallet(true);
+
+    try {
+      const response = await fetch(
+        `/api/wallet?phone=${encodeURIComponent(userPhone.trim())}`
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setWallet(Number(data.balance || 0));
+      }
+    } catch {
+      // Keep existing wallet value if request fails.
+    } finally {
+      setLoadingWallet(false);
+    }
   }
 
-  async function handleDeposit(event) {
-    event.preventDefault();
-
+  async function deposit() {
     setError("");
-    setMessage("");
+    setSuccess("");
+
+    const amount = Number(depositAmount);
 
     if (!phone.trim()) {
       setError("Enter your phone number first.");
       return;
     }
 
-    const amount = Number(depositAmount);
-
     if (!amount || amount < 1) {
       setError("Enter a valid deposit amount.");
       return;
     }
 
-    setDepositLoading(true);
-
     try {
-      savePhone(phone.trim());
-
       const response = await fetch("/api/payment", {
         method: "POST",
         headers: {
@@ -298,19 +275,15 @@ function App() {
         },
         body: JSON.stringify({
           phone: phone.trim(),
-          email: depositEmail.trim(),
-          amount
+          amount,
+          email: `${phone.trim().replace(/\D/g, "")}@huppycube.com`
         })
       });
 
-      const data = await readJson(response);
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          data.error ||
-            data.message ||
-            "Unable to start payment."
-        );
+        throw new Error(data?.error || "Could not start payment.");
       }
 
       if (data.redirect_url) {
@@ -318,36 +291,121 @@ function App() {
         return;
       }
 
-      if (data.redirectUrl) {
-        window.location.href = data.redirectUrl;
-        return;
-      }
-
-      setMessage(
-        data.message ||
-          "Payment request created. Complete the payment to update your wallet."
-      );
+      throw new Error("PesaPal did not return a payment link.");
     } catch (err) {
-      console.error(err);
-      setError(
-        err.message ||
-          "Payment could not be started."
-      );
-    } finally {
-      setDepositLoading(false);
+      setError(err.message || "Payment failed.");
     }
   }
 
-  async function placeOrder(event) {
-    event.preventDefault();
+  const platformGroups = useMemo(() => {
+    const groups = {};
 
+    Object.keys(PLATFORM_CONFIG).forEach((platform) => {
+      groups[platform] = [];
+    });
+
+    services.forEach((service) => {
+      const platform = detectPlatform(service);
+
+      if (!groups[platform]) {
+        groups[platform] = [];
+      }
+
+      groups[platform].push(service);
+    });
+
+    return groups;
+  }, [services]);
+
+  const visiblePlatforms = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    if (!query) {
+      return Object.keys(PLATFORM_CONFIG).filter(
+        (platform) => platformGroups[platform]?.length > 0
+      );
+    }
+
+    return Object.keys(PLATFORM_CONFIG).filter((platform) => {
+      const platformMatches = platform.toLowerCase().includes(query);
+
+      const serviceMatches = (platformGroups[platform] || []).some(
+        (service) =>
+          service.name.toLowerCase().includes(query) ||
+          service.category.toLowerCase().includes(query)
+      );
+
+      return platformMatches || serviceMatches;
+    });
+  }, [search, platformGroups]);
+
+  const selectedPlatformServices = useMemo(() => {
+    if (!selectedPlatform) return [];
+
+    let list = platformGroups[selectedPlatform] || [];
+
+    const query = serviceSearch.trim().toLowerCase();
+
+    if (query) {
+      list = list.filter(
+        (service) =>
+          service.name.toLowerCase().includes(query) ||
+          service.category.toLowerCase().includes(query) ||
+          service.type.toLowerCase().includes(query)
+      );
+    }
+
+    return list;
+  }, [selectedPlatform, platformGroups, serviceSearch]);
+
+  const estimatedPrice = useMemo(() => {
+    if (!selectedService || !quantity) return 0;
+
+    return calculatePrice(selectedService, quantity);
+  }, [selectedService, quantity]);
+
+  function openPlatform(platform) {
     setError("");
-    setMessage("");
+    setSuccess("");
+    setSearch("");
+    setServiceSearch("");
+    setSelectedPlatform(platform);
+    setSelectedService(null);
+    setOrderStatus(null);
+  }
+
+  function openService(service) {
+    setError("");
+    setSuccess("");
+    setSelectedService(service);
+    setLink("");
+    setQuantity(String(service.min_quantity || service.min || 1));
+    setOrderStatus(null);
+  }
+
+  function goBackToPlatforms() {
+    setSelectedPlatform(null);
+    setSelectedService(null);
+    setServiceSearch("");
+    setError("");
+    setSuccess("");
+  }
+
+  function goBackToServices() {
+    setSelectedService(null);
+    setLink("");
+    setQuantity("");
+    setOrderStatus(null);
+    setError("");
+    setSuccess("");
+  }
+
+  async function placeOrder() {
+    setError("");
+    setSuccess("");
 
     if (!phone.trim()) {
-      setError(
-        "Enter your phone number before placing an order."
-      );
+      setError("Enter your phone number first.");
       return;
     }
 
@@ -356,51 +414,39 @@ function App() {
       return;
     }
 
-    const qty = Number(quantity);
-
     if (!link.trim()) {
       setError("Enter the social media link.");
       return;
     }
 
-    if (!qty || !Number.isInteger(qty)) {
-      setError("Quantity must be a whole number.");
-      return;
-    }
+    const qty = Number(quantity);
 
-    if (qty < selectedService.min) {
+    if (!qty || qty < selectedService.min_quantity) {
       setError(
-        `Minimum quantity is ${selectedService.min.toLocaleString()}.`
+        `Minimum quantity is ${selectedService.min_quantity.toLocaleString()}`
       );
       return;
     }
 
-    if (qty > selectedService.max) {
+    if (qty > selectedService.max_quantity) {
       setError(
-        `Maximum quantity is ${selectedService.max.toLocaleString()}.`
+        `Maximum quantity is ${selectedService.max_quantity.toLocaleString()}`
       );
       return;
     }
 
-    if (calculatedTotal <= 0) {
-      setError("Unable to calculate the order price.");
-      return;
-    }
-
-    if (wallet < calculatedTotal) {
+    if (estimatedPrice > wallet) {
       setError(
-        `Insufficient wallet balance. You need ${money(
-          calculatedTotal - wallet
-        )} more.`
+        `Insufficient wallet balance. You need ${formatMoney(
+          estimatedPrice
+        )}.`
       );
       return;
     }
 
-    setOrderLoading(true);
+    setPlacingOrder(true);
 
     try {
-      savePhone(phone.trim());
-
       const response = await fetch("/api/smm/order", {
         method: "POST",
         headers: {
@@ -408,1551 +454,1311 @@ function App() {
         },
         body: JSON.stringify({
           phone: phone.trim(),
-          service_id: selectedService.id,
+          service_id: selectedService.service_id,
+          service_name: selectedService.name,
           link: link.trim(),
           quantity: qty
         })
       });
 
-      const data = await readJson(response);
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          data.error ||
-            data.message ||
-            "Unable to place order."
-        );
+        throw new Error(data?.error || "Order could not be placed.");
       }
 
-      const order = data.order || data;
+      const createdOrderId =
+        data.order_id ?? data.id ?? data.order ?? data.smm_order_id;
 
-      setLastOrder({
-        id: order.id || order.order_id,
-        supplierOrderId:
-          order.supplier_order_id ||
-          order.supplierOrderId ||
-          order.supplier_order ||
-          null,
-        serviceName:
-          order.service_name ||
-          selectedService.name,
-        link: link.trim(),
-        quantity: qty,
-        amount: Number(
-          order.amount || calculatedTotal
-        ),
-        status:
-          order.status || "Pending"
-      });
-
-      setMessage(
-        "Order placed successfully. Your order has been sent to the supplier."
+      setOrderId(createdOrderId ? String(createdOrderId) : "");
+      setSuccess(
+        `Order placed successfully${createdOrderId ? ` (#${createdOrderId})` : ""
+        }.`
       );
-
-      setLink("");
-      setQuantity(String(selectedService.min));
 
       await loadWallet(phone.trim());
-
-      setTimeout(() => {
-        document
-          .getElementById("order-result")
-          ?.scrollIntoView({
-            behavior: "smooth",
-            block: "start"
-          });
-      }, 100);
     } catch (err) {
-      console.error(err);
-
-      setError(
-        err.message ||
-          "Order could not be placed."
-      );
+      setError(err.message || "Order failed.");
     } finally {
-      setOrderLoading(false);
+      setPlacingOrder(false);
     }
   }
 
   async function checkOrderStatus() {
-    if (
-      !lastOrder?.id &&
-      !lastOrder?.supplierOrderId
-    ) {
+    if (!orderId.trim()) {
+      setError("Enter an order ID.");
       return;
     }
 
-    setStatusLoading(true);
+    setCheckingStatus(true);
     setError("");
+    setSuccess("");
 
     try {
-      const orderId =
-        lastOrder.id ||
-        lastOrder.supplierOrderId;
-
       const response = await fetch(
-        `/api/smm/status?order_id=${encodeURIComponent(
-          orderId
-        )}`
+        `/api/smm/status?order_id=${encodeURIComponent(orderId.trim())}`
       );
 
-      const data = await readJson(response);
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(
-          data.error ||
-            "Unable to check order status."
-        );
+        throw new Error(data?.error || "Could not check order.");
       }
 
-      const supplier =
-        data.supplier ||
-        data.status ||
-        data;
-
-      setLastOrder((previous) => ({
-        ...previous,
-
-        status:
-          supplier.status ||
-          data.order?.status ||
-          previous.status ||
-          "Pending",
-
-        remains:
-          supplier.remains ??
-          data.order?.remains ??
-          previous.remains,
-
-        startCount:
-          supplier.start_count ??
-          data.order?.start_count ??
-          previous.startCount
-      }));
-
-      setMessage("Order status updated.");
+      setOrderStatus(data);
     } catch (err) {
-      console.error(err);
-
-      setError(
-        err.message ||
-          "Unable to check order status."
-      );
+      setError(err.message || "Could not check order status.");
     } finally {
-      setStatusLoading(false);
+      setCheckingStatus(false);
     }
   }
 
-  function copyOrderId() {
-    const id =
-      lastOrder?.supplierOrderId ||
-      lastOrder?.id;
-
-    if (!id) return;
-
-    navigator.clipboard?.writeText(
-      String(id)
+  function openWhatsApp() {
+    const message = encodeURIComponent(
+      "Hello HUPPY CUBE support, I need help with my order."
     );
 
-    setMessage("Order ID copied.");
-  }
-
-  function openWhatsApp() {
     window.open(
-      `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
-        "Hello HUPPY CUBE, I need help with my order."
-      )}`,
+      `https://wa.me/${SUPPORT_NUMBER}?text=${message}`,
       "_blank"
     );
   }
 
+  function getPlatformIcon(platform) {
+    if (platform === "Instagram") {
+      return <Instagram size={30} />;
+    }
+
+    if (platform === "TikTok") {
+      return <Music2 size={30} />;
+    }
+
+    if (platform === "Facebook") {
+      return <span className="platform-emoji">🔵</span>;
+    }
+
+    if (platform === "YouTube") {
+      return <span className="platform-emoji">▶️</span>;
+    }
+
+    if (platform === "Telegram") {
+      return <span className="platform-emoji">✈️</span>;
+    }
+
+    if (platform === "X / Twitter") {
+      return <span className="platform-x">𝕏</span>;
+    }
+
+    if (platform === "WhatsApp") {
+      return <span className="platform-emoji">💬</span>;
+    }
+
+    if (platform === "Spotify") {
+      return <span className="platform-emoji">🎧</span>;
+    }
+
+    return <Sparkles size={30} />;
+  }
+
   return (
-    <div className="hc-app">
+    <div className="app">
       <style>{`
-        .hc-app {
+        * {
+          box-sizing: border-box;
+        }
+
+        body {
+          margin: 0;
+          font-family: Inter, Arial, sans-serif;
+          background: #f5f7fb;
+          color: #111827;
+        }
+
+        button,
+        input {
+          font: inherit;
+        }
+
+        button {
+          cursor: pointer;
+        }
+
+        .app {
           min-height: 100vh;
           background:
-            radial-gradient(circle at top left, rgba(124,58,237,.16), transparent 30%),
-            radial-gradient(circle at top right, rgba(6,182,212,.12), transparent 28%),
-            #070b14;
-          color: #f8fafc;
-          font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            radial-gradient(circle at top right, rgba(124,58,237,.10), transparent 30%),
+            #f5f7fb;
         }
 
-        .hc-container {
-          width: min(1180px, calc(100% - 32px));
-          margin: 0 auto;
-        }
-
-        .hc-nav {
+        .header {
           position: sticky;
           top: 0;
           z-index: 50;
-          backdrop-filter: blur(18px);
-          background: rgba(7,11,20,.82);
-          border-bottom: 1px solid rgba(255,255,255,.07);
+          background: rgba(255,255,255,.95);
+          backdrop-filter: blur(12px);
+          border-bottom: 1px solid #e5e7eb;
         }
 
-        .hc-nav-inner {
-          min-height: 72px;
+        .header-inner {
+          max-width: 1180px;
+          margin: auto;
+          min-height: 70px;
+          padding: 12px 20px;
           display: flex;
           align-items: center;
           justify-content: space-between;
           gap: 20px;
         }
 
-        .hc-logo {
+        .brand {
           display: flex;
           align-items: center;
-          gap: 11px;
+          gap: 10px;
           font-weight: 900;
-          letter-spacing: -.5px;
           font-size: 20px;
+          letter-spacing: -.5px;
         }
 
-        .hc-logo-mark {
+        .brand-icon {
           width: 40px;
           height: 40px;
-          border-radius: 13px;
+          border-radius: 12px;
           display: grid;
           place-items: center;
-          background: linear-gradient(135deg,#8b5cf6,#06b6d4);
-          box-shadow: 0 10px 30px rgba(99,102,241,.28);
+          color: white;
+          background: linear-gradient(135deg,#7c3aed,#2563eb);
+          box-shadow: 0 8px 20px rgba(79,70,229,.25);
         }
 
-        .hc-nav-links {
+        .nav {
           display: flex;
           align-items: center;
-          gap: 8px;
+          gap: 10px;
         }
 
-        .hc-nav-btn,
-        .hc-menu-btn {
+        .nav-btn {
           border: 0;
-          color: #cbd5e1;
           background: transparent;
-          padding: 10px 13px;
+          padding: 10px 14px;
           border-radius: 10px;
-          cursor: pointer;
-        }
-
-        .hc-nav-btn:hover,
-        .hc-menu-btn:hover {
-          background: rgba(255,255,255,.07);
-          color: white;
-        }
-
-        .hc-menu-btn {
-          display: none;
-        }
-
-        .hc-hero {
-          padding: 65px 0 35px;
-        }
-
-        .hc-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 7px;
-          padding: 7px 11px;
-          border-radius: 999px;
-          background: rgba(139,92,246,.12);
-          border: 1px solid rgba(139,92,246,.24);
-          color: #c4b5fd;
-          font-size: 12px;
-          font-weight: 800;
-        }
-
-        .hc-hero h1 {
-          margin: 18px 0 12px;
-          max-width: 780px;
-          font-size: clamp(38px, 7vw, 70px);
-          line-height: .98;
-          letter-spacing: -3px;
-        }
-
-        .hc-gradient {
-          background: linear-gradient(90deg,#a78bfa,#22d3ee);
-          -webkit-background-clip: text;
-          background-clip: text;
-          color: transparent;
-        }
-
-        .hc-hero p {
-          max-width: 680px;
-          color: #94a3b8;
-          font-size: 17px;
-          line-height: 1.7;
-          margin: 0;
-        }
-
-        .hc-grid {
-          display: grid;
-          grid-template-columns: repeat(3,1fr);
-          gap: 15px;
-          margin: 20px 0 35px;
-        }
-
-        .hc-stat {
-          padding: 20px;
-          border: 1px solid rgba(255,255,255,.08);
-          border-radius: 18px;
-          background: rgba(15,23,42,.7);
-        }
-
-        .hc-stat-label {
-          color: #94a3b8;
-          font-size: 12px;
           font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: .8px;
+          color: #4b5563;
         }
 
-        .hc-stat-value {
-          font-size: 25px;
-          font-weight: 900;
-          margin-top: 8px;
+        .nav-btn:hover {
+          background: #f3f4f6;
         }
 
-        .hc-section {
-          margin: 42px 0;
-        }
-
-        .hc-section-head {
+        .wallet-mini {
           display: flex;
-          justify-content: space-between;
-          align-items: end;
-          gap: 15px;
-          margin-bottom: 18px;
-        }
-
-        .hc-section-head h2 {
-          margin: 0;
-          font-size: 27px;
-        }
-
-        .hc-section-head p {
-          color: #64748b;
-          margin: 5px 0 0;
-        }
-
-        .hc-card {
-          border: 1px solid rgba(255,255,255,.08);
-          border-radius: 20px;
-          background: rgba(15,23,42,.74);
-          box-shadow: 0 20px 60px rgba(0,0,0,.18);
-        }
-
-        .hc-deposit {
-          padding: 22px;
-        }
-
-        .hc-form-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 14px;
-        }
-
-        .hc-field {
-          display: flex;
-          flex-direction: column;
+          align-items: center;
           gap: 8px;
-        }
-
-        .hc-field.full {
-          grid-column: 1 / -1;
-        }
-
-        .hc-field label {
-          color: #cbd5e1;
-          font-size: 13px;
+          padding: 9px 13px;
+          border-radius: 12px;
+          background: #f3f4f6;
           font-weight: 800;
         }
 
-        .hc-input {
-          width: 100%;
-          box-sizing: border-box;
-          border: 1px solid rgba(255,255,255,.09);
-          outline: none;
-          background: #0a1020;
+        .menu-btn {
+          display: none;
+          border: 0;
+          background: transparent;
+        }
+
+        .container {
+          max-width: 1180px;
+          margin: auto;
+          padding: 28px 20px 60px;
+        }
+
+        .hero {
+          border-radius: 24px;
+          padding: 34px;
           color: white;
+          background:
+            radial-gradient(circle at 85% 15%, rgba(255,255,255,.20), transparent 25%),
+            linear-gradient(135deg,#111827,#312e81 55%,#7c3aed);
+          box-shadow: 0 20px 50px rgba(31,41,55,.18);
+          margin-bottom: 22px;
+        }
+
+        .hero h1 {
+          margin: 0 0 10px;
+          font-size: clamp(30px,5vw,48px);
+          letter-spacing: -1.5px;
+        }
+
+        .hero p {
+          margin: 0;
+          color: #e5e7eb;
+          max-width: 650px;
+          line-height: 1.6;
+        }
+
+        .hero-actions {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+          margin-top: 22px;
+        }
+
+        .primary-btn,
+        .secondary-btn,
+        .whatsapp-btn {
+          border: 0;
           border-radius: 12px;
-          padding: 13px 14px;
-          font-size: 15px;
-        }
-
-        .hc-input:focus {
-          border-color: rgba(139,92,246,.7);
-          box-shadow: 0 0 0 3px rgba(139,92,246,.1);
-        }
-
-        .hc-btn {
+          padding: 12px 17px;
           display: inline-flex;
           align-items: center;
           justify-content: center;
           gap: 8px;
-          border: 0;
-          cursor: pointer;
-          border-radius: 12px;
-          padding: 13px 17px;
+          font-weight: 800;
+        }
+
+        .primary-btn {
+          background: white;
+          color: #312e81;
+        }
+
+        .secondary-btn {
+          background: rgba(255,255,255,.12);
           color: white;
+          border: 1px solid rgba(255,255,255,.18);
+        }
+
+        .whatsapp-btn {
+          background: #25d366;
+          color: white;
+        }
+
+        .stats {
+          display: grid;
+          grid-template-columns: repeat(3,1fr);
+          gap: 14px;
+          margin-bottom: 24px;
+        }
+
+        .stat {
+          background: white;
+          border: 1px solid #e5e7eb;
+          border-radius: 16px;
+          padding: 18px;
+          display: flex;
+          align-items: center;
+          gap: 13px;
+        }
+
+        .stat-icon {
+          width: 44px;
+          height: 44px;
+          border-radius: 12px;
+          display: grid;
+          place-items: center;
+          background: #f3f4f6;
+          color: #4f46e5;
+        }
+
+        .stat strong {
+          display: block;
+          font-size: 20px;
+        }
+
+        .stat span {
+          color: #6b7280;
+          font-size: 13px;
+        }
+
+        .section {
+          margin-top: 25px;
+        }
+
+        .section-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 15px;
+          margin-bottom: 14px;
+        }
+
+        .section-title {
+          margin: 0;
+          font-size: 23px;
           font-weight: 900;
-          transition: .2s ease;
         }
 
-        .hc-btn:hover {
-          transform: translateY(-1px);
+        .section-subtitle {
+          margin: 4px 0 0;
+          color: #6b7280;
+          font-size: 14px;
         }
 
-        .hc-btn:disabled {
-          opacity: .6;
-          cursor: not-allowed;
-          transform: none;
-        }
-
-        .hc-btn-primary {
-          background: linear-gradient(135deg,#7c3aed,#06b6d4);
-          box-shadow: 0 12px 30px rgba(79,70,229,.25);
-        }
-
-        .hc-btn-secondary {
-          background: rgba(255,255,255,.07);
-          border: 1px solid rgba(255,255,255,.08);
-        }
-
-        .hc-btn-whatsapp {
-          background: #16a34a;
-        }
-
-        .hc-search {
+        .search-box {
           position: relative;
-          width: min(360px,100%);
+          max-width: 420px;
+          width: 100%;
         }
 
-        .hc-search svg {
+        .search-box svg {
           position: absolute;
           left: 13px;
           top: 50%;
           transform: translateY(-50%);
-          color: #64748b;
+          color: #9ca3af;
         }
 
-        .hc-search input {
-          padding-left: 42px;
+        .search-box input {
+          width: 100%;
+          border: 1px solid #d1d5db;
+          background: white;
+          border-radius: 13px;
+          padding: 13px 14px 13px 42px;
+          outline: none;
         }
 
-        .hc-services {
+        .search-box input:focus,
+        .input:focus {
+          border-color: #6366f1;
+          box-shadow: 0 0 0 3px rgba(99,102,241,.10);
+        }
+
+        .platform-grid {
           display: grid;
-          grid-template-columns: repeat(3,1fr);
+          grid-template-columns: repeat(4,1fr);
           gap: 15px;
         }
 
-        .hc-service {
-          padding: 19px;
-          cursor: pointer;
-          transition: .2s ease;
+        .platform-card {
+          border: 1px solid #e5e7eb;
+          background: white;
+          border-radius: 20px;
+          padding: 20px;
+          text-align: left;
+          transition: .18s ease;
           position: relative;
           overflow: hidden;
         }
 
-        .hc-service:hover {
+        .platform-card:hover {
           transform: translateY(-3px);
-          border-color: rgba(139,92,246,.4);
+          box-shadow: 0 14px 30px rgba(17,24,39,.10);
+          border-color: #c7d2fe;
         }
 
-        .hc-service-icon {
-          width: 48px;
-          height: 48px;
+        .platform-icon {
+          width: 58px;
+          height: 58px;
+          border-radius: 17px;
           display: grid;
           place-items: center;
-          border-radius: 14px;
-          background: rgba(124,58,237,.13);
-          color: #c4b5fd;
+          background: #f3f4f6;
           margin-bottom: 17px;
         }
 
-        .hc-service h3 {
-          margin: 0 0 8px;
+        .platform-emoji {
+          font-size: 28px;
+        }
+
+        .platform-x {
+          font-size: 31px;
+          font-weight: 900;
+        }
+
+        .platform-card h3 {
+          margin: 0 0 5px;
           font-size: 17px;
         }
 
-        .hc-service p {
+        .platform-card p {
           margin: 0;
-          min-height: 42px;
-          color: #64748b;
-          font-size: 12px;
-          line-height: 1.55;
-        }
-
-        .hc-service-bottom {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 10px;
-          margin-top: 18px;
-        }
-
-        .hc-price {
-          font-size: 14px;
-          font-weight: 900;
-          color: #a78bfa;
-        }
-
-        .hc-order-small {
-          display: inline-flex;
-          align-items: center;
-          gap: 5px;
-          color: #e2e8f0;
-          font-size: 12px;
-          font-weight: 900;
-        }
-
-        .hc-alert {
-          padding: 13px 15px;
-          border-radius: 12px;
-          margin: 14px 0;
+          color: #6b7280;
           font-size: 13px;
-          line-height: 1.5;
         }
 
-        .hc-error {
-          background: rgba(239,68,68,.1);
-          border: 1px solid rgba(239,68,68,.2);
-          color: #fca5a5;
+        .platform-arrow {
+          position: absolute;
+          right: 16px;
+          bottom: 18px;
+          color: #9ca3af;
         }
 
-        .hc-success {
-          background: rgba(34,197,94,.1);
-          border: 1px solid rgba(34,197,94,.2);
-          color: #86efac;
+        .services-grid {
+          display: grid;
+          grid-template-columns: repeat(3,1fr);
+          gap: 14px;
         }
 
-        .hc-order {
-          padding: 24px;
-          scroll-margin-top: 90px;
+        .service-card {
+          background: white;
+          border: 1px solid #e5e7eb;
+          border-radius: 17px;
+          padding: 17px;
+          transition: .18s ease;
         }
 
-        .hc-order-header {
+        .service-card:hover {
+          border-color: #c7d2fe;
+          box-shadow: 0 12px 25px rgba(17,24,39,.07);
+        }
+
+        .service-name {
+          font-weight: 850;
+          line-height: 1.35;
+          margin-bottom: 7px;
+        }
+
+        .service-category {
+          color: #6b7280;
+          font-size: 12px;
+          line-height: 1.45;
+          min-height: 35px;
+        }
+
+        .service-meta {
           display: flex;
           justify-content: space-between;
-          gap: 15px;
-          align-items: flex-start;
+          gap: 10px;
+          margin: 14px 0;
+          font-size: 12px;
+          color: #6b7280;
+        }
+
+        .service-rate {
+          font-weight: 900;
+          color: #111827;
+        }
+
+        .select-btn {
+          width: 100%;
+          border: 0;
+          border-radius: 11px;
+          padding: 11px;
+          background: #111827;
+          color: white;
+          font-weight: 800;
+        }
+
+        .select-btn:hover {
+          background: #312e81;
+        }
+
+        .panel {
+          background: white;
+          border: 1px solid #e5e7eb;
+          border-radius: 20px;
+          padding: 22px;
           margin-bottom: 22px;
         }
 
-        .hc-order-title {
-          display: flex;
+        .back-btn {
+          border: 0;
+          background: #f3f4f6;
+          border-radius: 10px;
+          padding: 9px 13px;
+          display: inline-flex;
           align-items: center;
-          gap: 12px;
+          gap: 7px;
+          font-weight: 750;
+          margin-bottom: 18px;
         }
 
-        .hc-order-title h2 {
-          margin: 0;
-          font-size: 25px;
-        }
-
-        .hc-order-title p {
-          color: #64748b;
-          margin: 4px 0 0;
-          font-size: 13px;
-        }
-
-        .hc-order-layout {
+        .form-grid {
           display: grid;
-          grid-template-columns: 1.3fr .7fr;
-          gap: 20px;
+          grid-template-columns: repeat(2,1fr);
+          gap: 14px;
         }
 
-        .hc-order-box {
-          padding: 19px;
-          border-radius: 16px;
-          background: rgba(2,6,23,.55);
-          border: 1px solid rgba(255,255,255,.06);
-        }
-
-        .hc-total {
+        .form-group {
           display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin: 18px 0;
-          padding: 16px;
+          flex-direction: column;
+          gap: 7px;
+        }
+
+        .form-group.full {
+          grid-column: 1/-1;
+        }
+
+        .label {
+          font-size: 13px;
+          font-weight: 800;
+        }
+
+        .input {
+          width: 100%;
+          padding: 13px;
+          border: 1px solid #d1d5db;
+          border-radius: 11px;
+          outline: none;
+          background: white;
+        }
+
+        .price-box {
+          background: #f5f3ff;
+          border: 1px solid #ddd6fe;
           border-radius: 14px;
-          background: rgba(124,58,237,.09);
-          border: 1px solid rgba(124,58,237,.16);
+          padding: 15px;
         }
 
-        .hc-total strong {
-          font-size: 22px;
+        .price-box span {
+          color: #6b7280;
+          font-size: 12px;
         }
 
-        .hc-info-list {
+        .price-box strong {
+          display: block;
+          color: #4c1d95;
+          font-size: 23px;
+          margin-top: 3px;
+        }
+
+        .order-btn {
+          width: 100%;
+          border: 0;
+          border-radius: 12px;
+          padding: 14px;
+          background: linear-gradient(135deg,#4f46e5,#7c3aed);
+          color: white;
+          font-weight: 900;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .order-btn:disabled {
+          opacity: .65;
+          cursor: not-allowed;
+        }
+
+        .notice {
+          padding: 13px 15px;
+          border-radius: 12px;
+          margin-bottom: 15px;
+          font-size: 14px;
+          font-weight: 650;
+        }
+
+        .error {
+          background: #fef2f2;
+          border: 1px solid #fecaca;
+          color: #991b1b;
+        }
+
+        .success {
+          background: #f0fdf4;
+          border: 1px solid #bbf7d0;
+          color: #166534;
+        }
+
+        .deposit-grid {
           display: grid;
-          gap: 11px;
+          grid-template-columns: 1fr 1fr auto;
+          gap: 10px;
+          align-items: end;
         }
 
-        .hc-info-row {
+        .deposit-btn {
+          height: 47px;
+          border: 0;
+          border-radius: 11px;
+          background: #111827;
+          color: white;
+          padding: 0 18px;
+          font-weight: 850;
+        }
+
+        .status-box {
+          margin-top: 15px;
+          background: #f9fafb;
+          border: 1px solid #e5e7eb;
+          border-radius: 14px;
+          padding: 15px;
+        }
+
+        .status-row {
           display: flex;
           justify-content: space-between;
+          padding: 7px 0;
           gap: 15px;
-          color: #94a3b8;
-          font-size: 13px;
+          border-bottom: 1px solid #e5e7eb;
         }
 
-        .hc-info-row strong {
-          color: #e2e8f0;
-          text-align: right;
+        .status-row:last-child {
+          border-bottom: 0;
         }
 
-        .hc-result {
-          padding: 23px;
-          scroll-margin-top: 90px;
+        .status-row span:first-child {
+          color: #6b7280;
         }
 
-        .hc-result-icon {
-          width: 58px;
-          height: 58px;
-          border-radius: 50%;
-          display: grid;
-          place-items: center;
-          background: rgba(34,197,94,.12);
-          color: #4ade80;
-          margin-bottom: 15px;
+        .empty {
+          padding: 40px 20px;
+          text-align: center;
+          color: #6b7280;
+          background: white;
+          border: 1px dashed #d1d5db;
+          border-radius: 18px;
         }
 
-        .hc-order-id {
+        .floating-support {
+          position: fixed;
+          right: 18px;
+          bottom: 18px;
+          z-index: 40;
+          border: 0;
+          border-radius: 999px;
+          padding: 13px 18px;
+          background: #25d366;
+          color: white;
           display: flex;
           align-items: center;
           gap: 8px;
-          margin-top: 14px;
-          padding: 12px;
-          border-radius: 11px;
-          background: #050914;
-          border: 1px solid rgba(255,255,255,.06);
-          font-family: monospace;
-          overflow: hidden;
+          font-weight: 850;
+          box-shadow: 0 12px 30px rgba(37,211,102,.30);
         }
 
-        .hc-order-id span {
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          flex: 1;
-        }
-
-        .hc-footer {
-          padding: 45px 0 55px;
-          border-top: 1px solid rgba(255,255,255,.06);
-          margin-top: 60px;
-        }
-
-        .hc-footer-inner {
+        .loading {
           display: flex;
-          justify-content: space-between;
-          gap: 20px;
           align-items: center;
+          justify-content: center;
+          gap: 10px;
+          padding: 45px;
+          color: #6b7280;
         }
 
-        .hc-muted {
-          color: #64748b;
-          font-size: 13px;
+        .spin {
+          animation: spin 1s linear infinite;
         }
 
-        .hc-empty {
-          padding: 40px 20px;
-          text-align: center;
-          color: #64748b;
-        }
-
-        .hc-spin {
-          animation: hcspin 1s linear infinite;
-        }
-
-        @keyframes hcspin {
+        @keyframes spin {
           to {
             transform: rotate(360deg);
           }
         }
 
-        @media (max-width: 850px) {
-          .hc-services {
+        @media (max-width: 900px) {
+          .platform-grid {
+            grid-template-columns: repeat(3,1fr);
+          }
+
+          .services-grid {
             grid-template-columns: repeat(2,1fr);
-          }
-
-          .hc-order-layout {
-            grid-template-columns: 1fr;
-          }
-
-          .hc-grid {
-            grid-template-columns: 1fr 1fr;
-          }
-
-          .hc-nav-links {
-            display: none;
-          }
-
-          .hc-menu-btn {
-            display: inline-flex;
-          }
-
-          .hc-nav-links.mobile-open {
-            display: flex;
-            position: absolute;
-            left: 16px;
-            right: 16px;
-            top: 65px;
-            flex-direction: column;
-            align-items: stretch;
-            padding: 10px;
-            background: #0b1120;
-            border: 1px solid rgba(255,255,255,.08);
-            border-radius: 14px;
           }
         }
 
-        @media (max-width: 600px) {
-          .hc-container {
-            width: min(100% - 22px, 1180px);
+        @media (max-width: 700px) {
+          .header-inner {
+            padding: 10px 14px;
           }
 
-          .hc-hero {
-            padding-top: 42px;
+          .nav {
+            display: none;
           }
 
-          .hc-hero h1 {
-            letter-spacing: -1.8px;
+          .menu-btn {
+            display: block;
           }
 
-          .hc-grid,
-          .hc-services,
-          .hc-form-grid {
+          .stats {
             grid-template-columns: 1fr;
           }
 
-          .hc-field.full {
+          .hero {
+            padding: 25px;
+          }
+
+          .platform-grid {
+            grid-template-columns: repeat(2,1fr);
+          }
+
+          .services-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .form-grid,
+          .deposit-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .form-group.full {
             grid-column: auto;
           }
 
-          .hc-section-head {
+          .section-header {
+            flex-direction: column;
             align-items: stretch;
-            flex-direction: column;
           }
 
-          .hc-search {
-            width: 100%;
+          .search-box {
+            max-width: none;
           }
 
-          .hc-order-header {
-            flex-direction: column;
+          .floating-support {
+            right: 12px;
+            bottom: 12px;
+          }
+        }
+
+        @media (max-width: 390px) {
+          .platform-grid {
+            grid-template-columns: 1fr 1fr;
+            gap: 9px;
           }
 
-          .hc-footer-inner {
-            flex-direction: column;
-            align-items: flex-start;
+          .platform-card {
+            padding: 14px;
+          }
+
+          .platform-icon {
+            width: 48px;
+            height: 48px;
+          }
+
+          .platform-card h3 {
+            font-size: 14px;
           }
         }
       `}</style>
 
-      <header className="hc-nav">
-        <div className="hc-container hc-nav-inner">
-          <div className="hc-logo">
-            <div className="hc-logo-mark">
-              <Zap size={22} />
+      <header className="header">
+        <div className="header-inner">
+          <div className="brand">
+            <div className="brand-icon">
+              <Zap size={21} />
             </div>
             HUPPY CUBE
           </div>
 
-          <div
-            className={`hc-nav-links ${
-              mobileMenu ? "mobile-open" : ""
-            }`}
-          >
+          <div className="nav">
             <button
-              className="hc-nav-btn"
-              onClick={() =>
-                document
-                  .getElementById("services")
-                  ?.scrollIntoView({
-                    behavior: "smooth"
-                  })
-              }
+              className="nav-btn"
+              onClick={() => {
+                setSelectedPlatform(null);
+                setSelectedService(null);
+                window.scrollTo({ top: 0, behavior: "smooth" });
+              }}
             >
               Services
             </button>
 
             <button
-              className="hc-nav-btn"
+              className="nav-btn"
               onClick={() =>
                 document
-                  .getElementById("deposit")
-                  ?.scrollIntoView({
-                    behavior: "smooth"
-                  })
+                  .getElementById("wallet")
+                  ?.scrollIntoView({ behavior: "smooth" })
               }
             >
-              Deposit
+              Wallet
             </button>
 
-            <button
-              className="hc-btn hc-btn-whatsapp"
-              onClick={openWhatsApp}
-            >
-              <MessageCircle size={16} />
-              Support
-            </button>
+            <div className="wallet-mini">
+              <Wallet size={17} />
+              {loadingWallet ? "..." : formatMoney(wallet)}
+            </div>
           </div>
 
           <button
-            className="hc-menu-btn"
-            onClick={() =>
-              setMobileMenu((value) => !value)
-            }
+            className="menu-btn"
+            onClick={() => setMobileMenu(!mobileMenu)}
           >
-            {mobileMenu ? (
-              <X size={21} />
-            ) : (
-              <Menu size={21} />
-            )}
+            {mobileMenu ? <X /> : <Menu />}
           </button>
         </div>
+
+        {mobileMenu && (
+          <div
+            style={{
+              padding: "10px 15px 15px",
+              borderTop: "1px solid #e5e7eb",
+              background: "white"
+            }}
+          >
+            <button
+              className="nav-btn"
+              onClick={() => {
+                setMobileMenu(false);
+                setSelectedPlatform(null);
+                setSelectedService(null);
+              }}
+            >
+              Services
+            </button>
+
+            <button
+              className="nav-btn"
+              onClick={() => {
+                setMobileMenu(false);
+                document
+                  .getElementById("wallet")
+                  ?.scrollIntoView({ behavior: "smooth" });
+              }}
+            >
+              Wallet
+            </button>
+          </div>
+        )}
       </header>
 
-      <main className="hc-container">
-        <section className="hc-hero">
-          <span className="hc-badge">
-            <Sparkles size={14} />
-            FAST SOCIAL MEDIA SERVICES
-          </span>
-
-          <h1>
-            Grow your social media
-            <br />
-            <span className="hc-gradient">
-              without the hassle.
-            </span>
-          </h1>
-
+      <main className="container">
+        <section className="hero">
+          <h1>Grow Your Social Media</h1>
           <p>
-            Choose a service, enter your link and
-            quantity, pay from your wallet, and your
-            order is automatically sent for processing.
+            Choose your social media platform, select the service you need,
+            enter your link and place your order quickly.
           </p>
+
+          <div className="hero-actions">
+            <button
+              className="primary-btn"
+              onClick={() =>
+                document
+                  .getElementById("services")
+                  ?.scrollIntoView({ behavior: "smooth" })
+              }
+            >
+              <ShoppingCart size={18} />
+              Browse Services
+            </button>
+
+            <button className="whatsapp-btn" onClick={openWhatsApp}>
+              <MessageCircle size={18} />
+              WhatsApp Support
+            </button>
+          </div>
         </section>
 
-        <section className="hc-grid">
-          <div className="hc-stat">
-            <div className="hc-stat-label">
-              Wallet Balance
+        <section className="stats">
+          <div className="stat">
+            <div className="stat-icon">
+              <Package size={21} />
             </div>
-
-            <div className="hc-stat-value">
-              {loadingWallet ? (
-                <Loader2
-                  className="hc-spin"
-                  size={23}
-                />
-              ) : (
-                money(wallet)
-              )}
+            <div>
+              <strong>{services.length}</strong>
+              <span>Available services</span>
             </div>
           </div>
 
-          <div className="hc-stat">
-            <div className="hc-stat-label">
-              Available Services
+          <div className="stat">
+            <div className="stat-icon">
+              <Wallet size={21} />
             </div>
-
-            <div className="hc-stat-value">
-              {services.length}
+            <div>
+              <strong>{formatMoney(wallet)}</strong>
+              <span>Wallet balance</span>
             </div>
           </div>
 
-          <div className="hc-stat">
-            <div className="hc-stat-label">
-              Support
+          <div className="stat">
+            <div className="stat-icon">
+              <MessageCircle size={21} />
             </div>
-
-            <div className="hc-stat-value">
-              24/7
+            <div>
+              <strong>24/7</strong>
+              <span>Customer support</span>
             </div>
           </div>
         </section>
 
         {error && (
-          <div className="hc-alert hc-error">
+          <div className="notice error">
             {error}
           </div>
         )}
 
-        {message && (
-          <div className="hc-alert hc-success">
-            {message}
+        {success && (
+          <div className="notice success">
+            <CheckCircle2
+              size={17}
+              style={{ verticalAlign: "middle", marginRight: 6 }}
+            />
+            {success}
           </div>
         )}
 
-        <section
-          id="deposit"
-          className="hc-section"
-        >
-          <div className="hc-section-head">
+        <section id="wallet" className="panel">
+          <div className="section-header">
             <div>
-              <h2>Add money to wallet</h2>
-              <p>
-                Deposit through the secure PesaPal
-                checkout.
-              </p>
-            </div>
-          </div>
-
-          <div className="hc-card hc-deposit">
-            <form onSubmit={handleDeposit}>
-              <div className="hc-form-grid">
-                <div className="hc-field">
-                  <label>
-                    <Phone
-                      size={13}
-                      style={{
-                        verticalAlign: "middle"
-                      }}
-                    />{" "}
-                    Phone Number
-                  </label>
-
-                  <input
-                    className="hc-input"
-                    value={phone}
-                    onChange={(event) =>
-                      setPhone(event.target.value)
-                    }
-                    placeholder="07XXXXXXXX"
-                    inputMode="tel"
-                  />
-                </div>
-
-                <div className="hc-field">
-                  <label>Email</label>
-
-                  <input
-                    className="hc-input"
-                    value={depositEmail}
-                    onChange={(event) =>
-                      setDepositEmail(
-                        event.target.value
-                      )
-                    }
-                    placeholder="you@example.com"
-                    type="email"
-                  />
-                </div>
-
-                <div className="hc-field">
-                  <label>
-                    Deposit Amount (KSh)
-                  </label>
-
-                  <input
-                    className="hc-input"
-                    value={depositAmount}
-                    onChange={(event) =>
-                      setDepositAmount(
-                        event.target.value
-                      )
-                    }
-                    placeholder="100"
-                    type="number"
-                    min="1"
-                    step="1"
-                  />
-                </div>
-
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "end"
-                  }}
-                >
-                  <button
-                    className="hc-btn hc-btn-primary"
-                    type="submit"
-                    disabled={depositLoading}
-                    style={{
-                      width: "100%"
-                    }}
-                  >
-                    {depositLoading ? (
-                      <>
-                        <Loader2
-                          className="hc-spin"
-                          size={18}
-                        />
-                        Starting payment...
-                      </>
-                    ) : (
-                      <>
-                        <CreditCard size={18} />
-                        Deposit with PesaPal
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </section>
-
-        <section
-          id="services"
-          className="hc-section"
-        >
-          <div className="hc-section-head">
-            <div>
-              <h2>Our Services</h2>
-              <p>
-                Tap any service to order directly.
+              <h2 className="section-title">Wallet</h2>
+              <p className="section-subtitle">
+                Add funds to your HUPPY CUBE wallet using PesaPal.
               </p>
             </div>
 
-            <div className="hc-search">
-              <Search size={18} />
+            <div className="wallet-mini">
+              <Wallet size={17} />
+              {formatMoney(wallet)}
+            </div>
+          </div>
 
+          <div className="deposit-grid">
+            <div className="form-group">
+              <label className="label">Phone number</label>
               <input
-                className="hc-input"
-                value={search}
-                onChange={(event) =>
-                  setSearch(event.target.value)
-                }
-                placeholder="Search services..."
+                className="input"
+                placeholder="07XXXXXXXX"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
               />
             </div>
+
+            <div className="form-group">
+              <label className="label">Deposit amount</label>
+              <input
+                className="input"
+                type="number"
+                min="1"
+                placeholder="e.g. 100"
+                value={depositAmount}
+                onChange={(e) => setDepositAmount(e.target.value)}
+              />
+            </div>
+
+            <button className="deposit-btn" onClick={deposit}>
+              <CreditCard
+                size={17}
+                style={{ verticalAlign: "middle", marginRight: 5 }}
+              />
+              Deposit
+            </button>
           </div>
-
-          {loadingServices ? (
-            <div className="hc-card hc-empty">
-              <Loader2
-                className="hc-spin"
-                size={28}
-              />
-
-              <p>
-                Loading live services...
-              </p>
-            </div>
-          ) : filteredServices.length === 0 ? (
-            <div className="hc-card hc-empty">
-              <Package size={32} />
-
-              <p>
-                No services found.
-              </p>
-
-              <button
-                className="hc-btn hc-btn-secondary"
-                onClick={loadServices}
-              >
-                <RefreshCw size={16} />
-                Refresh Services
-              </button>
-            </div>
-          ) : (
-            <div className="hc-services">
-              {filteredServices.map(
-                (service) => (
-                  <div
-                    className="hc-card hc-service"
-                    key={service.id}
-                    onClick={() =>
-                      openService(service)
-                    }
-                  >
-                    <div className="hc-service-icon">
-                      {serviceIcon(
-                        service.name
-                      )}
-                    </div>
-
-                    <h3>
-                      {service.name}
-                    </h3>
-
-                    <p>
-                      {service.category ||
-                        `${
-                          service.type ||
-                          "Social media"
-                        } service`}
-                    </p>
-
-                    <div className="hc-service-bottom">
-                      <span className="hc-price">
-                        {money(service.rate)} / 1,000
-                      </span>
-
-                      <span className="hc-order-small">
-                        Order
-                        <ChevronRight
-                          size={15}
-                        />
-                      </span>
-                    </div>
-                  </div>
-                )
-              )}
-            </div>
-          )}
         </section>
 
-        {selectedService && (
-          <section
-            id="order-panel"
-            className="hc-section"
-          >
-            <div className="hc-card hc-order">
-              <div className="hc-order-header">
-                <div className="hc-order-title">
-                  <div
-                    className="hc-service-icon"
-                    style={{ margin: 0 }}
-                  >
-                    {serviceIcon(
-                      selectedService.name
-                    )}
-                  </div>
-
-                  <div>
-                    <h2>
-                      {selectedService.name}
-                    </h2>
-
-                    <p>
-                      Complete your order below.
-                    </p>
-                  </div>
+        <section id="services" className="section">
+          {!selectedPlatform && !selectedService && (
+            <>
+              <div className="section-header">
+                <div>
+                  <h2 className="section-title">Choose Platform</h2>
+                  <p className="section-subtitle">
+                    Select a platform to view only its available services.
+                  </p>
                 </div>
 
-                <button
-                  className="hc-btn hc-btn-secondary"
-                  onClick={closeService}
-                  type="button"
-                >
-                  <ArrowLeft size={16} />
-                  Back
-                </button>
+                <div className="search-box">
+                  <Search size={18} />
+                  <input
+                    placeholder="Search platform or service..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
               </div>
 
-              <div className="hc-order-layout">
-                <form onSubmit={placeOrder}>
-                  <div className="hc-order-box">
-                    <div className="hc-field">
-                      <label>
-                        Social Media Link
-                      </label>
+              {loadingServices ? (
+                <div className="loading">
+                  <Loader2 className="spin" />
+                  Loading services...
+                </div>
+              ) : visiblePlatforms.length === 0 ? (
+                <div className="empty">
+                  No matching platforms or services found.
+                </div>
+              ) : (
+                <div className="platform-grid">
+                  {visiblePlatforms.map((platform) => {
+                    const count = platformGroups[platform]?.length || 0;
+                    const config = PLATFORM_CONFIG[platform];
 
-                      <input
-                        className="hc-input"
-                        value={link}
-                        onChange={(event) =>
-                          setLink(
-                            event.target.value
-                          )
-                        }
-                        placeholder="https://instagram.com/username"
-                        type="url"
-                      />
-                    </div>
-
-                    <div
-                      className="hc-field"
-                      style={{
-                        marginTop: 16
-                      }}
-                    >
-                      <label>
-                        Quantity
-                      </label>
-
-                      <input
-                        className="hc-input"
-                        value={quantity}
-                        onChange={(event) =>
-                          setQuantity(
-                            event.target.value
-                          )
-                        }
-                        type="number"
-                        min={selectedService.min}
-                        max={selectedService.max}
-                        step="1"
-                      />
-
-                      <span className="hc-muted">
-                        Minimum:{" "}
-                        {selectedService.min.toLocaleString()}{" "}
-                        • Maximum:{" "}
-                        {selectedService.max.toLocaleString()}
-                      </span>
-                    </div>
-
-                    <div className="hc-total">
-                      <div>
-                        <div className="hc-muted">
-                          Total price
+                    return (
+                      <button
+                        key={platform}
+                        className="platform-card"
+                        onClick={() => openPlatform(platform)}
+                      >
+                        <div
+                          className="platform-icon"
+                          style={{
+                            color: config.color
+                          }}
+                        >
+                          {getPlatformIcon(platform)}
                         </div>
 
-                        <strong>
-                          {money(
-                            calculatedTotal
-                          )}
-                        </strong>
+                        <h3>{platform}</h3>
+
+                        <p>
+                          {count} service{count === 1 ? "" : "s"}
+                        </p>
+
+                        <ChevronRight
+                          className="platform-arrow"
+                          size={20}
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+
+          {selectedPlatform && !selectedService && (
+            <>
+              <button className="back-btn" onClick={goBackToPlatforms}>
+                <ArrowLeft size={17} />
+                All Platforms
+              </button>
+
+              <div className="section-header">
+                <div>
+                  <h2 className="section-title">
+                    {PLATFORM_CONFIG[selectedPlatform]?.icon}{" "}
+                    {selectedPlatform}
+                  </h2>
+
+                  <p className="section-subtitle">
+                    Select the service you want.
+                  </p>
+                </div>
+
+                <div className="search-box">
+                  <Search size={18} />
+                  <input
+                    placeholder={`Search ${selectedPlatform} services...`}
+                    value={serviceSearch}
+                    onChange={(e) => setServiceSearch(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {selectedPlatformServices.length === 0 ? (
+                <div className="empty">
+                  No services found for this platform.
+                </div>
+              ) : (
+                <div className="services-grid">
+                  {selectedPlatformServices.map((service) => (
+                    <div
+                      className="service-card"
+                      key={`${service.service_id}-${service.name}`}
+                    >
+                      <div className="service-name">
+                        {service.name}
                       </div>
 
-                      <ShoppingCart
-                        size={27}
-                      />
-                    </div>
+                      <div className="service-category">
+                        {service.category || "Social media service"}
+                      </div>
 
+                      <div className="service-meta">
+                        <span>
+                          Min:{" "}
+                          {service.min_quantity.toLocaleString()}
+                        </span>
+
+                        <span>
+                          Max:{" "}
+                          {service.max_quantity.toLocaleString()}
+                        </span>
+                      </div>
+
+                      <div className="service-meta">
+                        <span className="service-rate">
+                          {formatMoney(service.customer_rate)} / 1K
+                        </span>
+
+                        <span>
+                          {service.refill ? "Refill" : ""}
+                        </span>
+                      </div>
+
+                      <button
+                        className="select-btn"
+                        onClick={() => openService(service)}
+                      >
+                        Select Service
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {selectedService && (
+            <>
+              <button className="back-btn" onClick={goBackToServices}>
+                <ArrowLeft size={17} />
+                {selectedPlatform} Services
+              </button>
+
+              <div className="panel">
+                <div style={{ marginBottom: 20 }}>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      color: "#6b7280",
+                      marginBottom: 6
+                    }}
+                  >
+                    {selectedPlatform}
+                  </div>
+
+                  <h2
+                    style={{
+                      margin: 0,
+                      fontSize: 24,
+                      fontWeight: 900
+                    }}
+                  >
+                    {selectedService.name}
+                  </h2>
+
+                  <p
+                    style={{
+                      color: "#6b7280",
+                      fontSize: 14,
+                      lineHeight: 1.5
+                    }}
+                  >
+                    {selectedService.category ||
+                      "Enter your social media link and quantity."}
+                  </p>
+                </div>
+
+                <div className="form-grid">
+                  <div className="form-group full">
+                    <label className="label">
+                      Social media link
+                    </label>
+
+                    <input
+                      className="input"
+                      placeholder="https://..."
+                      value={link}
+                      onChange={(e) => setLink(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="label">
+                      Quantity
+                    </label>
+
+                    <input
+                      className="input"
+                      type="number"
+                      min={selectedService.min_quantity}
+                      max={selectedService.max_quantity}
+                      value={quantity}
+                      onChange={(e) => setQuantity(e.target.value)}
+                    />
+
+                    <small style={{ color: "#6b7280" }}>
+                      Min{" "}
+                      {selectedService.min_quantity.toLocaleString()}
+                      {" • "}
+                      Max{" "}
+                      {selectedService.max_quantity.toLocaleString()}
+                    </small>
+                  </div>
+
+                  <div className="price-box">
+                    <span>Estimated price</span>
+                    <strong>{formatMoney(estimatedPrice)}</strong>
+                  </div>
+
+                  <div className="form-group full">
                     <button
-                      className="hc-btn hc-btn-primary"
-                      type="submit"
-                      disabled={orderLoading}
-                      style={{
-                        width: "100%"
-                      }}
+                      className="order-btn"
+                      onClick={placeOrder}
+                      disabled={placingOrder}
                     >
-                      {orderLoading ? (
+                      {placingOrder ? (
                         <>
-                          <Loader2
-                            className="hc-spin"
-                            size={18}
-                          />
-                          Placing order...
+                          <Loader2 className="spin" size={18} />
+                          Placing Order...
                         </>
                       ) : (
                         <>
-                          <ShoppingCart
-                            size={18}
-                          />
-                          PLACE ORDER
+                          <Send size={18} />
+                          Place Order
                         </>
                       )}
                     </button>
                   </div>
-                </form>
-
-                <div className="hc-order-box">
-                  <h3
-                    style={{
-                      marginTop: 0
-                    }}
-                  >
-                    Order information
-                  </h3>
-
-                  <div className="hc-info-list">
-                    <div className="hc-info-row">
-                      <span>
-                        Price
-                      </span>
-
-                      <strong>
-                        {money(
-                          selectedService.rate
-                        )}{" "}
-                        / 1,000
-                      </strong>
-                    </div>
-
-                    <div className="hc-info-row">
-                      <span>
-                        Wallet
-                      </span>
-
-                      <strong>
-                        {money(wallet)}
-                      </strong>
-                    </div>
-
-                    <div className="hc-info-row">
-                      <span>
-                        Refill
-                      </span>
-
-                      <strong>
-                        {selectedService.refill
-                          ? "Available"
-                          : "No"}
-                      </strong>
-                    </div>
-
-                    <div className="hc-info-row">
-                      <span>
-                        Cancel
-                      </span>
-
-                      <strong>
-                        {selectedService.cancel
-                          ? "Available"
-                          : "No"}
-                      </strong>
-                    </div>
-                  </div>
-
-                  <div
-                    className="hc-alert"
-                    style={{
-                      marginTop: 18,
-                      background:
-                        "rgba(6,182,212,.08)",
-                      border:
-                        "1px solid rgba(6,182,212,.15)",
-                      color: "#a5f3fc"
-                    }}
-                  >
-                    Your wallet must have enough
-                    funds before the order can be
-                    submitted.
-                  </div>
-
-                  <button
-                    type="button"
-                    className="hc-btn hc-btn-whatsapp"
-                    onClick={openWhatsApp}
-                    style={{
-                      width: "100%",
-                      marginTop: 5
-                    }}
-                  >
-                    <MessageCircle
-                      size={18}
-                    />
-                    Need Help?
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {lastOrder && (
-          <section
-            id="order-result"
-            className="hc-section"
-          >
-            <div className="hc-card hc-result">
-              <div className="hc-result-icon">
-                <CheckCircle2 size={30} />
-              </div>
-
-              <h2 style={{ margin: 0 }}>
-                Order submitted
-              </h2>
-
-              <p className="hc-muted">
-                Your order has been submitted
-                successfully.
-              </p>
-
-              <div
-                className="hc-info-list"
-                style={{
-                  marginTop: 20
-                }}
-              >
-                <div className="hc-info-row">
-                  <span>
-                    Service
-                  </span>
-
-                  <strong>
-                    {lastOrder.serviceName}
-                  </strong>
                 </div>
 
-                <div className="hc-info-row">
-                  <span>
-                    Quantity
-                  </span>
-
-                  <strong>
-                    {Number(
-                      lastOrder.quantity
-                    ).toLocaleString()}
-                  </strong>
-                </div>
-
-                <div className="hc-info-row">
-                  <span>
-                    Amount
-                  </span>
-
-                  <strong>
-                    {money(
-                      lastOrder.amount
-                    )}
-                  </strong>
-                </div>
-
-                <div className="hc-info-row">
-                  <span>
-                    Status
-                  </span>
-
-                  <strong>
-                    {lastOrder.status ||
-                      "Pending"}
-                  </strong>
-                </div>
-
-                {lastOrder.remains !==
-                  undefined &&
-                  lastOrder.remains !==
-                    null && (
-                    <div className="hc-info-row">
-                      <span>
-                        Remaining
-                      </span>
-
-                      <strong>
-                        {Number(
-                          lastOrder.remains
-                        ).toLocaleString()}
-                      </strong>
-                    </div>
-                  )}
-              </div>
-
-              {(lastOrder.supplierOrderId ||
-                lastOrder.id) && (
-                <div className="hc-order-id">
-                  <span>
-                    Supplier Order ID:{" "}
-                    {lastOrder.supplierOrderId ||
-                      lastOrder.id}
-                  </span>
-
-                  <button
-                    type="button"
-                    className="hc-btn hc-btn-secondary"
-                    style={{
-                      padding: 8
-                    }}
-                    onClick={
-                      copyOrderId
-                    }
-                    title="Copy order ID"
-                  >
-                    <Copy size={15} />
-                  </button>
-                </div>
-              )}
-
-              <div
-                style={{
-                  display: "flex",
-                  gap: 10,
-                  flexWrap: "wrap",
-                  marginTop: 18
-                }}
-              >
-                <button
-                  className="hc-btn hc-btn-primary"
-                  onClick={
-                    checkOrderStatus
-                  }
-                  disabled={
-                    statusLoading
-                  }
-                >
-                  {statusLoading ? (
-                    <Loader2
-                      className="hc-spin"
-                      size={17}
-                    />
-                  ) : (
-                    <RefreshCw
-                      size={17}
-                    />
-                  )}
-
-                  Check Status
-                </button>
-
-                <button
-                  className="hc-btn hc-btn-secondary"
-                  onClick={() => {
-                    setLastOrder(null);
-
-                    document
-                      .getElementById(
-                        "services"
-                      )
-                      ?.scrollIntoView({
-                        behavior:
-                          "smooth"
-                      });
+                <div
+                  style={{
+                    marginTop: 14,
+                    padding: 13,
+                    background: "#f9fafb",
+                    borderRadius: 12,
+                    color: "#6b7280",
+                    fontSize: 13
                   }}
                 >
-                  <ShoppingCart
-                    size={17}
-                  />
-
-                  Order Another
-                </button>
-
-                <button
-                  className="hc-btn hc-btn-whatsapp"
-                  onClick={
-                    openWhatsApp
-                  }
-                >
-                  <MessageCircle
-                    size={17}
-                  />
-
-                  WhatsApp Support
-                </button>
+                  Wallet balance:{" "}
+                  <strong style={{ color: "#111827" }}>
+                    {formatMoney(wallet)}
+                  </strong>
+                </div>
               </div>
-            </div>
-          </section>
-        )}
-      </main>
+            </>
+          )}
+        </section>
 
-      <footer className="hc-footer">
-        <div className="hc-container hc-footer-inner">
-          <div>
-            <div className="hc-logo">
-              <div className="hc-logo-mark">
-                <Zap size={19} />
-              </div>
+        <section className="panel" style={{ marginTop: 25 }}>
+          <div className="section-header">
+            <div>
+              <h2 className="section-title">
+                Check Order Status
+              </h2>
 
-              HUPPY CUBE
+              <p className="section-subtitle">
+                Enter your HUPPY CUBE order ID to check its current
+                status.
+              </p>
             </div>
 
-            <div
-              className="hc-muted"
-              style={{
-                marginTop: 9
-              }}
-            >
-              Social Media Marketing Panel
-            </div>
+            <RefreshCw size={20} color="#6b7280" />
           </div>
 
-          <button
-            className="hc-btn hc-btn-whatsapp"
-            onClick={openWhatsApp}
-          >
-            <MessageCircle size={18} />
-            WhatsApp Support
-          </button>
-        </div>
-      </footer>
+          <div className="deposit-grid">
+            <div className="form-group">
+              <label className="label">Order ID</label>
+
+              <input
+                className="input"
+                placeholder="e.g. 123"
+                value={orderId}
+                onChange={(e) => setOrderId(e.target.value)}
+              />
+            </div>
+
+            <div></div>
+
+            <button
+              className="deposit-btn"
+              onClick={checkOrderStatus}
+              disabled={checkingStatus}
+            >
+              {checkingStatus ? (
+                <Loader2 className="spin" size={17} />
+              ) : (
+                "Check Status"
+              )}
+            </button>
+          </div>
+
+          {orderStatus && (
+            <div className="status-box">
+              {Object.entries(orderStatus).map(([key, value]) => (
+                <div className="status-row" key={key}>
+                  <span>{key}</span>
+                  <strong>{String(value)}</strong>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </main>
+
+      <button className="floating-support" onClick={openWhatsApp}>
+        <MessageCircle size={19} />
+        Support
+      </button>
     </div>
   );
-}
-
-createRoot(
-  document.getElementById("root")
-).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>
-);
+                               }
