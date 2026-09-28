@@ -1,13 +1,6 @@
 const PESAPAL_BASE = "https://pay.pesapal.com/v3";
 const DENZGAINS_BASE = "https://denzgains.com/api/v2";
 
-const FRONTEND_URL = "https://huppy-cubes.i96463073.workers.dev";
-const WHATSAPP_NUMBER = "254796681162";
-
-/* -------------------------------------------------------
-   BASIC HELPERS
-------------------------------------------------------- */
-
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -21,36 +14,6 @@ function json(data, status = 200) {
   });
 }
 
-function redirect(url, status = 302) {
-  return new Response(null, {
-    status,
-    headers: {
-      Location: url,
-      "Cache-Control": "no-store"
-    }
-  });
-}
-
-function corsResponse(response) {
-  const headers = new Headers(response.headers);
-
-  headers.set("access-control-allow-origin", "*");
-  headers.set("access-control-allow-methods", "GET,POST,OPTIONS");
-  headers.set(
-    "access-control-allow-headers",
-    "Content-Type, Authorization"
-  );
-
-  return new Response(response.body, {
-    status: response.status,
-    headers
-  });
-}
-
-function now() {
-  return new Date().toISOString();
-}
-
 function makeMerchantReference() {
   return `HUPPY-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
 }
@@ -59,19 +22,9 @@ function makeTrackingId() {
   return `HC-${Date.now()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 }
 
-function getWhatsAppUrl(trackingId = "") {
-  const message = trackingId
-    ? `Hello HUPPY CUBE, I need help with order ${trackingId}`
-    : "Hello HUPPY CUBE, I need help with my order.";
-
-  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
-    message
-  )}`;
-}
-
-/* -------------------------------------------------------
+/* =========================
    PESAPAL
-------------------------------------------------------- */
+========================= */
 
 async function getPesapalToken(env) {
   const response = await fetch(
@@ -93,9 +46,7 @@ async function getPesapalToken(env) {
 
   if (!response.ok || !data.token) {
     throw new Error(
-      `PesaPal authentication failed: HTTP ${response.status} ${JSON.stringify(
-        data
-      )}`
+      `PesaPal authentication failed: HTTP ${response.status} ${JSON.stringify(data)}`
     );
   }
 
@@ -110,7 +61,7 @@ async function createPesapalOrder(env, order) {
     currency: "KES",
     amount: Number(order.amount),
     description: `HUPPY CUBE - ${order.service_name}`,
-    callback_url: `${FRONTEND_URL}/api/pesapal/callback`,
+    callback_url: order.callback_url,
     notification_id: env.PESAPAL_IPN_ID,
     redirect_mode: "TOP_WINDOW",
 
@@ -148,9 +99,7 @@ async function createPesapalOrder(env, order) {
 
   if (!response.ok || !data.redirect_url) {
     throw new Error(
-      `PesaPal order creation failed: HTTP ${response.status} ${JSON.stringify(
-        data
-      )}`
+      `PesaPal order creation failed: HTTP ${response.status} ${JSON.stringify(data)}`
     );
   }
 
@@ -158,46 +107,41 @@ async function createPesapalOrder(env, order) {
 }
 
 async function getPesapalStatus(env, orderTrackingId) {
-  if (!orderTrackingId) {
-    throw new Error("Missing PesaPal order tracking ID");
-  }
-
   const token = await getPesapalToken(env);
 
-  const url =
-    `${PESAPAL_BASE}/api/Transactions/GetTransactionStatus` +
-    `?orderTrackingId=${encodeURIComponent(orderTrackingId)}`;
-
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`
+  const response = await fetch(
+    `${PESAPAL_BASE}/api/Transactions/GetTransactionStatus?orderTrackingId=${encodeURIComponent(
+      orderTrackingId
+    )}`,
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`
+      }
     }
-  });
+  );
 
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
     throw new Error(
-      `PesaPal status check failed: HTTP ${response.status} ${JSON.stringify(
-        data
-      )}`
+      `PesaPal status check failed: HTTP ${response.status} ${JSON.stringify(data)}`
     );
   }
 
   return data;
 }
 
-/* -------------------------------------------------------
+/* =========================
    DENZGAINS
-------------------------------------------------------- */
+========================= */
 
 async function getDenzServices(env) {
   const url =
-    `${DENZGAINS_BASE}/?action=services` +
-    `&key=${encodeURIComponent(env.DENZGAINS_API_KEY)}`;
+    `${DENZGAINS_BASE}/?key=${encodeURIComponent(
+      env.DENZGAINS_API_KEY
+    )}&action=services`;
 
   const response = await fetch(url, {
     method: "GET",
@@ -210,9 +154,13 @@ async function getDenzServices(env) {
 
   if (!response.ok) {
     throw new Error(
-      `DenzGains services request failed: HTTP ${response.status} ${JSON.stringify(
-        data
-      )}`
+      `DenzGains services request failed: HTTP ${response.status} ${JSON.stringify(data)}`
+    );
+  }
+
+  if (data.error) {
+    throw new Error(
+      `DenzGains services request failed: HTTP ${response.status} ${JSON.stringify(data)}`
     );
   }
 
@@ -220,15 +168,12 @@ async function getDenzServices(env) {
 }
 
 async function sendOrderToDenzGains(env, order) {
-  const params = new URLSearchParams();
-
-  params.set("action", "add");
-  params.set("key", env.DENZGAINS_API_KEY);
-  params.set("service", String(order.service_id));
-  params.set("link", String(order.link));
-  params.set("quantity", String(order.quantity));
-
-  const url = `${DENZGAINS_BASE}/?${params.toString()}`;
+  const url =
+    `${DENZGAINS_BASE}/?action=add` +
+    `&service=${encodeURIComponent(order.service_id)}` +
+    `&link=${encodeURIComponent(order.link)}` +
+    `&quantity=${encodeURIComponent(order.quantity)}` +
+    `&key=${encodeURIComponent(env.DENZGAINS_API_KEY)}`;
 
   const response = await fetch(url, {
     method: "GET",
@@ -241,28 +186,22 @@ async function sendOrderToDenzGains(env, order) {
 
   if (!response.ok) {
     throw new Error(
-      `DenzGains order failed: HTTP ${response.status} ${JSON.stringify(
-        data
-      )}`
+      `DenzGains order failed: HTTP ${response.status} ${JSON.stringify(data)}`
     );
   }
 
-  if (
-    data.error ||
-    data.errors ||
-    data.success === false
-  ) {
+  if (data.error) {
     throw new Error(
-      `DenzGains rejected order: ${JSON.stringify(data)}`
+      `DenzGains order failed: ${JSON.stringify(data)}`
     );
   }
 
   return data;
 }
 
-/* -------------------------------------------------------
-   FIND ORDER
-------------------------------------------------------- */
+/* =========================
+   ORDER LOOKUPS
+========================= */
 
 async function findOrderByTrackingId(env, trackingId) {
   return await env.DB.prepare(`
@@ -275,7 +214,10 @@ async function findOrderByTrackingId(env, trackingId) {
     .first();
 }
 
-async function findOrderByMerchantReference(env, merchantReference) {
+async function findOrderByMerchantReference(
+  env,
+  merchantReference
+) {
   return await env.DB.prepare(`
     SELECT *
     FROM direct_orders
@@ -286,42 +228,22 @@ async function findOrderByMerchantReference(env, merchantReference) {
     .first();
 }
 
-/* -------------------------------------------------------
+/* =========================
    PROCESS PAID ORDER
-------------------------------------------------------- */
+========================= */
 
-async function processPaidOrder(
-  env,
-  trackingId,
-  pesapalTrackingId = null,
-  merchantReference = null
-) {
-  let order = null;
-
-  /*
-    First try our internal HUPPY tracking ID.
-  */
-  if (trackingId) {
-    order = await findOrderByTrackingId(env, trackingId);
-  }
-
-  /*
-    If this is a PesaPal callback, use the merchant reference.
-  */
-  if (!order && merchantReference) {
-    order = await findOrderByMerchantReference(
-      env,
-      merchantReference
-    );
-  }
+async function processPaidOrder(env, trackingId) {
+  const order = await findOrderByTrackingId(
+    env,
+    trackingId
+  );
 
   if (!order) {
-    throw new Error("HUPPY CUBE order not found");
+    throw new Error("Order not found");
   }
 
   /*
-    VERY IMPORTANT:
-    Never submit the same supplier order twice.
+    Prevent duplicate supplier submissions.
   */
   if (order.supplier_order_id) {
     return {
@@ -331,44 +253,30 @@ async function processPaidOrder(
     };
   }
 
-  /*
-    Determine which PesaPal tracking ID should be checked.
-  */
-  const ppTrackingId =
-    pesapalTrackingId ||
-    order.pesapal_tracking_id ||
-    order.tracking_id;
-
-  if (!ppTrackingId) {
-    throw new Error("Missing PesaPal tracking ID");
+  if (!order.pesapal_tracking_id) {
+    throw new Error(
+      "Missing PesaPal tracking ID"
+    );
   }
 
   /*
-    Verify directly with PesaPal.
+    Verify payment directly with PesaPal.
   */
   const payment = await getPesapalStatus(
     env,
-    ppTrackingId
+    order.pesapal_tracking_id
   );
 
   const paymentStatus = String(
     payment.payment_status_description || ""
   ).toUpperCase();
 
-  const paymentAmount = Number(payment.amount || 0);
-  const paymentCurrency = String(
-    payment.currency || ""
-  ).toUpperCase();
+  const paymentAmount =
+    Number(payment.amount || 0);
 
-  const merchantRef =
-    payment.merchant_reference ||
-    merchantReference ||
-    order.merchant_reference;
+  const paymentCurrency =
+    String(payment.currency || "").toUpperCase();
 
-  /*
-    Do not release the order unless PesaPal confirms
-    a completed payment.
-  */
   if (paymentStatus !== "COMPLETED") {
     await env.DB.prepare(`
       UPDATE direct_orders
@@ -382,10 +290,8 @@ async function processPaidOrder(
         paymentStatus || "PENDING",
         paymentStatus === "FAILED"
           ? "Payment Failed"
-          : paymentStatus === "REVERSED"
-          ? "Payment Reversed"
           : "Payment Pending",
-        now(),
+        new Date().toISOString(),
         order.id
       )
       .run();
@@ -393,20 +299,8 @@ async function processPaidOrder(
     return {
       success: false,
       payment_completed: false,
-      payment_status: paymentStatus,
-      order
+      payment_status: paymentStatus
     };
-  }
-
-  /*
-    Verify merchant reference.
-  */
-  if (
-    merchantRef &&
-    order.merchant_reference &&
-    merchantRef !== order.merchant_reference
-  ) {
-    throw new Error("PesaPal merchant reference mismatch");
   }
 
   /*
@@ -416,7 +310,9 @@ async function processPaidOrder(
     paymentCurrency &&
     paymentCurrency !== "KES"
   ) {
-    throw new Error("PesaPal currency mismatch");
+    throw new Error(
+      "PesaPal currency mismatch"
+    );
   }
 
   /*
@@ -424,7 +320,9 @@ async function processPaidOrder(
   */
   if (
     Number.isFinite(paymentAmount) &&
-    Math.abs(paymentAmount - Number(order.amount)) > 0.01
+    Math.abs(
+      paymentAmount - Number(order.amount)
+    ) > 0.01
   ) {
     throw new Error(
       `PesaPal amount mismatch. Expected ${order.amount}, received ${paymentAmount}`
@@ -432,11 +330,9 @@ async function processPaidOrder(
   }
 
   /*
-    Claim the order before sending it to DenzGains.
-    This helps prevent two callbacks from submitting
-    the same order simultaneously.
+    Mark payment completed before supplier submission.
   */
-  const claim = await env.DB.prepare(`
+  await env.DB.prepare(`
     UPDATE direct_orders
     SET
       payment_status = ?,
@@ -444,54 +340,23 @@ async function processPaidOrder(
       updated_at = ?
     WHERE id = ?
       AND supplier_order_id IS NULL
-      AND (
-        payment_status IS NULL
-        OR payment_status != ?
-      )
   `)
     .bind(
       "COMPLETED",
       "Submitting",
-      now(),
-      order.id,
-      "COMPLETED"
+      new Date().toISOString(),
+      order.id
     )
     .run();
 
-  /*
-    Reload after claiming.
-  */
-  order = await env.DB.prepare(`
-    SELECT *
-    FROM direct_orders
-    WHERE id = ?
-    LIMIT 1
-  `)
-    .bind(order.id)
-    .first();
-
-  /*
-    If another callback already completed the submission,
-    don't submit again.
-  */
-  if (order.supplier_order_id) {
-    return {
-      success: true,
-      already_submitted: true,
-      order
-    };
-  }
-
-  /*
-    Send the paid order to DenzGains.
-  */
   let supplierResponse;
 
   try {
-    supplierResponse = await sendOrderToDenzGains(
-      env,
-      order
-    );
+    supplierResponse =
+      await sendOrderToDenzGains(
+        env,
+        order
+      );
   } catch (error) {
     await env.DB.prepare(`
       UPDATE direct_orders
@@ -504,7 +369,7 @@ async function processPaidOrder(
       .bind(
         "COMPLETED",
         "Payment Completed - Supplier Error",
-        now(),
+        new Date().toISOString(),
         order.id
       )
       .run();
@@ -512,46 +377,37 @@ async function processPaidOrder(
     throw error;
   }
 
-  /*
-    DenzGains normally returns an order ID.
-  */
   const supplierOrderId =
     supplierResponse.order ||
     supplierResponse.order_id ||
     supplierResponse.id ||
     null;
 
-  /*
-    Save supplier order.
-  */
   await env.DB.prepare(`
     UPDATE direct_orders
     SET
+      supplier_order_id = ?,
       payment_status = ?,
       order_status = ?,
-      supplier_order_id = ?,
       updated_at = ?
     WHERE id = ?
   `)
     .bind(
-      "COMPLETED",
-      "Processing",
       supplierOrderId
         ? String(supplierOrderId)
         : null,
-      now(),
+      "COMPLETED",
+      "Processing",
+      new Date().toISOString(),
       order.id
     )
     .run();
 
-  const updatedOrder = await env.DB.prepare(`
-    SELECT *
-    FROM direct_orders
-    WHERE id = ?
-    LIMIT 1
-  `)
-    .bind(order.id)
-    .first();
+  const updatedOrder =
+    await findOrderByTrackingId(
+      env,
+      trackingId
+    );
 
   return {
     success: true,
@@ -561,158 +417,33 @@ async function processPaidOrder(
   };
 }
 
-/* -------------------------------------------------------
-   ORDER STATUS
-------------------------------------------------------- */
+/* =========================
+   SERVICES
+========================= */
 
-async function handleOrderStatus(request, env) {
-  const url = new URL(request.url);
-  const trackingId =
-    url.searchParams.get("tracking_id") ||
-    url.searchParams.get("trackingId");
+async function handleServices(request, env) {
+  try {
+    const services =
+      await getDenzServices(env);
 
-  if (!trackingId) {
+    return json({
+      success: true,
+      services
+    });
+  } catch (error) {
     return json(
       {
         success: false,
-        error: "tracking_id is required"
+        error: error.message
       },
-      400
+      500
     );
   }
-
-  const order = await env.DB.prepare(`
-    SELECT
-      id,
-      tracking_id,
-      merchant_reference,
-      service_name,
-      quantity,
-      payment_status,
-      order_status,
-      supplier_order_id,
-      created_at,
-      updated_at
-    FROM direct_orders
-    WHERE tracking_id = ?
-    LIMIT 1
-  `)
-    .bind(trackingId)
-    .first();
-
-  if (!order) {
-    return json(
-      {
-        success: false,
-        error: "Order not found"
-      },
-      404
-    );
-  }
-
-  let currentStep = 1;
-  let progress = 25;
-
-  const paymentStatus = String(
-    order.payment_status || ""
-  ).toUpperCase();
-
-  const orderStatus = String(
-    order.order_status || ""
-  ).toLowerCase();
-
-  /*
-    Failed/reversed payments.
-  */
-  if (
-    paymentStatus === "FAILED" ||
-    paymentStatus === "REVERSED" ||
-    orderStatus.includes("failed") ||
-    orderStatus.includes("reversed") ||
-    orderStatus.includes("invalid")
-  ) {
-    currentStep = 1;
-    progress = 0;
-  }
-
-  /*
-    Payment completed.
-  */
-  else if (
-    paymentStatus === "COMPLETED"
-  ) {
-    currentStep = 2;
-    progress = 50;
-  }
-
-  /*
-    Supplier order exists / processing.
-  */
-  if (
-    order.supplier_order_id ||
-    orderStatus === "processing" ||
-    orderStatus === "completed"
-  ) {
-    currentStep = 3;
-    progress = 75;
-  }
-
-  /*
-    Completed.
-  */
-  if (
-    orderStatus === "completed"
-  ) {
-    currentStep = 4;
-    progress = 100;
-  }
-
-  /*
-    Supplier error:
-    payment has completed but supplier submission failed.
-  */
-  if (
-    orderStatus.includes("supplier error")
-  ) {
-    currentStep = 2;
-    progress = 50;
-  }
-
-  return json({
-    success: true,
-
-    order,
-
-    tracking: {
-      current_step: currentStep,
-      progress,
-
-      payment_received:
-        paymentStatus === "COMPLETED",
-
-      order_submitted:
-        Boolean(order.supplier_order_id),
-
-      processing:
-        Boolean(
-          order.supplier_order_id &&
-          orderStatus === "processing"
-        ),
-
-      completed:
-        orderStatus === "completed"
-    },
-
-    whatsapp: {
-      number: WHATSAPP_NUMBER,
-      url: getWhatsAppUrl(order.tracking_id)
-    }
-  });
 }
 
-/* -------------------------------------------------------
-   CREATE CUSTOMER PAYMENT
-------------------------------------------------------- */
+/* =========================
+   ORDER PAYMENT
+========================= */
 
 async function handleOrderPayment(
   request,
@@ -728,23 +459,30 @@ async function handleOrderPayment(
     );
   }
 
-  const body = await request.json();
+  const body =
+    await request.json();
 
   const fullName =
-    String(body.full_name || body.fullName || "")
-      .trim();
+    String(
+      body.full_name ||
+      body.fullName ||
+      ""
+    ).trim();
 
   const phone =
-    String(body.phone || "")
-      .trim();
+    String(
+      body.phone || ""
+    ).trim();
 
   const email =
-    String(body.email || "")
-      .trim();
+    String(
+      body.email || ""
+    ).trim();
 
   const platform =
-    String(body.platform || "")
-      .trim();
+    String(
+      body.platform || ""
+    ).trim();
 
   const serviceId =
     String(
@@ -761,8 +499,11 @@ async function handleOrderPayment(
     ).trim();
 
   const link =
-    String(body.link || body.account_link || "")
-      .trim();
+    String(
+      body.link ||
+      body.account_link ||
+      ""
+    ).trim();
 
   const quantity =
     Number(body.quantity || 0);
@@ -772,7 +513,6 @@ async function handleOrderPayment(
     !phone ||
     !serviceId ||
     !link ||
-    !quantity ||
     quantity <= 0
   ) {
     return json(
@@ -785,26 +525,27 @@ async function handleOrderPayment(
     );
   }
 
-  /*
-    Get live DenzGains services.
-  */
-  const services = await getDenzServices(env);
+  const services =
+    await getDenzServices(env);
 
-  const service = Array.isArray(services)
-    ? services.find(
-        (item) =>
-          String(item.service) === serviceId ||
-          String(item.service_id) === serviceId ||
-          String(item.id) === serviceId
-      )
-    : null;
+  const service =
+    Array.isArray(services)
+      ? services.find(
+          item =>
+            String(
+              item.service ||
+              item.service_id ||
+              item.id
+            ) === serviceId
+        )
+      : null;
 
   if (!service) {
     return json(
       {
         success: false,
         error:
-          "Selected service was not found at DenzGains."
+          "Selected service was not found."
       },
       400
     );
@@ -821,16 +562,15 @@ async function handleOrderPayment(
       {
         success: false,
         error:
-          "Supplier price is unavailable for this service."
+          "Supplier price unavailable."
       },
       400
     );
   }
 
   /*
-    CUSTOMER PRICE = 2 × SUPPLIER RATE
-
-    DenzGains rates are normally expressed per 1,000.
+    HUPPY CUBE customer price =
+    2 × DenzGains supplier price.
   */
   const customerRate =
     supplierRate * 2;
@@ -845,7 +585,7 @@ async function handleOrderPayment(
       {
         success: false,
         error:
-          "Calculated payment amount is below KSh 1."
+          "Payment amount is too low."
       },
       400
     );
@@ -857,12 +597,9 @@ async function handleOrderPayment(
   const trackingId =
     makeTrackingId();
 
-  const createdAt = now();
+  const timestamp =
+    new Date().toISOString();
 
-  /*
-    Save the order BEFORE sending the customer
-    to PesaPal.
-  */
   await env.DB.prepare(`
     INSERT INTO direct_orders (
       tracking_id,
@@ -897,7 +634,6 @@ async function handleOrderPayment(
       ),
       serviceName ||
         service.name ||
-        service.service ||
         "Social Media Service",
       quantity,
       link,
@@ -911,18 +647,19 @@ async function handleOrderPayment(
       "PENDING",
       "Payment Pending",
       null,
-      createdAt,
-      createdAt
+      timestamp,
+      timestamp
     )
     .run();
 
-  /*
-    Create PesaPal payment.
-  */
-  let pesapal;
+  const workerUrl =
+    new URL(request.url).origin;
 
-  try {
-    pesapal = await createPesapalOrder(
+  const callbackUrl =
+    `${workerUrl}/api/pesapal/callback`;
+
+  const pesapal =
+    await createPesapalOrder(
       env,
       {
         merchant_reference:
@@ -937,60 +674,36 @@ async function handleOrderPayment(
 
         phone,
         email,
-        full_name: fullName
+
+        full_name:
+          fullName,
+
+        callback_url:
+          callbackUrl
       }
     );
-  } catch (error) {
-    /*
-      Keep the order in the database so it can be
-      inspected instead of silently disappearing.
-    */
+
+  /*
+    Save PesaPal tracking ID.
+  */
+  if (
+    pesapal.order_tracking_id
+  ) {
     await env.DB.prepare(`
       UPDATE direct_orders
       SET
-        order_status = ?,
+        pesapal_tracking_id = ?,
         updated_at = ?
       WHERE tracking_id = ?
     `)
       .bind(
-        "Payment Initialization Error",
-        now(),
+        String(
+          pesapal.order_tracking_id
+        ),
+        new Date().toISOString(),
         trackingId
       )
       .run();
-
-    throw error;
-  }
-
-  /*
-    PesaPal gives us its own order tracking ID.
-    Save it if the database has this column.
-    
-    IMPORTANT:
-    If your existing direct_orders table already contains
-    pesapal_tracking_id, this update works directly.
-  */
-  try {
-    if (pesapal.order_tracking_id) {
-      await env.DB.prepare(`
-        UPDATE direct_orders
-        SET
-          pesapal_tracking_id = ?,
-          updated_at = ?
-        WHERE tracking_id = ?
-      `)
-        .bind(
-          String(pesapal.order_tracking_id),
-          now(),
-          trackingId
-        )
-        .run();
-    }
-  } catch (e) {
-    /*
-      Do not break payment creation if the optional
-      column is not present in an older database.
-    */
   }
 
   return json({
@@ -1011,19 +724,172 @@ async function handleOrderPayment(
       pesapal.redirect_url,
 
     whatsapp:
-      getWhatsAppUrl(trackingId)
+      `https://wa.me/254796681162?text=${encodeURIComponent(
+        `Hello HUPPY CUBE, I need help with order ${trackingId}`
+      )}`
   });
 }
 
-/* -------------------------------------------------------
+/* =========================
+   ORDER STATUS
+========================= */
+
+async function handleOrderStatus(
+  request,
+  env
+) {
+  const url =
+    new URL(request.url);
+
+  const trackingId =
+    url.searchParams.get(
+      "tracking_id"
+    );
+
+  if (!trackingId) {
+    return json(
+      {
+        success: false,
+        error:
+          "tracking_id is required"
+      },
+      400
+    );
+  }
+
+  const order =
+    await env.DB.prepare(`
+      SELECT
+        id,
+        tracking_id,
+        merchant_reference,
+        service_name,
+        quantity,
+        payment_status,
+        order_status,
+        supplier_order_id,
+        created_at,
+        updated_at
+      FROM direct_orders
+      WHERE tracking_id = ?
+      LIMIT 1
+    `)
+      .bind(trackingId)
+      .first();
+
+  if (!order) {
+    return json(
+      {
+        success: false,
+        error: "Order not found"
+      },
+      404
+    );
+  }
+
+  let currentStep = 1;
+  let progress = 25;
+
+  const paymentStatus =
+    String(
+      order.payment_status || ""
+    ).toUpperCase();
+
+  const orderStatus =
+    String(
+      order.order_status || ""
+    ).toLowerCase();
+
+  if (
+    paymentStatus === "FAILED" ||
+    paymentStatus === "REVERSED"
+  ) {
+    currentStep = 1;
+    progress = 0;
+  } else if (
+    paymentStatus === "COMPLETED"
+  ) {
+    currentStep = 2;
+    progress = 50;
+  }
+
+  if (
+    order.supplier_order_id ||
+    orderStatus === "processing"
+  ) {
+    currentStep = 3;
+    progress = 75;
+  }
+
+  if (
+    orderStatus === "completed"
+  ) {
+    currentStep = 4;
+    progress = 100;
+  }
+
+  if (
+    orderStatus.includes(
+      "supplier error"
+    )
+  ) {
+    currentStep = 2;
+    progress = 50;
+  }
+
+  return json({
+    success: true,
+
+    order,
+
+    tracking: {
+      current_step:
+        currentStep,
+
+      progress,
+
+      payment_received:
+        paymentStatus ===
+        "COMPLETED",
+
+      order_submitted:
+        Boolean(
+          order.supplier_order_id
+        ),
+
+      processing:
+        Boolean(
+          order.supplier_order_id &&
+          orderStatus ===
+            "processing"
+        ),
+
+      completed:
+        orderStatus ===
+        "completed"
+    },
+
+    whatsapp: {
+      number: "254796681162",
+
+      url:
+        `https://wa.me/254796681162?text=${encodeURIComponent(
+          `Hello HUPPY CUBE, I need help with order ${trackingId}`
+        )}`
+    }
+  });
+}
+
+/* =========================
    PESAPAL CALLBACK
-------------------------------------------------------- */
+========================= */
 
 async function handlePesapalCallback(
   request,
   env
 ) {
-  const url = new URL(request.url);
+  const url =
+    new URL(request.url);
 
   const pesapalTrackingId =
     url.searchParams.get(
@@ -1035,14 +901,28 @@ async function handlePesapalCallback(
       "OrderMerchantReference"
     );
 
-  /*
-    PesaPal does NOT put the payment status in the
-    callback URL. We therefore verify it through
-    GetTransactionStatus.
-  */
   if (!pesapalTrackingId) {
-    return redirect(
-      `${FRONTEND_URL}/?payment=missing_tracking_id`
+    return new Response(
+      `
+      <!doctype html>
+      <html>
+      <head>
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>HUPPY CUBE</title>
+      </head>
+      <body style="font-family:Arial;text-align:center;padding:40px">
+        <h2>Payment callback received</h2>
+        <p>We could not find the PesaPal tracking ID.</p>
+      </body>
+      </html>
+      `,
+      {
+        status: 400,
+        headers: {
+          "content-type":
+            "text/html; charset=utf-8"
+        }
+      }
     );
   }
 
@@ -1056,234 +936,233 @@ async function handlePesapalCallback(
       );
   }
 
-  /*
-    If merchant reference wasn't found, try the stored
-    PesaPal tracking ID.
-  */
   if (!order) {
-    try {
-      order = await env.DB.prepare(`
-        SELECT *
-        FROM direct_orders
-        WHERE pesapal_tracking_id = ?
-        LIMIT 1
-      `)
-        .bind(pesapalTrackingId)
-        .first();
-    } catch (e) {
-      /*
-        Older DB schema may not have the optional column.
-      */
-    }
-  }
-
-  if (!order) {
-    return redirect(
-      `${FRONTEND_URL}/?payment=order_not_found`
+    return new Response(
+      `
+      <!doctype html>
+      <html>
+      <body style="font-family:Arial;text-align:center;padding:40px">
+        <h2>Order not found</h2>
+        <p>Please contact HUPPY CUBE support.</p>
+      </body>
+      </html>
+      `,
+      {
+        status: 404,
+        headers: {
+          "content-type":
+            "text/html; charset=utf-8"
+        }
+      }
     );
   }
-
-  /*
-    The customer's HUPPY CUBE tracking ID is the ID
-    we display in the frontend.
-  */
-  const huppyTrackingId =
-    order.tracking_id;
 
   try {
-    const result =
-      await processPaidOrder(
-        env,
-        huppyTrackingId,
-        pesapalTrackingId,
-        merchantReference
-      );
-
-    /*
-      Send customer directly back to HUPPY CUBE.
-      The React app reads ?tracking_id=...
-    */
-    const destination =
-      new URL(FRONTEND_URL);
-
-    destination.searchParams.set(
-      "tracking_id",
-      huppyTrackingId
-    );
-
-    destination.searchParams.set(
-      "payment",
-      result.success
-        ? "completed"
-        : "pending"
-    );
-
-    return redirect(
-      destination.toString()
+    await processPaidOrder(
+      env,
+      order.tracking_id
     );
   } catch (error) {
     console.error(
-      "PesaPal callback processing error:",
+      "Callback processing error:",
       error
     );
-
-    /*
-      Still return the customer to the tracking page.
-      The frontend can show the current database status.
-    */
-    const destination =
-      new URL(FRONTEND_URL);
-
-    destination.searchParams.set(
-      "tracking_id",
-      huppyTrackingId
-    );
-
-    destination.searchParams.set(
-      "payment",
-      "processing"
-    );
-
-    return redirect(
-      destination.toString()
-    );
   }
+
+  /*
+    Original-style callback page.
+  */
+  const trackingUrl =
+    `${new URL(request.url).origin}` +
+    `/api/order-status?tracking_id=` +
+    encodeURIComponent(
+      order.tracking_id
+    );
+
+  const whatsappUrl =
+    `https://wa.me/254796681162?text=` +
+    encodeURIComponent(
+      `Hello HUPPY CUBE, I need help with order ${order.tracking_id}`
+    );
+
+  return new Response(
+    `
+    <!doctype html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta
+        name="viewport"
+        content="width=device-width,initial-scale=1"
+      >
+      <title>HUPPY CUBE - Payment</title>
+
+      <style>
+        body {
+          margin: 0;
+          padding: 30px 20px;
+          background: #080713;
+          color: white;
+          font-family: Arial, sans-serif;
+          text-align: center;
+        }
+
+        .box {
+          max-width: 500px;
+          margin: 40px auto;
+          padding: 30px 20px;
+          background: #121020;
+          border-radius: 18px;
+        }
+
+        h1 {
+          margin-bottom: 10px;
+        }
+
+        .tracking {
+          margin: 20px 0;
+          padding: 15px;
+          background: #080713;
+          border-radius: 12px;
+          font-weight: bold;
+        }
+
+        a {
+          display: block;
+          margin: 12px 0;
+          padding: 14px;
+          border-radius: 10px;
+          text-decoration: none;
+          color: white;
+          background: #673cff;
+        }
+
+        .whatsapp {
+          background: #168a45;
+        }
+      </style>
+    </head>
+
+    <body>
+      <div class="box">
+
+        <h1>Payment Received</h1>
+
+        <p>
+          Your HUPPY CUBE order has been received.
+        </p>
+
+        <div class="tracking">
+          Tracking ID:<br>
+          ${order.tracking_id}
+        </div>
+
+        <a href="${trackingUrl}">
+          Track My Order
+        </a>
+
+        <a
+          class="whatsapp"
+          href="${whatsappUrl}"
+        >
+          WhatsApp Support
+        </a>
+
+      </div>
+    </body>
+    </html>
+    `,
+    {
+      status: 200,
+      headers: {
+        "content-type":
+          "text/html; charset=utf-8",
+        "cache-control":
+          "no-store"
+      }
+    }
+  );
 }
 
-/* -------------------------------------------------------
+/* =========================
    PESAPAL IPN
-------------------------------------------------------- */
+========================= */
 
 async function handlePesapalIPN(
   request,
   env
 ) {
-  const url = new URL(request.url);
+  const url =
+    new URL(request.url);
 
-  let pesapalTrackingId =
+  const pesapalTrackingId =
     url.searchParams.get(
       "OrderTrackingId"
     );
 
-  let merchantReference =
+  const merchantReference =
     url.searchParams.get(
       "OrderMerchantReference"
     );
 
-  /*
-    PesaPal may send IPN as POST.
-  */
-  if (request.method === "POST") {
-    try {
-      const body =
-        await request.json();
-
-      pesapalTrackingId =
-        pesapalTrackingId ||
-        body.OrderTrackingId ||
-        body.orderTrackingId;
-
-      merchantReference =
-        merchantReference ||
-        body.OrderMerchantReference ||
-        body.orderMerchantReference;
-    } catch (e) {
-      /*
-        Continue with query parameters.
-      */
-    }
-  }
-
   if (
-    !pesapalTrackingId &&
-    !merchantReference
+    merchantReference
   ) {
-    return json(
-      {
-        orderNotificationType:
-          "IPNCHANGE",
-        status: 500
-      },
-      400
-    );
-  }
-
-  try {
     const order =
-      merchantReference
-        ? await findOrderByMerchantReference(
-            env,
-            merchantReference
-          )
-        : null;
-
-    if (order) {
-      await processPaidOrder(
+      await findOrderByMerchantReference(
         env,
-        order.tracking_id,
-        pesapalTrackingId,
         merchantReference
       );
+
+    if (order) {
+      try {
+        await processPaidOrder(
+          env,
+          order.tracking_id
+        );
+      } catch (error) {
+        console.error(
+          "IPN processing error:",
+          error
+        );
+      }
     }
-
-    /*
-      PesaPal expects an acknowledgement.
-    */
-    return json({
-      orderNotificationType:
-        "IPNCHANGE",
-
-      orderTrackingId:
-        pesapalTrackingId,
-
-      orderMerchantReference:
-        merchantReference,
-
-      status: 200
-    });
-  } catch (error) {
-    console.error(
-      "PesaPal IPN processing error:",
-      error
-    );
-
-    /*
-      Acknowledge receipt even when our internal
-      supplier processing has an error. The order
-      remains in the database for investigation.
-    */
-    return json({
-      orderNotificationType:
-        "IPNCHANGE",
-
-      orderTrackingId:
-        pesapalTrackingId,
-
-      orderMerchantReference:
-        merchantReference,
-
-      status: 200
-    });
   }
+
+  return json({
+    orderNotificationType:
+      "IPNCHANGE",
+
+    orderTrackingId:
+      pesapalTrackingId,
+
+    orderMerchantReference:
+      merchantReference,
+
+    status: 200
+  });
 }
 
-/* -------------------------------------------------------
-   TEST EXISTING ORDER
-------------------------------------------------------- */
+/* =========================
+   TEST ORDER
+========================= */
 
 async function handleTestOrder(
   request,
   env,
   orderId
 ) {
-  const url = new URL(request.url);
+  const url =
+    new URL(request.url);
 
-  const suppliedSecret =
-    url.searchParams.get("secret");
+  const secret =
+    url.searchParams.get(
+      "secret"
+    );
 
   if (
     !env.TEST_ORDER_SECRET ||
-    suppliedSecret !==
+    secret !==
       env.TEST_ORDER_SECRET
   ) {
     return json(
@@ -1292,16 +1171,6 @@ async function handleTestOrder(
         error: "Unauthorized"
       },
       401
-    );
-  }
-
-  if (!orderId) {
-    return json(
-      {
-        success: false,
-        error: "Order ID is required"
-      },
-      400
     );
   }
 
@@ -1326,13 +1195,13 @@ async function handleTestOrder(
   }
 
   /*
-    NEVER submit an existing supplier order again.
+    Never submit an order twice.
   */
   if (order.supplier_order_id) {
     return json({
       success: true,
       message:
-        "This order has already been submitted to DenzGains.",
+        "Order already submitted to DenzGains.",
       order
     });
   }
@@ -1342,7 +1211,7 @@ async function handleTestOrder(
       {
         success: false,
         error:
-          "This order has no tracking ID."
+          "Order has no tracking ID."
       },
       400
     );
@@ -1352,100 +1221,45 @@ async function handleTestOrder(
     const result =
       await processPaidOrder(
         env,
-        order.tracking_id,
-        order.pesapal_tracking_id ||
-          order.tracking_id,
-        order.merchant_reference
+        order.tracking_id
       );
 
     return json({
       success: true,
-      message:
-        "Order processing test completed.",
       result
     });
   } catch (error) {
     return json(
       {
         success: false,
-        error: error.message || String(error)
-      },
-      500
-    );
-  }
-}
-
-/* -------------------------------------------------------
-   SERVICES API
-------------------------------------------------------- */
-
-async function handleServices(
-  request,
-  env
-) {
-  try {
-    const services =
-      await getDenzServices(env);
-
-    /*
-      Return the supplier catalogue to the frontend.
-      Your React app can use this for service selection.
-    */
-    return json({
-      success: true,
-      services
-    });
-  } catch (error) {
-    console.error(
-      "Services error:",
-      error
-    );
-
-    return json(
-      {
-        success: false,
         error:
           error.message ||
-          "Unable to load services."
+          String(error)
       },
       500
     );
   }
 }
 
-/* -------------------------------------------------------
-   HEALTH CHECK
-------------------------------------------------------- */
-
-async function handleHealth() {
-  return json({
-    success: true,
-    name: "HUPPY CUBE",
-    status: "online",
-    time: now()
-  });
-}
-
-/* -------------------------------------------------------
-   MAIN WORKER
-------------------------------------------------------- */
+/* =========================
+   MAIN
+========================= */
 
 export default {
   async fetch(request, env) {
     try {
-      /*
-        CORS preflight.
-      */
-      if (request.method === "OPTIONS") {
+      if (
+        request.method === "OPTIONS"
+      ) {
         return new Response(null, {
           status: 204,
           headers: {
-            "access-control-allow-origin": "*",
+            "access-control-allow-origin":
+              "*",
             "access-control-allow-methods":
               "GET,POST,OPTIONS",
             "access-control-allow-headers":
-              "Content-Type, Authorization",
-            "access-control-max-age": "86400"
+              "Content-Type, Authorization"
           }
         });
       }
@@ -1456,138 +1270,100 @@ export default {
       const pathname =
         url.pathname;
 
-      /*
-        Health.
-      */
       if (
         pathname === "/" &&
         request.method === "GET"
       ) {
-        return corsResponse(
-          await handleHealth()
-        );
+        return json({
+          success: true,
+          name: "HUPPY CUBE",
+          status: "online"
+        });
       }
 
-      /*
-        Services.
-      */
       if (
         pathname === "/api/services"
       ) {
-        return corsResponse(
-          await handleServices(
-            request,
-            env
-          )
-        );
-      }
-
-      /*
-        Customer creates an order/payment.
-      */
-      if (
-        pathname === "/api/order-payment"
-      ) {
-        return corsResponse(
-          await handleOrderPayment(
-            request,
-            env
-          )
-        );
-      }
-
-      /*
-        Customer tracking.
-      */
-      if (
-        pathname === "/api/order-status"
-      ) {
-        return corsResponse(
-          await handleOrderStatus(
-            request,
-            env
-          )
-        );
-      }
-
-      /*
-        PesaPal customer callback.
-      */
-      if (
-        pathname === "/api/pesapal/callback"
-      ) {
-        return await handlePesapalCallback(
+        return handleServices(
           request,
           env
         );
       }
 
-      /*
-        PesaPal IPN.
-      */
       if (
-        pathname === "/api/pesapal/ipn"
+        pathname === "/api/order-payment"
       ) {
-        return corsResponse(
-          await handlePesapalIPN(
-            request,
-            env
-          )
+        return handleOrderPayment(
+          request,
+          env
         );
       }
 
-      /*
-        Existing-order testing endpoint.
+      if (
+        pathname === "/api/order-status"
+      ) {
+        return handleOrderStatus(
+          request,
+          env
+        );
+      }
 
-        Example:
+      if (
+        pathname === "/api/pesapal/callback"
+      ) {
+        return handlePesapalCallback(
+          request,
+          env
+        );
+      }
 
-        /api/test-order/8?secret=YOUR_SECRET
-      */
+      if (
+        pathname === "/api/pesapal/ipn"
+      ) {
+        return handlePesapalIPN(
+          request,
+          env
+        );
+      }
+
       if (
         pathname.startsWith(
           "/api/test-order/"
         )
       ) {
         const orderId =
-          pathname.split("/").pop();
+          pathname
+            .split("/")
+            .pop();
 
-        return corsResponse(
-          await handleTestOrder(
-            request,
-            env,
-            orderId
-          )
+        return handleTestOrder(
+          request,
+          env,
+          orderId
         );
       }
 
-      /*
-        Unknown route.
-      */
-      return corsResponse(
-        json(
-          {
-            success: false,
-            error: "Route not found"
-          },
-          404
-        )
+      return json(
+        {
+          success: false,
+          error: "Route not found"
+        },
+        404
       );
     } catch (error) {
       console.error(
-        "HUPPY CUBE Worker error:",
+        "Worker error:",
         error
       );
 
-      return corsResponse(
-        json(
-          {
-            success: false,
-            error:
-              error.message ||
-              "Internal server error"
-          },
-          500
-        )
+      return json(
+        {
+          success: false,
+          error:
+            error.message ||
+            "Internal server error"
+        },
+        500
       );
     }
   }
