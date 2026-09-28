@@ -146,19 +146,32 @@ async function getDenzServices(env) {
   const response = await fetch(url, {
     method: "GET",
     headers: {
-      Accept: "application/json"
+      "Accept": "application/json",
+      "User-Agent": "HUPPY-CUBE/1.0"
     }
   });
 
-  const data = await response.json().catch(() => []);
+  const raw = await response.text();
+
+  let data;
+
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    data = raw;
+  }
 
   if (!response.ok) {
     throw new Error(
-      `DenzGains services request failed: HTTP ${response.status} ${JSON.stringify(data)}`
+      `DenzGains services request failed: HTTP ${response.status} ${typeof data === "string" ? data : JSON.stringify(data)}`
     );
   }
 
-  if (data.error) {
+  if (
+    typeof data === "object" &&
+    data !== null &&
+    data.error
+  ) {
     throw new Error(
       `DenzGains services request failed: HTTP ${response.status} ${JSON.stringify(data)}`
     );
