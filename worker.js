@@ -27,7 +27,8 @@ ${body}
     {
       status,
       headers: {
-        "content-type": "text/html; charset=utf-8"
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store"
       }
     }
   );
@@ -204,12 +205,6 @@ async function getPesapalStatus(env, trackingId) {
 
 /*
  * Sends a paid order to DenzGains.
- *
- * IMPORTANT:
- * - API key is kept in Cloudflare Secret.
- * - The API key is never printed to logs.
- * - The complete DenzGains response is logged only for diagnostics,
- *   with the API key excluded.
  */
 async function sendOrderToDenzGains(env, order) {
   if (!env.DENZGAINS_API_KEY) {
@@ -296,8 +291,7 @@ async function processPaidOrder(env, trackingId) {
   }
 
   /*
-   * If DenzGains already gave us an order ID,
-   * never submit the same customer order again.
+   * Already sent to DenzGains.
    */
   if (payment.supplier_order_id) {
     return {
@@ -329,11 +323,6 @@ async function processPaidOrder(env, trackingId) {
     throw new Error("PesaPal currency mismatch.");
   }
 
-  /*
-   * PesaPal processes KES as a whole-number payment in this flow.
-   * Compare rounded values so 12.92 calculated internally becomes
-   * the expected 13 KES payment.
-   */
   if (
     statusCode === 1 &&
     Math.round(paidAmount) !== Math.round(expectedAmount)
@@ -387,8 +376,6 @@ async function processPaidOrder(env, trackingId) {
    * PAYMENT IS CONFIRMED.
    *
    * Claim the order before sending it to DenzGains.
-   * This prevents the callback and IPN from submitting
-   * the same order simultaneously.
    */
   const claim = await env.DB.prepare(
     `UPDATE direct_orders
@@ -421,7 +408,7 @@ async function processPaidOrder(env, trackingId) {
   }
 
   /*
-   * Now submit the paid order to DenzGains.
+   * Submit the paid order to DenzGains.
    */
   try {
     const supplierOrderId = await sendOrderToDenzGains(
@@ -521,9 +508,6 @@ async function handleOrderPayment(request, env) {
     );
   }
 
-  /*
-   * Get the current service directly from DenzGains.
-   */
   const services = await getDenzServices(env);
 
   const service = services.find(
@@ -571,16 +555,12 @@ async function handleOrderPayment(request, env) {
   }
 
   /*
-   * YOUR RESELLER MARKUP:
-   *
    * Supplier rate × 2
    */
   const customerRate = supplierRate * 2;
 
   /*
-   * SMM pricing is calculated per 1,000 units.
-   *
-   * Round to the whole KES amount that PesaPal will receive.
+   * Price per 1,000 units.
    */
   const amount = Math.round(
     (customerRate * quantity) / 1000
@@ -617,9 +597,6 @@ async function handleOrderPayment(request, env) {
     );
   }
 
-  /*
-   * Save the order BEFORE creating the PesaPal payment.
-   */
   await env.DB.prepare(
     `INSERT INTO direct_orders (
       merchant_reference,
@@ -886,9 +863,7 @@ async function handlePesapalIPN(request, env) {
 
     try {
       if (
-        contentType.includes(
-          "application/json"
-        )
+        contentType.includes("application/json")
       ) {
         const body = await request.json();
 
@@ -950,6 +925,292 @@ async function handlePesapalIPN(request, env) {
   });
 }
 
+/*
+ * ============================================================
+ * TEST EXISTING PAID ORDER #8
+ * ============================================================
+ *
+ * This endpoint DOES NOT create a new PesaPal payment.
+ *
+ * It finds existing database order #8, obtains its PesaPal
+ * tracking ID, verifies the payment, and then sends the
+ * existing paid order to DenzGains.
+ *
+ * SECURITY:
+ * Set TEST_ORDER_SECRET as a Cloudflare Worker secret.
+ *
+ * URL:
+ * /api/test-order/8?secret=YOUR_TEST_ORDER_SECRET
+ *
+ * Remove this endpoint after testing.
+ */
+
+async function handleTestOrder8(request, env) {
+  if (!env.TEST_ORDER_SECRET) {
+    return html(`
+      <div style="max-width:600px;margin:80px auto;padding:30px;text-align:center">
+        <h1>Test Endpoint Not Configured</h1>
+        <p>TEST_ORDER_SECRET is not configured in Cloudflare.</p>
+      </div>
+    `, 500);
+  }
+
+  const url = new URL(request.url);
+
+  const suppliedSecret =
+    url.searchParams.get("secret") || "";
+
+  if (suppliedSecret !== env.TEST_ORDER_SECRET) {
+    return html(`
+      <div style="max-width:600px;margin:80px auto;padding:30px;text-align:center">
+        <h1>Access Denied</h1>
+        <p>Invalid test secret.</p>
+      </div>
+    `, 403);
+  }
+
+  /*
+   * IMPORTANT:
+   * This endpoint is intentionally fixed to order #8.
+   */
+  const orderId = 8;
+
+  const order = await env.DB.prepare(
+    `SELECT *
+     FROM direct_orders
+     WHERE id = ?
+     LIMIT 1`
+  )
+    .bind(orderId)
+    .first();
+
+  if (!order) {
+    return html(`
+      <div style="max-width:600px;margin:80px auto;padding:30px;text-align:center">
+        <h1>Order Not Found</h1>
+        <p>HUPPY CUBE order #8 does not exist.</p>
+      </div>
+    `, 404);
+  }
+
+  /*
+   * If it has already been successfully sent to DenzGains,
+   * DO NOT submit it again.
+   */
+  if (order.supplier_order_id) {
+    return html(`
+      <div style="max-width:600px;margin:60px auto;padding:35px;text-align:center">
+
+        <div style="font-size:60px;color:#22c55e">
+          ✓
+        </div>
+
+        <h1 style="color:#a78bfa">
+          Order Already Submitted
+        </h1>
+
+        <p>
+          HUPPY CUBE Order #8 already has a supplier order.
+        </p>
+
+        <div style="margin:25px 0;padding:20px;background:#160d27;border-radius:16px">
+
+          <p>HUPPY CUBE Order</p>
+
+          <h2>#8</h2>
+
+          <p>Supplier Order ID</p>
+
+          <h2>
+            ${escapeHtml(order.supplier_order_id)}
+          </h2>
+
+          <p>
+            Status:
+            ${escapeHtml(order.order_status || "")}
+          </p>
+
+        </div>
+
+      </div>
+    `);
+  }
+
+  /*
+   * An existing paid order must have a PesaPal tracking ID.
+   */
+  if (!order.tracking_id) {
+    return html(`
+      <div style="max-width:600px;margin:60px auto;padding:35px;text-align:center">
+
+        <h1>Missing PesaPal Tracking ID</h1>
+
+        <p>
+          Order #8 exists, but it does not have a
+          PesaPal tracking ID.
+        </p>
+
+        <div style="margin:25px 0;padding:20px;background:#160d27;border-radius:16px">
+          <p>Order</p>
+          <h2>#8</h2>
+          <p>Payment Status</p>
+          <h3>
+            ${escapeHtml(order.payment_status || "")}
+          </h3>
+        </div>
+
+      </div>
+    `, 400);
+  }
+
+  /*
+   * Show useful information before processing.
+   * Do NOT expose payment secrets or API keys.
+   */
+  try {
+    const result = await processPaidOrder(
+      env,
+      order.tracking_id
+    );
+
+    if (
+      result.success &&
+      result.supplierOrderId
+    ) {
+      return html(`
+        <div style="max-width:600px;margin:60px auto;padding:35px;text-align:center">
+
+          <div style="font-size:70px;color:#22c55e">
+            ✓
+          </div>
+
+          <h1 style="color:#a78bfa">
+            Order Successful
+          </h1>
+
+          <p>
+            Existing paid order #8 was verified
+            and sent to DenzGains.
+          </p>
+
+          <div style="margin:25px 0;padding:24px;background:#160d27;border-radius:16px">
+
+            <p>HUPPY CUBE Order</p>
+
+            <h2>#${result.orderId}</h2>
+
+            <p>Supplier Order ID</p>
+
+            <h2>
+              ${escapeHtml(result.supplierOrderId)}
+            </h2>
+
+            <p>Status</p>
+
+            <h3 style="color:#22c55e">
+              Processing
+            </h3>
+
+          </div>
+
+          <a
+            href="/"
+            style="
+              display:inline-block;
+              padding:14px 22px;
+              background:#7c3aed;
+              color:white;
+              text-decoration:none;
+              border-radius:12px
+            "
+          >
+            Return to HUPPY CUBE
+          </a>
+
+        </div>
+      `);
+    }
+
+    if (result.paymentStatus === "PENDING") {
+      return html(`
+        <div style="max-width:600px;margin:80px auto;padding:30px;text-align:center">
+
+          <h1>Payment Pending</h1>
+
+          <p>
+            PesaPal has not confirmed the payment yet.
+          </p>
+
+          <p>
+            Order #8 has NOT been sent to DenzGains.
+          </p>
+
+        </div>
+      `);
+    }
+
+    return html(`
+      <div style="max-width:600px;margin:80px auto;padding:30px;text-align:center">
+
+        <h1>Order Not Submitted</h1>
+
+        <p>
+          The payment verification did not return
+          a completed payment.
+        </p>
+
+        <p>
+          Payment status:
+          ${escapeHtml(result.paymentStatus || "")}
+        </p>
+
+      </div>
+    `);
+
+  } catch (error) {
+    console.error(
+      "Test order #8 failed:",
+      error
+    );
+
+    return html(`
+      <div style="max-width:650px;margin:60px auto;padding:35px;text-align:center">
+
+        <div style="font-size:60px;color:#ef4444">
+          ✕
+        </div>
+
+        <h1>
+          Order Test Failed
+        </h1>
+
+        <p>
+          The existing order #8 could not be
+          submitted to DenzGains.
+        </p>
+
+        <div style="margin:25px 0;padding:20px;background:#160d27;border-radius:16px;text-align:left">
+
+          <p><strong>Order:</strong> #8</p>
+
+          <p><strong>Error:</strong></p>
+
+          <pre style="white-space:pre-wrap;color:#fca5a5">${escapeHtml(
+            error?.message || "Unknown error"
+          )}</pre>
+
+        </div>
+
+        <p>
+          Check the Cloudflare Worker logs for the
+          complete DenzGains response.
+        </p>
+
+      </div>
+    `, 500);
+  }
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -963,6 +1224,24 @@ export default {
   async fetch(request, env) {
     try {
       const url = new URL(request.url);
+
+      /*
+       * ======================================================
+       * TEST EXISTING ORDER #8
+       * ======================================================
+       *
+       * IMPORTANT:
+       * This route does NOT create a payment.
+       */
+      if (
+        url.pathname === "/api/test-order/8" &&
+        request.method === "GET"
+      ) {
+        return await handleTestOrder8(
+          request,
+          env
+        );
+      }
 
       /*
        * GET SERVICES
