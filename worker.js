@@ -2,7 +2,10 @@ const PESAPAL_BASE = "https://pay.pesapal.com/v3";
 const DENZGAINS_BASE = "https://denzgains.com/api/v2";
 
 const JSON_HEADERS = {
-  "Content-Type": "application/json"
+  "Content-Type": "application/json",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
 };
 
 function json(data, status = 200) {
@@ -12,8 +15,20 @@ function json(data, status = 200) {
   });
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 function makeTrackingId() {
-  return `HUPPY-${Date.now().toString(36).toUpperCase()}-${crypto.randomUUID().split("-")[0].toUpperCase()}`;
+  const part1 = Date.now().toString(36).toUpperCase();
+  const part2 = crypto.randomUUID().split("-")[0].toUpperCase();
+
+  return `HUPPY-${part1}-${part2}`;
 }
 
 function normalizePhone(phone) {
@@ -31,7 +46,9 @@ function normalizePhone(phone) {
 }
 
 function customerPrice(supplierRate) {
-  return Number(supplierRate || 0) * 2;
+  const rate = Number(supplierRate || 0);
+
+  return rate * 2;
 }
 
 /* =========================================================
@@ -43,9 +60,11 @@ async function getPesapalToken(env) {
     `${PESAPAL_BASE}/api/Auth/RequestToken`,
     {
       method: "POST",
+
       headers: {
         "Content-Type": "application/json"
       },
+
       body: JSON.stringify({
         consumer_key: env.PESAPAL_CONSUMER_KEY,
         consumer_secret: env.PESAPAL_CONSUMER_SECRET
@@ -69,21 +88,32 @@ async function createPesapalOrder(env, order, origin) {
 
   const payload = {
     id: order.tracking_id,
+
     currency: "KES",
+
     amount: Number(order.amount),
-    description: `HUPPY CUBE - ${order.service_name}`,
+
+    description:
+      `HUPPY CUBE - ${order.service_name}`,
 
     callback_url:
       `${origin}/api/payment-callback?tracking_id=` +
       encodeURIComponent(order.tracking_id),
 
-    notification_id: env.PESAPAL_IPN_ID,
+    notification_id:
+      env.PESAPAL_IPN_ID,
 
     billing_address: {
       email_address: "customer@huppycube.com",
-      phone_number: normalizePhone(order.phone),
+
+      phone_number:
+        normalizePhone(order.phone),
+
       country_code: "KE",
-      first_name: String(order.full_name || "HUPPY"),
+
+      first_name:
+        String(order.full_name || "HUPPY"),
+
       last_name: "Customer"
     }
   };
@@ -92,10 +122,12 @@ async function createPesapalOrder(env, order, origin) {
     `${PESAPAL_BASE}/api/Transactions/SubmitOrderRequest`,
     {
       method: "POST",
+
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`
       },
+
       body: JSON.stringify(payload)
     }
   );
@@ -111,13 +143,16 @@ async function createPesapalOrder(env, order, origin) {
   return data;
 }
 
-async function getPesapalStatus(env, orderTrackingId) {
-  const token = await getPesapalToken(env);
+async function getPesapalStatus(
+  env,
+  orderTrackingId
+) {
+  const token =
+    await getPesapalToken(env);
 
   const response = await fetch(
-    `${PESAPAL_BASE}/api/Transactions/GetTransactionStatus?orderTrackingId=${encodeURIComponent(
-      orderTrackingId
-    )}`,
+    `${PESAPAL_BASE}/api/Transactions/GetTransactionStatus?orderTrackingId=` +
+    encodeURIComponent(orderTrackingId),
     {
       headers: {
         Authorization: `Bearer ${token}`
@@ -147,15 +182,11 @@ async function getDenzServices(env) {
     );
   }
 
-  /*
-   * IMPORTANT:
-   * DENZGAINS_BASE already contains /api/v2.
-   * Do NOT add /api/v2 again.
-   */
-
   const url =
-    `${DENZGAINS_BASE}?action=services&key=` +
-    encodeURIComponent(env.DENZGAINS_API_KEY);
+    `${DENZGAINS_BASE}/api/v2?action=services&key=` +
+    encodeURIComponent(
+      env.DENZGAINS_API_KEY
+    );
 
   const response = await fetch(url);
 
@@ -166,9 +197,10 @@ async function getDenzServices(env) {
   try {
     data = JSON.parse(text);
   } catch {
-    throw new Error(
-      `Invalid JSON returned by DenzGains: ${text.slice(0, 1000)}`
-    );
+    data = {
+      error: "Invalid JSON returned by DenzGains",
+      upstream: text
+    };
   }
 
   if (!response.ok) {
@@ -186,15 +218,9 @@ async function getDenzServices(env) {
     );
   }
 
-  if (Array.isArray(data)) {
-    return data;
-  }
-
-  if (Array.isArray(data.services)) {
-    return data.services;
-  }
-
-  return [];
+  return Array.isArray(data)
+    ? data
+    : data.services || [];
 }
 
 async function sendOrderToDenzGains(
@@ -209,14 +235,8 @@ async function sendOrderToDenzGains(
     );
   }
 
-  /*
-   * IMPORTANT:
-   * DENZGAINS_BASE already contains /api/v2.
-   * Do NOT add /api/v2 again.
-   */
-
   const url =
-    `${DENZGAINS_BASE}?action=add` +
+    `${DENZGAINS_BASE}/api/v2?action=add` +
     `&service=${encodeURIComponent(serviceId)}` +
     `&link=${encodeURIComponent(link)}` +
     `&quantity=${encodeURIComponent(quantity)}` +
@@ -231,9 +251,10 @@ async function sendOrderToDenzGains(
   try {
     data = JSON.parse(text);
   } catch {
-    throw new Error(
-      `Invalid JSON returned by DenzGains: ${text.slice(0, 1000)}`
-    );
+    data = {
+      error: "Invalid JSON returned by DenzGains",
+      upstream: text
+    };
   }
 
   if (!response.ok) {
@@ -256,13 +277,18 @@ async function sendOrderToDenzGains(
 
 /* =========================================================
    DATABASE
+   IMPORTANT:
+   This version also MIGRATES an existing orders table.
 ========================================================= */
 
 async function ensureOrdersTable(env) {
+  /*
+   * First create the table if it doesn't exist.
+   */
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS orders (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      tracking_id TEXT UNIQUE,
+      tracking_id TEXT,
       service_id TEXT,
       service_name TEXT,
       quantity INTEGER,
@@ -280,7 +306,96 @@ async function ensureOrdersTable(env) {
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `).run();
+
+  /*
+   * IMPORTANT:
+   * The old orders table already exists in your D1 database.
+   *
+   * CREATE TABLE IF NOT EXISTS does NOT change an existing table.
+   *
+   * Therefore we check which columns actually exist and
+   * add any missing columns.
+   */
+
+  const result =
+    await env.DB
+      .prepare(`PRAGMA table_info(orders)`)
+      .all();
+
+  const columns =
+    new Set(
+      (result?.results || []).map(
+        column => column.name
+      )
+    );
+
+  const requiredColumns = {
+    tracking_id:
+      "TEXT",
+
+    service_id:
+      "TEXT",
+
+    service_name:
+      "TEXT",
+
+    quantity:
+      "INTEGER",
+
+    link:
+      "TEXT",
+
+    phone:
+      "TEXT",
+
+    full_name:
+      "TEXT",
+
+    amount:
+      "REAL DEFAULT 0",
+
+    payment_status:
+      "TEXT DEFAULT 'PENDING'",
+
+    order_status:
+      "TEXT DEFAULT 'Pending'",
+
+    pesapal_order_tracking_id:
+      "TEXT",
+
+    pesapal_merchant_reference:
+      "TEXT",
+
+    supplier_order_id:
+      "TEXT",
+
+    supplier_response:
+      "TEXT",
+
+    created_at:
+      "TEXT DEFAULT CURRENT_TIMESTAMP",
+
+    updated_at:
+      "TEXT DEFAULT CURRENT_TIMESTAMP"
+  };
+
+  /*
+   * Add missing columns one at a time.
+   */
+  for (const [column, definition] of Object.entries(
+    requiredColumns
+  )) {
+    if (!columns.has(column)) {
+      await env.DB.prepare(
+        `ALTER TABLE orders ADD COLUMN ${column} ${definition}`
+      ).run();
+    }
+  }
 }
+
+/* =========================================================
+   DATABASE HELPERS
+========================================================= */
 
 async function getOrderByTrackingId(
   env,
@@ -288,27 +403,30 @@ async function getOrderByTrackingId(
 ) {
   await ensureOrdersTable(env);
 
-  return env.DB
-    .prepare(
-      `SELECT *
-       FROM orders
-       WHERE tracking_id = ?
-       LIMIT 1`
-    )
+  return await env.DB
+    .prepare(`
+      SELECT *
+      FROM orders
+      WHERE tracking_id = ?
+      LIMIT 1
+    `)
     .bind(trackingId)
     .first();
 }
 
-async function getOrderById(env, id) {
+async function getOrderById(
+  env,
+  id
+) {
   await ensureOrdersTable(env);
 
-  return env.DB
-    .prepare(
-      `SELECT *
-       FROM orders
-       WHERE id = ?
-       LIMIT 1`
-    )
+  return await env.DB
+    .prepare(`
+      SELECT *
+      FROM orders
+      WHERE id = ?
+      LIMIT 1
+    `)
     .bind(id)
     .first();
 }
@@ -340,11 +458,11 @@ async function updateOrder(
   );
 
   await env.DB
-    .prepare(
-      `UPDATE orders
-       SET ${setParts.join(", ")}
-       WHERE id = ?`
-    )
+    .prepare(`
+      UPDATE orders
+      SET ${setParts.join(", ")}
+      WHERE id = ?
+    `)
     .bind(
       ...values,
       id
@@ -360,40 +478,29 @@ function trackingInfo(order) {
   const status =
     String(
       order?.order_status ||
-        "Pending"
+      "Pending"
     ).toLowerCase();
 
   let currentStep = 1;
   let progress = 25;
 
   if (
-    status.includes(
-      "submitting"
-    )
+    status.includes("submitting")
   ) {
     currentStep = 2;
     progress = 50;
-
   } else if (
-    status.includes(
-      "processing"
-    )
+    status.includes("processing")
   ) {
     currentStep = 3;
     progress = 75;
-
   } else if (
-    status.includes(
-      "completed"
-    )
+    status.includes("completed")
   ) {
     currentStep = 4;
     progress = 100;
-
   } else if (
-    status.includes(
-      "supplier error"
-    )
+    status.includes("supplier error")
   ) {
     currentStep = 2;
     progress = 50;
@@ -422,18 +529,13 @@ async function processPaidOrder(
   }
 
   /*
-   * Never submit the same supplier
-   * order twice.
+   * Never submit the same supplier order twice.
    */
-
-  if (
-    order.supplier_order_id
-  ) {
+  if (order.supplier_order_id) {
     return {
       success: true,
 
-      already_submitted:
-        true,
+      already_submitted: true,
 
       supplier_order_id:
         order.supplier_order_id
@@ -447,14 +549,12 @@ async function processPaidOrder(
       order.order_status || ""
     )
       .toLowerCase()
-      .includes(
-        "processing"
-      )
+      .includes("processing")
   ) {
     return {
       success: true,
-      already_processing:
-        true
+
+      already_processing: true
     };
   }
 
@@ -475,9 +575,9 @@ async function processPaidOrder(
   const paymentStatus =
     String(
       payment?.payment_status_description ||
-        payment?.status_code ||
-        payment?.status ||
-        ""
+      payment?.status_code ||
+      payment?.status ||
+      ""
     ).toUpperCase();
 
   const isCompleted =
@@ -507,7 +607,9 @@ async function processPaidOrder(
 
     return {
       success: false,
+
       paid: false,
+
       payment
     };
   }
@@ -581,6 +683,7 @@ async function processPaidOrder(
 
   return {
     success: true,
+
     paid: true,
 
     supplier_order_id:
@@ -601,9 +704,7 @@ async function handleOrderPayment(
   request,
   env
 ) {
-  await ensureOrdersTable(
-    env
-  );
+  await ensureOrdersTable(env);
 
   const body =
     await request.json();
@@ -677,9 +778,8 @@ async function handleOrderPayment(
   }
 
   /*
-   * Get the real supplier rate.
+   * Get real supplier prices.
    */
-
   const services =
     await getDenzServices(
       env
@@ -687,12 +787,12 @@ async function handleOrderPayment(
 
   const service =
     services.find(
-      (item) =>
+      item =>
         String(
           item.service ||
-            item.service_id ||
-            item.id ||
-            ""
+          item.service_id ||
+          item.id ||
+          ""
         ) === serviceId
     );
 
@@ -709,8 +809,8 @@ async function handleOrderPayment(
   const supplierRate =
     Number(
       service.rate ||
-        service.price ||
-        0
+      service.price ||
+      0
     );
 
   if (!supplierRate) {
@@ -753,16 +853,25 @@ async function handleOrderPayment(
       `)
       .bind(
         trackingId,
+
         serviceId,
+
         serviceName ||
           service.name ||
           `Service ${serviceId}`,
+
         quantity,
+
         link,
+
         phone,
+
         "Customer",
+
         amount,
+
         "PENDING",
+
         "Pending"
       )
       .run();
@@ -832,9 +941,7 @@ async function handleOrderStatus(
   env
 ) {
   const url =
-    new URL(
-      request.url
-    );
+    new URL(request.url);
 
   const trackingId =
     url.searchParams.get(
@@ -873,9 +980,7 @@ async function handleOrderStatus(
     order,
 
     tracking:
-      trackingInfo(
-        order
-      ),
+      trackingInfo(order),
 
     whatsapp: {
       url:
@@ -896,9 +1001,7 @@ async function handlePaymentCallback(
   env
 ) {
   const url =
-    new URL(
-      request.url
-    );
+    new URL(request.url);
 
   const trackingId =
     url.searchParams.get(
@@ -986,9 +1089,10 @@ async function handlePaymentCallback(
     "";
 
   return Response.redirect(
-    `${url.origin}/?tracking_id=${encodeURIComponent(
+    `${url.origin}/?tracking_id=` +
+    encodeURIComponent(
       finalTrackingId
-    )}`,
+    ),
     302
   );
 }
@@ -1002,9 +1106,7 @@ async function handlePesapalIpn(
   env
 ) {
   const url =
-    new URL(
-      request.url
-    );
+    new URL(request.url);
 
   const merchantReference =
     url.searchParams.get(
@@ -1117,9 +1219,7 @@ async function handleTestOrder(
   orderId
 ) {
   const url =
-    new URL(
-      request.url
-    );
+    new URL(request.url);
 
   const secret =
     url.searchParams.get(
@@ -1156,6 +1256,9 @@ async function handleTestOrder(
     );
   }
 
+  /*
+   * Duplicate protection.
+   */
   if (
     order.supplier_order_id
   ) {
@@ -1184,10 +1287,12 @@ async function handleTestOrder(
 
     return json({
       success: true,
-      result,
-      order: updated
-    });
 
+      result,
+
+      order:
+        updated
+    });
   } catch (error) {
     return json(
       {
@@ -1214,9 +1319,7 @@ async function handleDenzTest(
   env
 ) {
   const url =
-    new URL(
-      request.url
-    );
+    new URL(request.url);
 
   const secret =
     url.searchParams.get(
@@ -1256,7 +1359,6 @@ async function handleDenzTest(
           ? services.length
           : 0
     });
-
   } catch (error) {
     return json(
       {
@@ -1301,13 +1403,28 @@ export default {
     ctx
   ) {
     const url =
-      new URL(
-        request.url
-      );
+      new URL(request.url);
 
     const {
       pathname
     } = url;
+
+    /*
+     * CORS preflight.
+     */
+    if (
+      request.method ===
+      "OPTIONS"
+    ) {
+      return new Response(
+        null,
+        {
+          status: 204,
+          headers:
+            JSON_HEADERS
+        }
+      );
+    }
 
     try {
 
@@ -1337,15 +1454,15 @@ export default {
 
         const mapped =
           services.map(
-            (service) => ({
+            service => ({
               ...service,
 
               service_id:
                 String(
                   service.service ||
-                    service.service_id ||
-                    service.id ||
-                    ""
+                  service.service_id ||
+                  service.id ||
+                  ""
                 ),
 
               name:
@@ -1360,51 +1477,52 @@ export default {
               min_quantity:
                 Number(
                   service.min ||
-                    service.min_quantity ||
-                    0
+                  service.min_quantity ||
+                  0
                 ),
 
               max_quantity:
                 Number(
                   service.max ||
-                    service.max_quantity ||
-                    0
+                  service.max_quantity ||
+                  0
                 ),
 
               supplier_rate:
                 Number(
                   service.rate ||
-                    service.price ||
-                    0
+                  service.price ||
+                  0
                 ),
 
               customer_rate:
                 customerPrice(
                   service.rate ||
-                    service.price ||
-                    0
+                  service.price ||
+                  0
                 )
             })
           );
 
-        return json(
-          mapped
-        );
+        return json(mapped);
       }
 
-      /* CREATE PAYMENT / ORDER */
+      /* CREATE PAYMENT */
 
       if (
         request.method ===
           "POST" &&
-        [
-          "/api/order-payment",
-          "/api/create-payment",
-          "/api/create-order",
-          "/api/order",
-          "/api/pay"
-        ].includes(
-          pathname
+        (
+          pathname ===
+            "/api/order-payment" ||
+          pathname ===
+            "/api/create-payment" ||
+          pathname ===
+            "/api/create-order" ||
+          pathname ===
+            "/api/order" ||
+          pathname ===
+            "/api/pay"
         )
       ) {
         return await handleOrderPayment(
@@ -1486,7 +1604,10 @@ export default {
         );
       }
 
-      /* FRONTEND */
+      /*
+       * Everything else goes to
+       * the Vite / React application.
+       */
 
       if (env.ASSETS) {
         return env.ASSETS.fetch(
