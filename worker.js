@@ -20,14 +20,8 @@ function json(data, status = 200) {
 ========================================================= */
 
 function makeTrackingId() {
-  const part1 = Date.now()
-    .toString(36)
-    .toUpperCase();
-
-  const part2 = crypto
-    .randomUUID()
-    .split("-")[0]
-    .toUpperCase();
+  const part1 = Date.now().toString(36).toUpperCase();
+  const part2 = crypto.randomUUID().split("-")[0].toUpperCase();
 
   return `HUPPY-${part1}-${part2}`;
 }
@@ -47,8 +41,7 @@ function normalizePhone(phone) {
 }
 
 function customerPrice(supplierRate) {
-  const rate = Number(supplierRate || 0);
-  return rate * 2;
+  return Number(supplierRate || 0) * 2;
 }
 
 function safeJsonString(value) {
@@ -112,46 +105,28 @@ async function getPesapalToken(env) {
   return data.token;
 }
 
-async function createPesapalOrder(
-  env,
-  order,
-  origin
-) {
+async function createPesapalOrder(env, order, origin) {
   if (!order) {
-    throw new Error(
-      "Order could not be loaded after database insert."
-    );
+    throw new Error("Order could not be loaded after database insert.");
   }
 
   if (!order.tracking_id) {
-    throw new Error(
-      "Order tracking ID was not created."
-    );
+    throw new Error("Order tracking ID was not created.");
   }
-
-  console.log(
-    `[PAYMENT] PesaPal SubmitOrderRequest started tracking_id=${order.tracking_id}`
-  );
 
   const token = await getPesapalToken(env);
 
   if (!env.PESAPAL_IPN_ID) {
-    throw new Error(
-      "PESAPAL_IPN_ID is not configured."
-    );
+    throw new Error("PESAPAL_IPN_ID is not configured.");
   }
 
   const payload = {
     id: order.tracking_id,
-
     currency: "KES",
-
     amount: Number(order.amount),
 
-    description: `HUPPY CUBE - ${order.service_name}`.slice(
-      0,
-      100
-    ),
+    description:
+      `HUPPY CUBE - ${order.service_name}`.slice(0, 100),
 
     callback_url:
       `${origin}/api/payment-callback?tracking_id=` +
@@ -161,15 +136,11 @@ async function createPesapalOrder(
 
     billing_address: {
       email_address: "customer@huppycube.com",
-
       phone_number: normalizePhone(order.phone),
-
       country_code: "KE",
-
       first_name: String(
         order.full_name || "Customer"
       ).slice(0, 50),
-
       last_name: "Customer"
     }
   };
@@ -178,13 +149,11 @@ async function createPesapalOrder(
     `${PESAPAL_BASE}/api/Transactions/SubmitOrderRequest`,
     {
       method: "POST",
-
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`
       },
-
       body: JSON.stringify(payload)
     }
   );
@@ -210,17 +179,10 @@ async function createPesapalOrder(
     );
   }
 
-  console.log(
-    `[PAYMENT] PesaPal SubmitOrderRequest success tracking_id=${order.tracking_id} order_tracking_id=${data.order_tracking_id || ""}`
-  );
-
   return data;
 }
 
-async function getPesapalStatus(
-  env,
-  orderTrackingId
-) {
+async function getPesapalStatus(env, orderTrackingId) {
   if (!orderTrackingId) {
     throw new Error(
       "PesaPal transaction tracking ID is missing."
@@ -235,7 +197,6 @@ async function getPesapalStatus(
     )}`,
     {
       method: "GET",
-
       headers: {
         Accept: "application/json",
         Authorization: `Bearer ${token}`
@@ -329,14 +290,6 @@ async function getDenzServices(env) {
   );
 }
 
-/*
- * Send an order to DenzGains.
- *
- * FIXED: Now uses GET method with URL parameters
- * instead of POST with form data, matching the
- * DenzGains v2 API specification and the services
- * endpoint pattern.
- */
 async function sendOrderToDenzGains(
   env,
   serviceId,
@@ -367,33 +320,15 @@ async function sendOrderToDenzGains(
     );
   }
 
-  console.log(
-    `[SUPPLIER] DenzGains request started service_id=${serviceId} quantity=${quantity} link_domain=${(() => {
-      try {
-        return new URL(link).hostname;
-      } catch {
-        return "invalid";
-      }
-    })()}`
-  );
-
-  /*
-   * DenzGains v2 API expects GET requests with
-   * query parameters, similar to services endpoint.
-   */
   const url =
-    `${DENZGAINS_BASE}/api/v2?action=add&service=` +
-    encodeURIComponent(String(serviceId)) +
-    `&link=` +
-    encodeURIComponent(String(link)) +
-    `&quantity=` +
-    encodeURIComponent(String(quantity)) +
-    `&key=` +
-    encodeURIComponent(env.DENZGAINS_API_KEY);
+    `${DENZGAINS_BASE}/api/v2?action=add` +
+    `&service=${encodeURIComponent(String(serviceId))}` +
+    `&link=${encodeURIComponent(String(link))}` +
+    `&quantity=${encodeURIComponent(String(quantity))}` +
+    `&key=${encodeURIComponent(env.DENZGAINS_API_KEY)}`;
 
   const response = await fetch(url, {
     method: "GET",
-
     headers: {
       Accept: "application/json"
     }
@@ -414,10 +349,6 @@ async function sendOrderToDenzGains(
     );
   }
 
-  console.log(
-    `[SUPPLIER] DenzGains HTTP ${response.status} response_keys=${Object.keys(data || {}).join(",")}`
-  );
-
   if (!response.ok) {
     throw new Error(
       `DenzGains order failed: ${safeJsonString({
@@ -432,10 +363,6 @@ async function sendOrderToDenzGains(
       `DenzGains order error: ${safeJsonString(data)}`
     );
   }
-
-  console.log(
-    `[SUPPLIER] DenzGains response body: ${safeJsonString(data).slice(0, 500)}`
-  );
 
   return data;
 }
@@ -503,10 +430,7 @@ async function ensureOrdersTable(env) {
   );
 
   for (
-    const [
-      columnName,
-      definition
-    ] of Object.entries(
+    const [columnName, definition] of Object.entries(
       REQUIRED_ORDER_COLUMNS
     )
   ) {
@@ -528,11 +452,7 @@ async function ensureOrdersTable(env) {
     `)
     .all();
 
-  for (
-    const oldOrder of oldOrders.results || []
-  ) {
-    const trackingId = makeTrackingId();
-
+  for (const oldOrder of oldOrders.results || []) {
     await env.DB
       .prepare(`
         UPDATE orders
@@ -541,7 +461,7 @@ async function ensureOrdersTable(env) {
         WHERE id = ?
       `)
       .bind(
-        trackingId,
+        makeTrackingId(),
         oldOrder.id
       )
       .run();
@@ -556,10 +476,7 @@ async function ensureOrdersTable(env) {
     .run();
 }
 
-async function getOrderByTrackingId(
-  env,
-  trackingId
-) {
+async function getOrderByTrackingId(env, trackingId) {
   await ensureOrdersTable(env);
 
   return await env.DB
@@ -573,10 +490,7 @@ async function getOrderByTrackingId(
     .first();
 }
 
-async function getOrderById(
-  env,
-  id
-) {
+async function getOrderById(env, id) {
   await ensureOrdersTable(env);
 
   return await env.DB
@@ -590,22 +504,13 @@ async function getOrderById(
     .first();
 }
 
-async function updateOrder(
-  env,
-  id,
-  fields
-) {
+async function updateOrder(env, id, fields) {
   const allowedFields = new Set(
-    Object.keys(
-      REQUIRED_ORDER_COLUMNS
-    )
+    Object.keys(REQUIRED_ORDER_COLUMNS)
   );
 
-  const entries = Object.entries(
-    fields
-  ).filter(
-    ([key]) =>
-      allowedFields.has(key)
+  const entries = Object.entries(fields).filter(
+    ([key]) => allowedFields.has(key)
   );
 
   if (!entries.length) {
@@ -630,15 +535,8 @@ async function updateOrder(
       SET ${setParts.join(", ")}
       WHERE id = ?
     `)
-    .bind(
-      ...values,
-      id
-    )
+    .bind(...values, id)
     .run();
-
-  console.log(
-    `[DATABASE] order updated id=${id} fields=${Object.keys(fields).join(",")}`
-  );
 }
 
 /* =========================================================
@@ -647,31 +545,22 @@ async function updateOrder(
 
 function trackingInfo(order) {
   const status = String(
-    order?.order_status ||
-      "Pending"
+    order?.order_status || "Pending"
   ).toLowerCase();
 
   let currentStep = 1;
   let progress = 25;
 
-  if (
-    status.includes("submitting")
-  ) {
+  if (status.includes("submitting")) {
     currentStep = 2;
     progress = 50;
-  } else if (
-    status.includes("processing")
-  ) {
+  } else if (status.includes("processing")) {
     currentStep = 3;
     progress = 75;
-  } else if (
-    status.includes("completed")
-  ) {
+  } else if (status.includes("completed")) {
     currentStep = 4;
     progress = 100;
-  } else if (
-    status.includes("supplier error")
-  ) {
+  } else if (status.includes("supplier error")) {
     currentStep = 2;
     progress = 50;
   }
@@ -686,104 +575,49 @@ function trackingInfo(order) {
    PROCESS PAID ORDER
 ========================================================= */
 
-async function processPaidOrder(
-  env,
-  order
-) {
+async function processPaidOrder(env, order) {
   if (!order) {
-    throw new Error(
-      "Order not found."
-    );
+    throw new Error("Order not found.");
   }
 
-  console.log(
-    `[SUPPLIER] processPaidOrder started tracking_id=${order.tracking_id} supplier_order_id=${order.supplier_order_id || "null"}`
-  );
-
-  /*
-   * NEVER submit twice if DenzGains already gave
-   * us an order ID.
-   */
   if (order.supplier_order_id) {
-    console.log(
-      `[SUPPLIER] order already submitted supplier_order_id=${order.supplier_order_id}`
-    );
     return {
       success: true,
       already_submitted: true,
-      supplier_order_id:
-        order.supplier_order_id
+      supplier_order_id: order.supplier_order_id
     };
   }
 
-  if (
-    !order.pesapal_order_tracking_id
-  ) {
+  if (!order.pesapal_order_tracking_id) {
     throw new Error(
       "PesaPal transaction tracking ID is missing."
     );
   }
 
-  console.log(
-    `[PESAPAL] status check started tracking_id=${order.tracking_id} pesapal_order_tracking_id=${order.pesapal_order_tracking_id}`
+  const payment = await getPesapalStatus(
+    env,
+    order.pesapal_order_tracking_id
   );
 
-  /*
-   * Check payment directly with PesaPal.
-   */
-  const payment =
-    await getPesapalStatus(
-      env,
-      order.pesapal_order_tracking_id
-    );
-
-  console.log(
-    `[PESAPAL] status response tracking_id=${order.tracking_id} raw_response=${safeJsonString(payment).slice(0, 500)}`
-  );
-
-  const paymentStatus =
-    String(
-      payment?.payment_status_description ||
-        payment?.status_code ||
-        payment?.status ||
-        ""
-    ).toUpperCase();
+  const paymentStatus = String(
+    payment?.payment_status_description ||
+      payment?.status_code ||
+      payment?.status ||
+      ""
+  ).toUpperCase();
 
   const isCompleted =
-    paymentStatus.includes(
-      "COMPLETED"
-    ) ||
-    paymentStatus.includes(
-      "PAID"
-    ) ||
-    Number(
-      payment?.status_code
-    ) === 1;
+    paymentStatus.includes("COMPLETED") ||
+    paymentStatus.includes("PAID") ||
+    Number(payment?.status_code) === 1;
 
-  console.log(
-    `[PESAPAL] status parsed tracking_id=${order.tracking_id} status=${paymentStatus} is_completed=${isCompleted}`
-  );
-
-  /*
-   * Payment is not confirmed yet.
-   */
   if (!isCompleted) {
-    console.log(
-      `[PESAPAL] payment not completed tracking_id=${order.tracking_id} status=${paymentStatus}`
-    );
-
-    await updateOrder(
-      env,
-      order.id,
-      {
-        payment_status:
-          paymentStatus ||
-          "PENDING",
-
-        order_status:
-          "Payment Pending"
-      }
-    );
+    await updateOrder(env, order.id, {
+      payment_status:
+        paymentStatus || "PENDING",
+      order_status:
+        "Payment Pending"
+    });
 
     return {
       success: false,
@@ -792,28 +626,11 @@ async function processPaidOrder(
     };
   }
 
-  /*
-   * Payment is confirmed.
-   */
-  await updateOrder(
-    env,
-    order.id,
-    {
-      payment_status:
-        "COMPLETED",
+  await updateOrder(env, order.id, {
+    payment_status: "COMPLETED",
+    order_status: "Submitting"
+  });
 
-      order_status:
-        "Submitting"
-    }
-  );
-
-  console.log(
-    `[SUPPLIER] submission attempt tracking_id=${order.tracking_id} service_id=${order.service_id} quantity=${order.quantity}`
-  );
-
-  /*
-   * Submit to DenzGains.
-   */
   try {
     const supplierResult =
       await sendOrderToDenzGains(
@@ -823,14 +640,6 @@ async function processPaidOrder(
         order.quantity
       );
 
-    console.log(
-      `[SUPPLIER] DenzGains response success tracking_id=${order.tracking_id} response_keys=${Object.keys(supplierResult || {}).join(",")}`
-    );
-
-    /*
-     * Different SMM APIs can return the ID
-     * under different property names.
-     */
     const supplierOrderId =
       supplierResult?.order ||
       supplierResult?.order_id ||
@@ -838,28 +647,12 @@ async function processPaidOrder(
       supplierResult?.orderId ||
       null;
 
-    console.log(
-      `[SUPPLIER] order ID extraction tracking_id=${order.tracking_id} extracted_id=${supplierOrderId || "null"} looked_in=${["order", "order_id", "id", "orderId"].join(",")}`
-    );
-
     if (!supplierOrderId) {
-      console.error(
-        `[SUPPLIER] no order ID found tracking_id=${order.tracking_id} denzgains_response=${safeJsonString(supplierResult).slice(0, 1000)}`
-      );
-
-      await updateOrder(
-        env,
-        order.id,
-        {
-          order_status:
-            "Supplier Error",
-
-          supplier_response:
-            safeJsonString(
-              supplierResult
-            )
-        }
-      );
+      await updateOrder(env, order.id, {
+        order_status: "Supplier Error",
+        supplier_response:
+          safeJsonString(supplierResult)
+      });
 
       throw new Error(
         `DenzGains did not return an order ID: ${safeJsonString(
@@ -868,78 +661,37 @@ async function processPaidOrder(
       );
     }
 
-    console.log(
-      `[SUPPLIER] order ID saved tracking_id=${order.tracking_id} supplier_order_id=${supplierOrderId}`
-    );
+    await updateOrder(env, order.id, {
+      supplier_order_id:
+        String(supplierOrderId),
 
-    /*
-     * SUCCESS:
-     * save the supplier order ID immediately.
-     */
-    await updateOrder(
-      env,
-      order.id,
-      {
-        supplier_order_id:
-          String(
-            supplierOrderId
-          ),
+      supplier_response:
+        safeJsonString(supplierResult),
 
-        supplier_response:
-          safeJsonString(
-            supplierResult
-          ),
-
-        order_status:
-          "Processing"
-      }
-    );
-
-    console.log(
-      `[SUPPLIER] database updated tracking_id=${order.tracking_id} order_status=Processing supplier_order_id=${supplierOrderId}`
-    );
+      order_status:
+        "Processing"
+    });
 
     return {
       success: true,
-
       paid: true,
-
       supplier_order_id:
-        String(
-          supplierOrderId
-        ),
-
+        String(supplierOrderId),
       supplier_response:
         supplierResult
     };
-
   } catch (error) {
-    console.error(
-      `[SUPPLIER] DenzGains error tracking_id=${order.tracking_id} error=${error?.message || String(error)}`
-    );
-
-    /*
-     * IMPORTANT:
-     * Save the actual DenzGains error in D1.
-     */
-    await updateOrder(
-      env,
-      order.id,
-      {
-        order_status:
-          "Supplier Error",
-
-        supplier_response:
-          safeJsonString({
-            error:
-              error?.message ||
-              String(error),
-
-            time:
-              new Date().toISOString()
-          })
-      }
-    );
+    await updateOrder(env, order.id, {
+      order_status: "Supplier Error",
+      supplier_response:
+        safeJsonString({
+          error:
+            error?.message ||
+            String(error),
+          time:
+            new Date().toISOString()
+        })
+    });
 
     throw error;
   }
@@ -949,44 +701,25 @@ async function processPaidOrder(
    CREATE PAYMENT
 ========================================================= */
 
-async function handleOrderPayment(
-  request,
-  env
-) {
+async function handleOrderPayment(request, env) {
   await ensureOrdersTable(env);
 
-  const body =
-    await request.json();
+  const body = await request.json();
 
   const serviceId =
-    String(
-      body.service_id ||
-        ""
-    ).trim();
+    String(body.service_id || "").trim();
 
   const serviceName =
-    String(
-      body.service_name ||
-        ""
-    ).trim();
+    String(body.service_name || "").trim();
 
   const quantity =
-    Number(
-      body.quantity ||
-        0
-    );
+    Number(body.quantity || 0);
 
   const link =
-    String(
-      body.link ||
-        ""
-    ).trim();
+    String(body.link || "").trim();
 
   const phone =
-    String(
-      body.phone ||
-        ""
-    ).trim();
+    String(body.phone || "").trim();
 
   const fullName =
     String(
@@ -996,46 +729,27 @@ async function handleOrderPayment(
     ).trim();
 
   if (!serviceId) {
-    return json(
-      {
-        error:
-          "Service ID is required."
-      },
-      400
-    );
+    return json({
+      error: "Service ID is required."
+    }, 400);
   }
 
-  if (
-    !quantity ||
-    quantity <= 0
-  ) {
-    return json(
-      {
-        error:
-          "Valid quantity is required."
-      },
-      400
-    );
+  if (!quantity || quantity <= 0) {
+    return json({
+      error: "Valid quantity is required."
+    }, 400);
   }
 
   if (!link) {
-    return json(
-      {
-        error:
-          "Target link is required."
-      },
-      400
-    );
+    return json({
+      error: "Target link is required."
+    }, 400);
   }
 
   if (!phone) {
-    return json(
-      {
-        error:
-          "Phone number is required."
-      },
-      400
-    );
+    return json({
+      error: "Phone number is required."
+    }, 400);
   }
 
   const services =
@@ -1053,13 +767,10 @@ async function handleOrderPayment(
     );
 
   if (!service) {
-    return json(
-      {
-        error:
-          "Selected service was not found."
-      },
-      404
-    );
+    return json({
+      error:
+        "Selected service was not found."
+    }, 404);
   }
 
   const supplierRate =
@@ -1070,20 +781,15 @@ async function handleOrderPayment(
     );
 
   if (!supplierRate) {
-    return json(
-      {
-        error:
-          "Supplier price is unavailable for this service."
-      },
-      400
-    );
+    return json({
+      error:
+        "Supplier price is unavailable for this service."
+    }, 400);
   }
 
   const amount =
     (
-      customerPrice(
-        supplierRate
-      ) *
+      customerPrice(supplierRate) *
       quantity
     ) / 1000;
 
@@ -1139,31 +845,22 @@ async function handleOrderPayment(
     );
   }
 
-  console.log(
-    `[ORDER] created tracking_id=${trackingId} order_id=${orderId} service_id=${serviceId} quantity=${quantity} amount=${amount}`
-  );
-
-  /*
-   * Do not perform a second immediate database read.
-   */
   const order = {
     id: orderId,
     tracking_id: trackingId,
     service_id: serviceId,
     service_name: finalServiceName,
-    quantity: quantity,
-    link: link,
-    phone: phone,
+    quantity,
+    link,
+    phone,
     full_name: fullName,
-    amount: amount,
+    amount,
     payment_status: "PENDING",
     order_status: "Pending"
   };
 
   const origin =
-    new URL(
-      request.url
-    ).origin;
+    new URL(request.url).origin;
 
   const payment =
     await createPesapalOrder(
@@ -1172,31 +869,22 @@ async function handleOrderPayment(
       origin
     );
 
-  await updateOrder(
-    env,
-    orderId,
-    {
-      pesapal_order_tracking_id:
-        payment.order_tracking_id ||
-        payment.orderTrackingId ||
-        null,
+  await updateOrder(env, orderId, {
+    pesapal_order_tracking_id:
+      payment.order_tracking_id ||
+      payment.orderTrackingId ||
+      null,
 
-      pesapal_merchant_reference:
-        payment.merchant_reference ||
-        payment.merchantReference ||
-        trackingId
-    }
-  );
+    pesapal_merchant_reference:
+      payment.merchant_reference ||
+      payment.merchantReference ||
+      trackingId
+  });
 
   return json({
     success: true,
-
-    tracking_id:
-      trackingId,
-
-    amount:
-      amount,
-
+    tracking_id: trackingId,
+    amount,
     redirect_url:
       payment.redirect_url
   });
@@ -1208,8 +896,7 @@ async function handleOrderPayment(
 
 async function handleOrderStatus(
   request,
-  env,
-  ctx
+  env
 ) {
   const url =
     new URL(request.url);
@@ -1220,13 +907,10 @@ async function handleOrderStatus(
     );
 
   if (!trackingId) {
-    return json(
-      {
-        error:
-          "Tracking ID is required."
-      },
-      400
-    );
+    return json({
+      error:
+        "Tracking ID is required."
+    }, 400);
   }
 
   let order =
@@ -1236,25 +920,12 @@ async function handleOrderStatus(
     );
 
   if (!order) {
-    return json(
-      {
-        error:
-          "Order not found."
-      },
-      404
-    );
+    return json({
+      error:
+        "Order not found."
+    }, 404);
   }
 
-  /*
-   * SAFETY NET:
-   *
-   * If payment is completed but DenzGains
-   * submission did not happen, try again.
-   *
-   * We only do this when there is no supplier
-   * order ID, so an already-submitted order
-   * cannot be duplicated.
-   */
   if (
     order.payment_status ===
       "COMPLETED" &&
@@ -1262,9 +933,6 @@ async function handleOrderStatus(
     order.pesapal_order_tracking_id
   ) {
     try {
-      console.log(
-        `[ORDER_STATUS] retry attempt tracking_id=${trackingId}`
-      );
       await processPaidOrder(
         env,
         order
@@ -1275,11 +943,7 @@ async function handleOrderStatus(
           env,
           trackingId
         );
-    } catch (error) {
-      console.error(
-        `[ORDER_STATUS] retry failed tracking_id=${trackingId} error=${error?.message || String(error)}`
-      );
-
+    } catch {
       order =
         await getOrderByTrackingId(
           env,
@@ -1290,9 +954,7 @@ async function handleOrderStatus(
 
   return json({
     success: true,
-
-    order: order,
-
+    order,
     tracking:
       trackingInfo(order),
 
@@ -1341,10 +1003,6 @@ async function handlePaymentCallback(
       "pesapal_transaction_tracking_id"
     );
 
-  console.log(
-    `[CALLBACK] received tracking_id=${trackingId || "null"} merchant_reference=${merchantReference || "null"} pesapal_order_tracking_id=${orderTrackingId || "null"}`
-  );
-
   let order = null;
 
   if (trackingId) {
@@ -1366,16 +1024,6 @@ async function handlePaymentCallback(
       );
   }
 
-  if (!order) {
-    console.error(
-      `[CALLBACK] order not found tracking_id=${trackingId || "null"} merchant_reference=${merchantReference || "null"}`
-    );
-  } else {
-    console.log(
-      `[CALLBACK] order found order_id=${order.id} tracking_id=${order.tracking_id}`
-    );
-  }
-
   if (
     order &&
     orderTrackingId
@@ -1394,39 +1042,16 @@ async function handlePaymentCallback(
         env,
         order.id
       );
-
-    console.log(
-      `[CALLBACK] pesapal_order_tracking_id updated order_id=${order.id}`
-    );
   }
 
-  /*
-   * Process payment and submit to DenzGains.
-   */
   if (order) {
     try {
-      console.log(
-        `[CALLBACK] calling processPaidOrder order_id=${order.id} tracking_id=${order.tracking_id}`
+      await processPaidOrder(
+        env,
+        order
       );
-      const result =
-        await processPaidOrder(
-          env,
-          order
-        );
-
-      console.log(
-        `[CALLBACK] processPaidOrder completed tracking_id=${order.tracking_id} success=${result.success} paid=${result.paid} supplier_order_id=${result.supplier_order_id || "null"}`
-      );
-    } catch (error) {
-      /*
-       * The error is already saved in D1.
-       *
-       * We don't expose internal details
-       * to the customer.
-       */
-      console.error(
-        `[CALLBACK] processPaidOrder failed tracking_id=${order.tracking_id} error=${error?.message || String(error)}`
-      );
+    } catch {
+      // Error is stored in D1.
     }
   }
 
@@ -1435,10 +1060,6 @@ async function handlePaymentCallback(
     trackingId ||
     merchantReference ||
     "";
-
-  console.log(
-    `[CALLBACK] redirecting to_tracking_id=${finalTrackingId}`
-  );
 
   return Response.redirect(
     `${url.origin}/?tracking_id=${encodeURIComponent(
@@ -1478,24 +1099,14 @@ async function handlePesapalIpn(
       "pesapal_transaction_tracking_id"
     );
 
-  console.log(
-    `[IPN] received merchant_reference=${merchantReference || "null"} pesapal_order_tracking_id=${orderTrackingId || "null"}`
-  );
-
   if (!merchantReference) {
-    console.error(
-      `[IPN] no merchant_reference in request`
-    );
     return json({
       orderNotificationType:
         "IPNCHANGE",
-
       orderTrackingId:
         orderTrackingId || "",
-
       orderMerchantReference:
         "",
-
       status:
         "FAILED"
     });
@@ -1508,27 +1119,17 @@ async function handlePesapalIpn(
     );
 
   if (!order) {
-    console.error(
-      `[IPN] order not found merchant_reference=${merchantReference}`
-    );
     return json({
       orderNotificationType:
         "IPNCHANGE",
-
       orderTrackingId:
         orderTrackingId || "",
-
       orderMerchantReference:
         merchantReference,
-
       status:
         "FAILED"
     });
   }
-
-  console.log(
-    `[IPN] order found order_id=${order.id} tracking_id=${order.tracking_id}`
-  );
 
   if (orderTrackingId) {
     await updateOrder(
@@ -1545,29 +1146,15 @@ async function handlePesapalIpn(
         env,
         order.id
       );
-
-    console.log(
-      `[IPN] pesapal_order_tracking_id updated order_id=${order.id}`
-    );
   }
 
   try {
-    console.log(
-      `[IPN] calling processPaidOrder order_id=${order.id} tracking_id=${order.tracking_id}`
+    await processPaidOrder(
+      env,
+      order
     );
-    const result =
-      await processPaidOrder(
-        env,
-        order
-      );
-
-    console.log(
-      `[IPN] processPaidOrder completed tracking_id=${order.tracking_id} success=${result.success} paid=${result.paid} supplier_order_id=${result.supplier_order_id || "null"}`
-    );
-  } catch (error) {
-    console.error(
-      `[IPN] processPaidOrder failed tracking_id=${order.tracking_id} error=${error?.message || String(error)}`
-    );
+  } catch {
+    // Error is stored in D1.
   }
 
   return json({
@@ -1604,16 +1191,12 @@ async function handleTestOrder(
 
   if (
     !env.TEST_ORDER_SECRET ||
-    secret !==
-      env.TEST_ORDER_SECRET
+    secret !== env.TEST_ORDER_SECRET
   ) {
-    return json(
-      {
-        error:
-          "Unauthorized."
-      },
-      401
-    );
+    return json({
+      error:
+        "Unauthorized."
+    }, 401);
   }
 
   const order =
@@ -1623,27 +1206,18 @@ async function handleTestOrder(
     );
 
   if (!order) {
-    return json(
-      {
-        error:
-          "Order not found."
-      },
-      404
-    );
+    return json({
+      error:
+        "Order not found."
+    }, 404);
   }
 
-  if (
-    order.supplier_order_id
-  ) {
+  if (order.supplier_order_id) {
     return json({
-      success:
-        true,
-
+      success: true,
       message:
         "This order has already been submitted to DenzGains.",
-
-      order:
-        order
+      order
     });
   }
 
@@ -1661,14 +1235,9 @@ async function handleTestOrder(
       );
 
     return json({
-      success:
-        true,
-
-      result:
-        result,
-
-      order:
-        updated
+      success: true,
+      result,
+      order: updated
     });
   } catch (error) {
     const updated =
@@ -1677,31 +1246,26 @@ async function handleTestOrder(
         order.id
       );
 
-    return json(
-      {
-        success:
-          false,
+    return json({
+      success: false,
+      error:
+        error?.message ||
+        String(error),
 
-        error:
-          error?.message ||
-          String(error),
+      order_id:
+        order.id,
 
-        order_id:
-          order.id,
+      tracking_id:
+        order.tracking_id,
 
-        tracking_id:
-          order.tracking_id,
+      order_status:
+        updated?.order_status ||
+        "Supplier Error",
 
-        order_status:
-          updated?.order_status ||
-          "Supplier Error",
-
-        supplier_response:
-          updated?.supplier_response ||
-          null
-      },
-      500
-    );
+      supplier_response:
+        updated?.supplier_response ||
+        null
+    }, 500);
   }
 }
 
@@ -1723,16 +1287,12 @@ async function handleDenzTest(
 
   if (
     !env.TEST_ORDER_SECRET ||
-    secret !==
-      env.TEST_ORDER_SECRET
+    secret !== env.TEST_ORDER_SECRET
   ) {
-    return json(
-      {
-        error:
-          "Unauthorized."
-      },
-      401
-    );
+    return json({
+      error:
+        "Unauthorized."
+    }, 401);
   }
 
   try {
@@ -1742,31 +1302,21 @@ async function handleDenzTest(
       );
 
     return json({
-      success:
-        true,
-
+      success: true,
       message:
         "DenzGains connection is working.",
-
       service_count:
-        Array.isArray(
-          services
-        )
+        Array.isArray(services)
           ? services.length
           : 0
     });
   } catch (error) {
-    return json(
-      {
-        success:
-          false,
-
-        error:
-          error?.message ||
-          String(error)
-      },
-      502
-    );
+    return json({
+      success: false,
+      error:
+        error?.message ||
+        String(error)
+    }, 502);
   }
 }
 
@@ -1788,16 +1338,12 @@ async function handleDatabaseTest(
 
   if (
     !env.TEST_ORDER_SECRET ||
-    secret !==
-      env.TEST_ORDER_SECRET
+    secret !== env.TEST_ORDER_SECRET
   ) {
-    return json(
-      {
-        error:
-          "Unauthorized."
-      },
-      401
-    );
+    return json({
+      error:
+        "Unauthorized."
+    }, 401);
   }
 
   try {
@@ -1813,128 +1359,96 @@ async function handleDatabaseTest(
         .all();
 
     return json({
-      success:
-        true,
-
+      success: true,
       message:
         "Orders database is ready.",
-
       columns:
-        tableInfo.results ||
-        []
+        tableInfo.results || []
     });
   } catch (error) {
-    return json(
-      {
-        success:
-          false,
-
-        error:
-          error?.message ||
-          String(error)
-      },
-      500
-    );
+    return json({
+      success: false,
+      error:
+        error?.message ||
+        String(error)
+    }, 500);
   }
 }
 
 /* =========================================================
-   HEALTH
+   DENZGAINS DIAGNOSTIC PAGE
+   TEMPORARY - REMOVE AFTER TESTING
 ========================================================= */
 
-async function handleHealth() {
-  return json({
-    success:
-      true,
-
-    service:
-      "HUPPY CUBE",
-
-    status:
-      "online",
-
-    time:
-      new Date().toISOString()
-  });
-}
-/* =========================================================
-   TEMPORARY DENZGAINS DIAGNOSTIC
-   REMOVE AFTER TESTING
-========================================================= */
-
-async function handleDenzDiagnosticPage(request, env) {
+async function handleDenzDiagnosticPage() {
   const html = `<!doctype html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>DenzGains Diagnostic</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #111827;
-      color: white;
-      padding: 20px;
-      max-width: 700px;
-      margin: auto;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DenzGains Diagnostic</title>
 
-    h1 {
-      font-size: 24px;
-    }
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: #111827;
+  color: white;
+  padding: 20px;
+  max-width: 700px;
+  margin: auto;
+}
 
-    .warning {
-      background: #3f1d1d;
-      border: 1px solid #ef4444;
-      padding: 14px;
-      border-radius: 10px;
-      margin-bottom: 20px;
-    }
+h1 {
+  font-size: 24px;
+}
 
-    label {
-      display: block;
-      margin-top: 15px;
-      margin-bottom: 6px;
-      font-weight: bold;
-    }
+.warning {
+  background: #3f1d1d;
+  border: 1px solid #ef4444;
+  padding: 14px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+}
 
-    input {
-      width: 100%;
-      box-sizing: border-box;
-      padding: 13px;
-      border-radius: 8px;
-      border: 1px solid #374151;
-      background: #1f2937;
-      color: white;
-      font-size: 16px;
-    }
+label {
+  display: block;
+  margin-top: 15px;
+  margin-bottom: 6px;
+  font-weight: bold;
+}
 
-    button {
-      margin-top: 20px;
-      width: 100%;
-      padding: 14px;
-      border: 0;
-      border-radius: 8px;
-      background: #22c55e;
-      color: white;
-      font-size: 16px;
-      font-weight: bold;
-      cursor: pointer;
-    }
+input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 13px;
+  border-radius: 8px;
+  border: 1px solid #374151;
+  background: #1f2937;
+  color: white;
+  font-size: 16px;
+}
 
-    button:disabled {
-      opacity: .6;
-    }
+button {
+  margin-top: 20px;
+  width: 100%;
+  padding: 14px;
+  border: 0;
+  border-radius: 8px;
+  background: #22c55e;
+  color: white;
+  font-size: 16px;
+  font-weight: bold;
+}
 
-    pre {
-      white-space: pre-wrap;
-      word-break: break-word;
-      background: #000;
-      padding: 15px;
-      border-radius: 8px;
-      margin-top: 20px;
-    }
-  </style>
+pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #000;
+  padding: 15px;
+  border-radius: 8px;
+  margin-top: 20px;
+}
+</style>
 </head>
 
 <body>
@@ -1942,51 +1456,50 @@ async function handleDenzDiagnosticPage(request, env) {
 <h1>DenzGains API Diagnostic</h1>
 
 <div class="warning">
-  <strong>Important:</strong>
-  This sends a real test order to DenzGains.
-  Use the smallest quantity allowed.
+<strong>Important:</strong>
+This sends a real test order to DenzGains.
+Use the smallest allowed quantity.
 </div>
 
 <form id="testForm">
 
-  <label>Test Secret</label>
-  <input
-    id="secret"
-    type="password"
-    required
-    autocomplete="off"
-    placeholder="Enter TEST_ORDER_SECRET"
-  >
+<label>Test Secret</label>
+<input
+id="secret"
+type="password"
+required
+autocomplete="off"
+>
 
-  <label>DenzGains Service ID</label>
-  <input
-    id="service"
-    type="number"
-    value="1"
-    min="1"
-    required
-  >
+<label>DenzGains Service ID</label>
+<input
+id="service"
+type="number"
+value="1"
+min="1"
+required
+>
 
-  <label>Target Link</label>
-  <input
-    id="link"
-    type="url"
-    placeholder="https://example.com/..."
-    required
-  >
+<label>Target Link</label>
+<input
+id="link"
+type="url"
+placeholder="https://example.com/..."
+required
+>
 
-  <label>Quantity</label>
-  <input
-    id="quantity"
-    type="number"
-    value="10"
-    min="1"
-    required
-  >
+<label>Quantity</label>
+<input
+id="quantity"
+type="number"
+value="10"
+min="1"
+required
+>
 
-  <button id="submitButton" type="submit">
-    Send Test Order
-  </button>
+<button type="submit" id="submitButton">
+Send Test Order
+</button>
 
 </form>
 
@@ -1995,52 +1508,101 @@ async function handleDenzDiagnosticPage(request, env) {
 <pre id="result">No test submitted yet.</pre>
 
 <script>
-const form = document.getElementById("testForm");
-const result = document.getElementById("result");
-const button = document.getElementById("submitButton");
 
-form.addEventListener("submit", async function(event) {
-  event.preventDefault();
+const form =
+document.getElementById("testForm");
 
-  button.disabled = true;
-  button.textContent = "Sending...";
-  result.textContent = "Sending request to DenzGains...";
+const result =
+document.getElementById("result");
 
-  try {
-    const response = await fetch("/api/denz-diagnostic", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        secret: document.getElementById("secret").value,
-        service: document.getElementById("service").value,
-        link: document.getElementById("link").value,
-        quantity: document.getElementById("quantity").value
-      })
-    });
+const button =
+document.getElementById("submitButton");
 
-    const text = await response.text();
+form.addEventListener(
+"submit",
+async function(event) {
 
-    try {
-      result.textContent = JSON.stringify(
-        JSON.parse(text),
-        null,
-        2
-      );
-    } catch {
-      result.textContent = text;
-    }
+event.preventDefault();
 
-  } catch (error) {
-    result.textContent =
-      "Browser error: " +
-      (error?.message || String(error));
-  } finally {
-    button.disabled = false;
-    button.textContent = "Send Test Order";
-  }
+button.disabled = true;
+button.textContent = "Sending...";
+
+result.textContent =
+"Sending request to DenzGains...";
+
+try {
+
+const response =
+await fetch(
+"/api/denz-diagnostic",
+{
+method: "POST",
+headers: {
+"Content-Type":
+"application/json"
+},
+body: JSON.stringify({
+
+secret:
+document.getElementById(
+"secret"
+).value,
+
+service:
+document.getElementById(
+"service"
+).value,
+
+link:
+document.getElementById(
+"link"
+).value,
+
+quantity:
+document.getElementById(
+"quantity"
+).value
+
+})
+}
+);
+
+const text =
+await response.text();
+
+try {
+
+result.textContent =
+JSON.stringify(
+JSON.parse(text),
+null,
+2
+);
+
+} catch {
+
+result.textContent =
+text;
+
+}
+
+} catch(error) {
+
+result.textContent =
+"Browser error: " +
+(error?.message ||
+String(error));
+
+} finally {
+
+button.disabled = false;
+button.textContent =
+"Send Test Order";
+
+}
+
 });
+
 </script>
 
 </body>
@@ -2049,72 +1611,101 @@ form.addEventListener("submit", async function(event) {
   return new Response(html, {
     status: 200,
     headers: {
-      "Content-Type": "text/html; charset=UTF-8",
-      "Cache-Control": "no-store"
+      "Content-Type":
+        "text/html; charset=UTF-8",
+
+      "Cache-Control":
+        "no-store"
     }
   });
 }
 
-
-async function handleDenzDiagnostic(request, env) {
+async function handleDenzDiagnostic(
+  request,
+  env
+) {
   if (!env.TEST_ORDER_SECRET) {
     return json({
       success: false,
-      error: "TEST_ORDER_SECRET is not configured."
+      error:
+        "TEST_ORDER_SECRET is not configured."
     }, 500);
   }
 
   let body;
 
   try {
-    body = await request.json();
+    body =
+      await request.json();
   } catch {
     return json({
       success: false,
-      error: "Invalid JSON request."
+      error:
+        "Invalid JSON request."
     }, 400);
   }
 
   if (
     !body.secret ||
-    body.secret !== env.TEST_ORDER_SECRET
+    body.secret !==
+      env.TEST_ORDER_SECRET
   ) {
     return json({
       success: false,
-      error: "Unauthorized."
+      error:
+        "Unauthorized."
     }, 401);
   }
 
-  const service = String(body.service || "").trim();
-  const link = String(body.link || "").trim();
-  const quantity = Number(body.quantity || 0);
+  const service =
+    String(
+      body.service || ""
+    ).trim();
+
+  const link =
+    String(
+      body.link || ""
+    ).trim();
+
+  const quantity =
+    Number(
+      body.quantity || 0
+    );
 
   if (!service) {
     return json({
       success: false,
-      error: "Service ID is required."
+      error:
+        "Service ID is required."
     }, 400);
   }
 
   if (!link) {
     return json({
       success: false,
-      error: "Target link is required."
+      error:
+        "Target link is required."
     }, 400);
   }
 
-  if (!quantity || quantity <= 0) {
+  if (
+    !quantity ||
+    quantity <= 0
+  ) {
     return json({
       success: false,
-      error: "Quantity must be greater than zero."
+      error:
+        "Quantity must be greater than zero."
     }, 400);
   }
 
   try {
+
     if (!env.DENZGAINS_API_KEY) {
       return json({
         success: false,
-        error: "DENZGAINS_API_KEY is not configured."
+        error:
+          "DENZGAINS_API_KEY is not configured."
       }, 500);
     }
 
@@ -2125,69 +1716,111 @@ async function handleDenzDiagnostic(request, env) {
       `&quantity=${encodeURIComponent(String(quantity))}` +
       `&key=${encodeURIComponent(env.DENZGAINS_API_KEY)}`;
 
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        Accept: "application/json"
-      }
-    });
+    const response =
+      await fetch(url, {
+        method: "GET",
+        headers: {
+          Accept:
+            "application/json"
+        }
+      });
 
-    const responseText = await response.text();
+    const responseText =
+      await response.text();
 
     let parsedResponse;
 
     try {
-      parsedResponse = JSON.parse(responseText);
+      parsedResponse =
+        JSON.parse(responseText);
     } catch {
       parsedResponse = null;
     }
 
     return json({
       success: true,
+
       request: {
-        endpoint: `${DENZGAINS_BASE}/api/v2`,
+        endpoint:
+          `${DENZGAINS_BASE}/api/v2`,
+
         method: "GET",
+
         action: "add",
-        service: service,
-        link: link,
-        quantity: quantity
+
+        service,
+
+        link,
+
+        quantity
       },
+
       denzgains: {
-        http_status: response.status,
-        http_ok: response.ok,
-        content_type: response.headers.get("content-type"),
-        parsed_json: parsedResponse,
-        raw_response: responseText
+        http_status:
+          response.status,
+
+        http_ok:
+          response.ok,
+
+        content_type:
+          response.headers.get(
+            "content-type"
+          ),
+
+        parsed_json:
+          parsedResponse,
+
+        raw_response:
+          responseText
       }
     });
 
   } catch (error) {
+
     return json({
       success: false,
-      error: error?.message || String(error)
+      error:
+        error?.message ||
+        String(error)
     }, 502);
   }
-          }
+}
+
+/* =========================================================
+   HEALTH
+========================================================= */
+
+async function handleHealth() {
+  return json({
+    success: true,
+    service:
+      "HUPPY CUBE",
+    status:
+      "online",
+    time:
+      new Date().toISOString()
+  });
+}
+
 /* =========================================================
    MAIN WORKER
 ========================================================= */
 
 export default {
+
   async fetch(
     request,
     env,
     ctx
   ) {
+
     const url =
       new URL(request.url);
 
-    const {
-      pathname
-    } = url;
+    const pathname =
+      url.pathname;
 
-    /*
-     * CORS preflight
-     */
+    /* CORS */
     if (
       request.method ===
       "OPTIONS"
@@ -2195,9 +1828,7 @@ export default {
       return new Response(
         null,
         {
-          status:
-            204,
-
+          status: 204,
           headers:
             JSON_HEADERS
         }
@@ -2205,27 +1836,23 @@ export default {
     }
 
     try {
-      /*
-       * HEALTH
-       */
+
+      /* HEALTH */
+
       if (
-        request.method ===
-          "GET" &&
-        pathname ===
-          "/api/health"
+        request.method === "GET" &&
+        pathname === "/api/health"
       ) {
         return handleHealth();
       }
 
-      /*
-       * SERVICES
-       */
+      /* SERVICES */
+
       if (
-        request.method ===
-          "GET" &&
-        pathname ===
-          "/api/services"
+        request.method === "GET" &&
+        pathname === "/api/services"
       ) {
+
         const services =
           await getDenzServices(
             env
@@ -2239,9 +1866,9 @@ export default {
               service_id:
                 String(
                   service.service ||
-                    service.service_id ||
-                    service.id ||
-                    ""
+                  service.service_id ||
+                  service.id ||
+                  ""
                 ),
 
               name:
@@ -2256,29 +1883,29 @@ export default {
               min_quantity:
                 Number(
                   service.min ||
-                    service.min_quantity ||
-                    0
+                  service.min_quantity ||
+                  0
                 ),
 
               max_quantity:
                 Number(
                   service.max ||
-                    service.max_quantity ||
-                    0
+                  service.max_quantity ||
+                  0
                 ),
 
               supplier_rate:
                 Number(
                   service.rate ||
-                    service.price ||
-                    0
+                  service.price ||
+                  0
                 ),
 
               customer_rate:
                 customerPrice(
                   service.rate ||
-                    service.price ||
-                    0
+                  service.price ||
+                  0
                 )
             })
           );
@@ -2286,12 +1913,10 @@ export default {
         return json(mapped);
       }
 
-      /*
-       * CREATE PAYMENT
-       */
+      /* CREATE PAYMENT */
+
       if (
-        request.method ===
-          "POST" &&
+        request.method === "POST" &&
         (
           pathname ===
             "/api/order-payment" ||
@@ -2311,25 +1936,21 @@ export default {
         );
       }
 
-      /*
-       * ORDER STATUS
-       */
+      /* ORDER STATUS */
+
       if (
-        request.method ===
-          "GET" &&
+        request.method === "GET" &&
         pathname ===
           "/api/order-status"
       ) {
         return await handleOrderStatus(
           request,
-          env,
-          ctx
+          env
         );
       }
 
-      /*
-       * PAYMENT CALLBACK
-       */
+      /* PAYMENT CALLBACK */
+
       if (
         pathname ===
           "/api/payment-callback"
@@ -2340,9 +1961,8 @@ export default {
         );
       }
 
-      /*
-       * PESAPAL IPN
-       */
+      /* PESAPAL IPN */
+
       if (
         pathname ===
           "/api/pesapal-ipn"
@@ -2353,16 +1973,15 @@ export default {
         );
       }
 
-      /*
-       * TEST ORDER
-       */
+      /* TEST ORDER */
+
       if (
-        request.method ===
-          "GET" &&
+        request.method === "GET" &&
         pathname.startsWith(
           "/api/test-order/"
         )
       ) {
+
         const orderId =
           pathname
             .split("/")
@@ -2375,12 +1994,10 @@ export default {
         );
       }
 
-      /*
-       * DENZGAINS TEST
-       */
+      /* DENZGAINS CONNECTION TEST */
+
       if (
-        request.method ===
-          "GET" &&
+        request.method === "GET" &&
         pathname ===
           "/api/denz-test"
       ) {
@@ -2390,197 +2007,34 @@ export default {
         );
       }
 
-      /*
-       * DATABASE TEST
-       */if (
-  request.method === "GET" &&
-  pathname === "/api/denz-diagnostic"
-) {
-  return await handleDenzDiagnosticPage(request, env);
-}
+      /* DENZGAINS DIAGNOSTIC PAGE */
 
-if (
-  request.method === "POST" &&
-  pathname === "/api/denz-diagnostic"
-) {
-  return await handleDenzDiagnostic(request, env);
-}
       if (
-        request.method ===
-          "GET" &&
-        pathname === export default {
-  async fetch(request, env, ctx) {
+        request.method === "GET" &&
+        pathname ===
+          "/api/denz-diagnostic"
+      ) {
+        return await handleDenzDiagnosticPage();
+      }
 
-    // other routes above...
+      /* DENZGAINS DIAGNOSTIC REQUEST */
 
-    if (request.method === "GET" && pathname === "/api/denz-test") {
-      return await handleDenzTest(request, env);
-    }
+      if (
+        request.method === "POST" &&
+        pathname ===
+          "/api/denz-diagnostic"
+      ) {
+        return await handleDenzDiagnostic(
+          request,
+          env
+        );
+      }
 
-    if (
-      request.method === "GET" &&
-      pathname === "/api/denz-diagnostic"
-    ) {
-      return await handleDenzDiagnosticPage(request, env);
-    }
+      /* DATABASE TEST */
 
-    if (
-      request.method === "POST" &&
-      pathname === "/api/denz-diagnostic"
-    ) {
-      return await handleDenzDiagnostic(request, env);
-    }
-
-    if (
-      request.method === "GET" &&
-      pathname === "/api/database-test"
-    ) {
-      return await handleDatabaseTest(request, env);
-    }
-
-    // other routes below...
-  return await handleDenzTest(request, env);
-}
-
-if (
-  request.method === "GET" &&
-  pathname === "/api/denz-diagnostic"
-) {
-  return await handleDenzDiagnosticPage(request, env);
-}
-
-if (
-  request.method === "POST" &&
-  pathname === "/api/denz-diagnostic"
-) {
-  return await handleDenzDiagnostic(request, env);
-}
-
-if (
-  request.method === "GET" &&
-  pathname === "/api/database-test"
-) {
-  return await handleDatabaseTest(request, env);
-}
-  return await handleDenzTest(request, env);
-}
-
-if (
-  request.method === "GET" &&
-  pathname === "/api/denz-diagnostic"
-) {
-  return await handleDenzDiagnosticPage(request, env);
-}
-
-if (
-  request.method === "POST" &&
-  pathname === "/api/denz-diagnostic"
-) {
-  return await handleDenzDiagnostic(request, env);
-}
-
-if (
-  request.method === "GET" &&
-  pathname === "/api/database-test"
-) {
-  return await handleDatabaseTest(request, env);
-          }
-  return await handleDenzTest(request, env);
-}
-
-if (
-  request.method === "GET" &&
-  pathname === "/api/denz-diagnostic"
-) {
-  return await handleDenzDiagnosticPage(request, env);
-}
-
-if (
-  request.method === "POST" &&
-  pathname === "/api/denz-diagnostic"
-) {
-  return await handleDenzDiagnostic(request, env);
-}
-
-if (
-  request.method === "GET" &&
-  pathname === "/api/database-test"
-) {
-  return await handleDatabaseTest(request, env);
-}
-  return await handleDenzTest(request, env);
-}
-
-if (
-  request.method === "GET" &&
-  pathname === "/api/denz-diagnostic"
-) {
-  return await handleDenzDiagnosticPage(request, env);
-}
-
-if (
-  request.method === "POST" &&
-  pathname === "/api/denz-diagnostic"
-) {
-  return await handleDenzDiagnostic(request, env);
-}
-
-if (
-  request.method === "GET" &&
-  pathname === "/api/database-test"
-) {
-  return await handleDatabaseTest(request, env);
-}
-  return await handleDenzTest(request, env);
-}
-
-/* DenzGains Diagnostic */
-if (
-  request.method === "GET" &&
-  pathname === "/api/denz-diagnostic"
-) {
-  return await handleDenzDiagnosticPage(request, env);
-}
-
-if (
-  request.method === "POST" &&
-  pathname === "/api/denz-diagnostic"
-) {
-  return await handleDenzDiagnostic(request, env);
-}
-
-/* Database Test */
-if (
-  request.method === "GET" &&
-  pathname === "/api/database-test"
-) {
-  return await handleDatabaseTest(request, env);
-}
-  return await handleDenzTest(request, env);
-}
-
-/* DenzGains Diagnostic */
-if (
-  request.method === "GET" &&
-  pathname === "/api/denz-diagnostic"
-) {
-  return await handleDenzDiagnosticPage(request, env);
-}
-
-if (
-  request.method === "POST" &&
-  pathname === "/api/denz-diagnostic"
-) {
-  return await handleDenzDiagnostic(request, env);
-}
-
-/* Database Test */
-if (
-  request.method === "GET" &&
-  pathname === "/api/database-test"
-) {
-  return await handleDatabaseTest(request, env);
-    }
+      if (
+        request.method === "GET" &&
+        pathname ===
           "/api/database-test"
       ) {
         return await handleDatabaseTest(
@@ -2589,9 +2043,8 @@ if (
         );
       }
 
-      /*
-       * FRONTEND
-       */
+      /* FRONTEND */
+
       if (env.ASSETS) {
         return env.ASSETS.fetch(
           request
@@ -2606,22 +2059,18 @@ if (
       );
 
     } catch (error) {
+
       console.error(
         "Worker error:",
         error
       );
 
-      return json(
-        {
-          success:
-            false,
-
-          error:
-            error?.message ||
-            String(error)
-        },
-        500
-      );
+      return json({
+        success: false,
+        error:
+          error?.message ||
+          String(error)
+      }, 500);
     }
   }
 };
