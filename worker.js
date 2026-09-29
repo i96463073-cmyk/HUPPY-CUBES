@@ -129,6 +129,10 @@ async function createPesapalOrder(
     );
   }
 
+  console.log(
+    `[PAYMENT] PesaPal SubmitOrderRequest started tracking_id=${order.tracking_id}`
+  );
+
   const token = await getPesapalToken(env);
 
   if (!env.PESAPAL_IPN_ID) {
@@ -205,6 +209,10 @@ async function createPesapalOrder(
       `PesaPal order creation failed: ${safeJsonString(data)}`
     );
   }
+
+  console.log(
+    `[PAYMENT] PesaPal SubmitOrderRequest success tracking_id=${order.tracking_id} order_tracking_id=${data.order_tracking_id || ""}`
+  );
 
   return data;
 }
@@ -359,6 +367,16 @@ async function sendOrderToDenzGains(
     );
   }
 
+  console.log(
+    `[SUPPLIER] DenzGains request started service_id=${serviceId} quantity=${quantity} link_domain=${(() => {
+      try {
+        return new URL(link).hostname;
+      } catch {
+        return "invalid";
+      }
+    })()}`
+  );
+
   /*
    * DenzGains v2 API expects GET requests with
    * query parameters, similar to services endpoint.
@@ -396,6 +414,10 @@ async function sendOrderToDenzGains(
     );
   }
 
+  console.log(
+    `[SUPPLIER] DenzGains HTTP ${response.status} response_keys=${Object.keys(data || {}).join(",")}`
+  );
+
   if (!response.ok) {
     throw new Error(
       `DenzGains order failed: ${safeJsonString({
@@ -410,6 +432,10 @@ async function sendOrderToDenzGains(
       `DenzGains order error: ${safeJsonString(data)}`
     );
   }
+
+  console.log(
+    `[SUPPLIER] DenzGains response body: ${safeJsonString(data).slice(0, 500)}`
+  );
 
   return data;
 }
@@ -609,6 +635,10 @@ async function updateOrder(
       id
     )
     .run();
+
+  console.log(
+    `[DATABASE] order updated id=${id} fields=${Object.keys(fields).join(",")}`
+  );
 }
 
 /* =========================================================
@@ -666,11 +696,18 @@ async function processPaidOrder(
     );
   }
 
+  console.log(
+    `[SUPPLIER] processPaidOrder started tracking_id=${order.tracking_id} supplier_order_id=${order.supplier_order_id || "null"}`
+  );
+
   /*
    * NEVER submit twice if DenzGains already gave
    * us an order ID.
    */
   if (order.supplier_order_id) {
+    console.log(
+      `[SUPPLIER] order already submitted supplier_order_id=${order.supplier_order_id}`
+    );
     return {
       success: true,
       already_submitted: true,
@@ -688,7 +725,7 @@ async function processPaidOrder(
   }
 
   console.log(
-    `[PESAPAL_STATUS_CHECK] tracking_id=${order.tracking_id}`
+    `[PESAPAL] status check started tracking_id=${order.tracking_id} pesapal_order_tracking_id=${order.pesapal_order_tracking_id}`
   );
 
   /*
@@ -699,6 +736,10 @@ async function processPaidOrder(
       env,
       order.pesapal_order_tracking_id
     );
+
+  console.log(
+    `[PESAPAL] status response tracking_id=${order.tracking_id} raw_response=${safeJsonString(payment).slice(0, 500)}`
+  );
 
   const paymentStatus =
     String(
@@ -720,13 +761,17 @@ async function processPaidOrder(
     ) === 1;
 
   console.log(
-    `[PESAPAL_STATUS_RESPONSE] tracking_id=${order.tracking_id} status=${paymentStatus} is_completed=${isCompleted}`
+    `[PESAPAL] status parsed tracking_id=${order.tracking_id} status=${paymentStatus} is_completed=${isCompleted}`
   );
 
   /*
    * Payment is not confirmed yet.
    */
   if (!isCompleted) {
+    console.log(
+      `[PESAPAL] payment not completed tracking_id=${order.tracking_id} status=${paymentStatus}`
+    );
+
     await updateOrder(
       env,
       order.id,
@@ -763,7 +808,7 @@ async function processPaidOrder(
   );
 
   console.log(
-    `[SUPPLIER_SUBMISSION_STARTED] tracking_id=${order.tracking_id} service_id=${order.service_id} quantity=${order.quantity}`
+    `[SUPPLIER] submission attempt tracking_id=${order.tracking_id} service_id=${order.service_id} quantity=${order.quantity}`
   );
 
   /*
@@ -779,7 +824,7 @@ async function processPaidOrder(
       );
 
     console.log(
-      `[DENZGAINS_RESPONSE] tracking_id=${order.tracking_id} status=success response_keys=${Object.keys(supplierResult || {}).join(",")}`
+      `[SUPPLIER] DenzGains response success tracking_id=${order.tracking_id} response_keys=${Object.keys(supplierResult || {}).join(",")}`
     );
 
     /*
@@ -793,7 +838,15 @@ async function processPaidOrder(
       supplierResult?.orderId ||
       null;
 
+    console.log(
+      `[SUPPLIER] order ID extraction tracking_id=${order.tracking_id} extracted_id=${supplierOrderId || "null"} looked_in=${["order", "order_id", "id", "orderId"].join(",")}`
+    );
+
     if (!supplierOrderId) {
+      console.error(
+        `[SUPPLIER] no order ID found tracking_id=${order.tracking_id} denzgains_response=${safeJsonString(supplierResult).slice(0, 1000)}`
+      );
+
       await updateOrder(
         env,
         order.id,
@@ -816,7 +869,7 @@ async function processPaidOrder(
     }
 
     console.log(
-      `[SUPPLIER_ORDER_ID] tracking_id=${order.tracking_id} supplier_order_id=${supplierOrderId}`
+      `[SUPPLIER] order ID saved tracking_id=${order.tracking_id} supplier_order_id=${supplierOrderId}`
     );
 
     /*
@@ -842,6 +895,10 @@ async function processPaidOrder(
       }
     );
 
+    console.log(
+      `[SUPPLIER] database updated tracking_id=${order.tracking_id} order_status=Processing supplier_order_id=${supplierOrderId}`
+    );
+
     return {
       success: true,
 
@@ -858,7 +915,7 @@ async function processPaidOrder(
 
   } catch (error) {
     console.error(
-      `[SUPPLIER_ERROR] tracking_id=${order.tracking_id} error_message=${error?.message || String(error)}`
+      `[SUPPLIER] DenzGains error tracking_id=${order.tracking_id} error=${error?.message || String(error)}`
     );
 
     /*
@@ -1083,7 +1140,7 @@ async function handleOrderPayment(
   }
 
   console.log(
-    `[ORDER_CREATED] tracking_id=${trackingId} service_id=${serviceId} quantity=${quantity}`
+    `[ORDER] created tracking_id=${trackingId} order_id=${orderId} service_id=${serviceId} quantity=${quantity} amount=${amount}`
   );
 
   /*
@@ -1205,6 +1262,9 @@ async function handleOrderStatus(
     order.pesapal_order_tracking_id
   ) {
     try {
+      console.log(
+        `[ORDER_STATUS] retry attempt tracking_id=${trackingId}`
+      );
       await processPaidOrder(
         env,
         order
@@ -1217,8 +1277,7 @@ async function handleOrderStatus(
         );
     } catch (error) {
       console.error(
-        "Automatic DenzGains retry failed:",
-        error
+        `[ORDER_STATUS] retry failed tracking_id=${trackingId} error=${error?.message || String(error)}`
       );
 
       order =
@@ -1283,7 +1342,7 @@ async function handlePaymentCallback(
     );
 
   console.log(
-    `[PESAPAL_CALLBACK_RECEIVED] tracking_id=${trackingId || ""} merchant_ref=${merchantReference || ""}`
+    `[CALLBACK] received tracking_id=${trackingId || "null"} merchant_reference=${merchantReference || "null"} pesapal_order_tracking_id=${orderTrackingId || "null"}`
   );
 
   let order = null;
@@ -1307,6 +1366,16 @@ async function handlePaymentCallback(
       );
   }
 
+  if (!order) {
+    console.error(
+      `[CALLBACK] order not found tracking_id=${trackingId || "null"} merchant_reference=${merchantReference || "null"}`
+    );
+  } else {
+    console.log(
+      `[CALLBACK] order found order_id=${order.id} tracking_id=${order.tracking_id}`
+    );
+  }
+
   if (
     order &&
     orderTrackingId
@@ -1325,6 +1394,10 @@ async function handlePaymentCallback(
         env,
         order.id
       );
+
+    console.log(
+      `[CALLBACK] pesapal_order_tracking_id updated order_id=${order.id}`
+    );
   }
 
   /*
@@ -1332,9 +1405,17 @@ async function handlePaymentCallback(
    */
   if (order) {
     try {
-      await processPaidOrder(
-        env,
-        order
+      console.log(
+        `[CALLBACK] calling processPaidOrder order_id=${order.id} tracking_id=${order.tracking_id}`
+      );
+      const result =
+        await processPaidOrder(
+          env,
+          order
+        );
+
+      console.log(
+        `[CALLBACK] processPaidOrder completed tracking_id=${order.tracking_id} success=${result.success} paid=${result.paid} supplier_order_id=${result.supplier_order_id || "null"}`
       );
     } catch (error) {
       /*
@@ -1344,8 +1425,7 @@ async function handlePaymentCallback(
        * to the customer.
        */
       console.error(
-        "Payment callback processing error:",
-        error
+        `[CALLBACK] processPaidOrder failed tracking_id=${order.tracking_id} error=${error?.message || String(error)}`
       );
     }
   }
@@ -1355,6 +1435,10 @@ async function handlePaymentCallback(
     trackingId ||
     merchantReference ||
     "";
+
+  console.log(
+    `[CALLBACK] redirecting to_tracking_id=${finalTrackingId}`
+  );
 
   return Response.redirect(
     `${url.origin}/?tracking_id=${encodeURIComponent(
@@ -1395,10 +1479,13 @@ async function handlePesapalIpn(
     );
 
   console.log(
-    `[PESAPAL_IPN_RECEIVED] merchant_ref=${merchantReference || ""}`
+    `[IPN] received merchant_reference=${merchantReference || "null"} pesapal_order_tracking_id=${orderTrackingId || "null"}`
   );
 
   if (!merchantReference) {
+    console.error(
+      `[IPN] no merchant_reference in request`
+    );
     return json({
       orderNotificationType:
         "IPNCHANGE",
@@ -1421,6 +1508,9 @@ async function handlePesapalIpn(
     );
 
   if (!order) {
+    console.error(
+      `[IPN] order not found merchant_reference=${merchantReference}`
+    );
     return json({
       orderNotificationType:
         "IPNCHANGE",
@@ -1435,6 +1525,10 @@ async function handlePesapalIpn(
         "FAILED"
     });
   }
+
+  console.log(
+    `[IPN] order found order_id=${order.id} tracking_id=${order.tracking_id}`
+  );
 
   if (orderTrackingId) {
     await updateOrder(
@@ -1451,17 +1545,28 @@ async function handlePesapalIpn(
         env,
         order.id
       );
+
+    console.log(
+      `[IPN] pesapal_order_tracking_id updated order_id=${order.id}`
+    );
   }
 
   try {
-    await processPaidOrder(
-      env,
-      order
+    console.log(
+      `[IPN] calling processPaidOrder order_id=${order.id} tracking_id=${order.tracking_id}`
+    );
+    const result =
+      await processPaidOrder(
+        env,
+        order
+      );
+
+    console.log(
+      `[IPN] processPaidOrder completed tracking_id=${order.tracking_id} success=${result.success} paid=${result.paid} supplier_order_id=${result.supplier_order_id || "null"}`
     );
   } catch (error) {
     console.error(
-      "IPN processing error:",
-      error
+      `[IPN] processPaidOrder failed tracking_id=${order.tracking_id} error=${error?.message || String(error)}`
     );
   }
 
