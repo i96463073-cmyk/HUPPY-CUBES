@@ -324,8 +324,10 @@ async function getDenzServices(env) {
 /*
  * Send an order to DenzGains.
  *
- * The request is made as POST form data rather than putting
- * the entire order in the URL.
+ * FIXED: Now uses GET method with URL parameters
+ * instead of POST with form data, matching the
+ * DenzGains v2 API specification and the services
+ * endpoint pattern.
  */
 async function sendOrderToDenzGains(
   env,
@@ -358,31 +360,26 @@ async function sendOrderToDenzGains(
   }
 
   /*
-   * DenzGains/SMM APIs commonly accept form-encoded
-   * parameters for the v2 endpoint.
+   * DenzGains v2 API expects GET requests with
+   * query parameters, similar to services endpoint.
    */
-  const form = new URLSearchParams();
+  const url =
+    `${DENZGAINS_BASE}/api/v2?action=add&service=` +
+    encodeURIComponent(String(serviceId)) +
+    `&link=` +
+    encodeURIComponent(String(link)) +
+    `&quantity=` +
+    encodeURIComponent(String(quantity)) +
+    `&key=` +
+    encodeURIComponent(env.DENZGAINS_API_KEY);
 
-  form.set("key", env.DENZGAINS_API_KEY);
-  form.set("action", "add");
-  form.set("service", String(serviceId));
-  form.set("link", String(link));
-  form.set("quantity", String(quantity));
+  const response = await fetch(url, {
+    method: "GET",
 
-  const response = await fetch(
-    `${DENZGAINS_BASE}/api/v2`,
-    {
-      method: "POST",
-
-      headers: {
-        Accept: "application/json",
-        "Content-Type":
-          "application/x-www-form-urlencoded"
-      },
-
-      body: form.toString()
+    headers: {
+      Accept: "application/json"
     }
-  );
+  });
 
   const text = await response.text();
 
@@ -690,6 +687,10 @@ async function processPaidOrder(
     );
   }
 
+  console.log(
+    `[PESAPAL_STATUS_CHECK] tracking_id=${order.tracking_id}`
+  );
+
   /*
    * Check payment directly with PesaPal.
    */
@@ -717,6 +718,10 @@ async function processPaidOrder(
     Number(
       payment?.status_code
     ) === 1;
+
+  console.log(
+    `[PESAPAL_STATUS_RESPONSE] tracking_id=${order.tracking_id} status=${paymentStatus} is_completed=${isCompleted}`
+  );
 
   /*
    * Payment is not confirmed yet.
@@ -757,6 +762,10 @@ async function processPaidOrder(
     }
   );
 
+  console.log(
+    `[SUPPLIER_SUBMISSION_STARTED] tracking_id=${order.tracking_id} service_id=${order.service_id} quantity=${order.quantity}`
+  );
+
   /*
    * Submit to DenzGains.
    */
@@ -768,6 +777,10 @@ async function processPaidOrder(
         order.link,
         order.quantity
       );
+
+    console.log(
+      `[DENZGAINS_RESPONSE] tracking_id=${order.tracking_id} status=success response_keys=${Object.keys(supplierResult || {}).join(",")}`
+    );
 
     /*
      * Different SMM APIs can return the ID
@@ -801,6 +814,10 @@ async function processPaidOrder(
         )}`
       );
     }
+
+    console.log(
+      `[SUPPLIER_ORDER_ID] tracking_id=${order.tracking_id} supplier_order_id=${supplierOrderId}`
+    );
 
     /*
      * SUCCESS:
@@ -840,6 +857,10 @@ async function processPaidOrder(
     };
 
   } catch (error) {
+    console.error(
+      `[SUPPLIER_ERROR] tracking_id=${order.tracking_id} error_message=${error?.message || String(error)}`
+    );
+
     /*
      * IMPORTANT:
      * Save the actual DenzGains error in D1.
@@ -1061,6 +1082,10 @@ async function handleOrderPayment(
     );
   }
 
+  console.log(
+    `[ORDER_CREATED] tracking_id=${trackingId} service_id=${serviceId} quantity=${quantity}`
+  );
+
   /*
    * Do not perform a second immediate database read.
    */
@@ -1257,6 +1282,10 @@ async function handlePaymentCallback(
       "pesapal_transaction_tracking_id"
     );
 
+  console.log(
+    `[PESAPAL_CALLBACK_RECEIVED] tracking_id=${trackingId || ""} merchant_ref=${merchantReference || ""}`
+  );
+
   let order = null;
 
   if (trackingId) {
@@ -1364,6 +1393,10 @@ async function handlePesapalIpn(
     url.searchParams.get(
       "pesapal_transaction_tracking_id"
     );
+
+  console.log(
+    `[PESAPAL_IPN_RECEIVED] merchant_ref=${merchantReference || ""}`
+  );
 
   if (!merchantReference) {
     return json({
