@@ -15,18 +15,14 @@ function json(data, status = 200) {
   });
 }
 
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
 function makeTrackingId() {
-  const part1 = Date.now().toString(36).toUpperCase();
-  const part2 = crypto.randomUUID().split("-")[0].toUpperCase();
+  const part1 =
+    Date.now().toString(36).toUpperCase();
+
+  const part2 =
+    crypto.randomUUID()
+      .split("-")[0]
+      .toUpperCase();
 
   return `HUPPY-${part1}-${part2}`;
 }
@@ -55,16 +51,31 @@ function customerPrice(supplierRate) {
 ========================================================= */
 
 async function getPesapalToken(env) {
+  if (
+    !env.PESAPAL_CONSUMER_KEY ||
+    !env.PESAPAL_CONSUMER_SECRET
+  ) {
+    throw new Error(
+      "PesaPal consumer key or consumer secret is not configured."
+    );
+  }
+
   const response = await fetch(
     `${PESAPAL_BASE}/api/Auth/RequestToken`,
     {
       method: "POST",
+
       headers: {
+        "Accept": "application/json",
         "Content-Type": "application/json"
       },
+
       body: JSON.stringify({
-        consumer_key: env.PESAPAL_CONSUMER_KEY,
-        consumer_secret: env.PESAPAL_CONSUMER_SECRET
+        consumer_key:
+          env.PESAPAL_CONSUMER_KEY,
+
+        consumer_secret:
+          env.PESAPAL_CONSUMER_SECRET
       })
     }
   );
@@ -80,45 +91,113 @@ async function getPesapalToken(env) {
   return data.token;
 }
 
-async function createPesapalOrder(env, order, origin) {
-  const token = await getPesapalToken(env);
+async function createPesapalOrder(
+  env,
+  order,
+  origin
+) {
+  /*
+   * Extra protection:
+   * never allow a null order to reach PesaPal.
+   */
+  if (!order) {
+    throw new Error(
+      "Order could not be loaded after database insert."
+    );
+  }
+
+  if (!order.tracking_id) {
+    throw new Error(
+      "Order tracking ID was not created."
+    );
+  }
+
+  const token =
+    await getPesapalToken(env);
+
+  if (!env.PESAPAL_IPN_ID) {
+    throw new Error(
+      "PESAPAL_IPN_ID is not configured."
+    );
+  }
 
   const payload = {
-    id: order.tracking_id,
-    currency: "KES",
-    amount: Number(order.amount),
-    description: `HUPPY CUBE - ${order.service_name}`,
+    id:
+      order.tracking_id,
+
+    currency:
+      "KES",
+
+    amount:
+      Number(order.amount),
+
+    description:
+      `HUPPY CUBE - ${order.service_name}`
+        .slice(0, 100),
 
     callback_url:
       `${origin}/api/payment-callback?tracking_id=` +
-      encodeURIComponent(order.tracking_id),
+      encodeURIComponent(
+        order.tracking_id
+      ),
 
-    notification_id: env.PESAPAL_IPN_ID,
+    notification_id:
+      env.PESAPAL_IPN_ID,
 
     billing_address: {
-      email_address: "customer@huppycube.com",
-      phone_number: normalizePhone(order.phone),
-      country_code: "KE",
-      first_name: String(order.full_name || "HUPPY"),
-      last_name: "Customer"
+      email_address:
+        "customer@huppycube.com",
+
+      phone_number:
+        normalizePhone(
+          order.phone
+        ),
+
+      country_code:
+        "KE",
+
+      first_name:
+        String(
+          order.full_name ||
+          "Customer"
+        ),
+
+      last_name:
+        "Customer"
     }
   };
 
-  const response = await fetch(
-    `${PESAPAL_BASE}/api/Transactions/SubmitOrderRequest`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
-      },
-      body: JSON.stringify(payload)
-    }
-  );
+  const response =
+    await fetch(
+      `${PESAPAL_BASE}/api/Transactions/SubmitOrderRequest`,
+      {
+        method: "POST",
 
-  const data = await response.json();
+        headers: {
+          "Accept":
+            "application/json",
 
-  if (!response.ok || !data.redirect_url) {
+          "Content-Type":
+            "application/json",
+
+          Authorization:
+            `Bearer ${token}`
+        },
+
+        body:
+          JSON.stringify(
+            payload
+          )
+      }
+    );
+
+  const data =
+    await response.json();
+
+  if (
+    !response.ok ||
+    !data.redirect_url
+  ) {
     throw new Error(
       `PesaPal order creation failed: ${JSON.stringify(data)}`
     );
@@ -127,21 +206,40 @@ async function createPesapalOrder(env, order, origin) {
   return data;
 }
 
-async function getPesapalStatus(env, orderTrackingId) {
-  const token = await getPesapalToken(env);
+async function getPesapalStatus(
+  env,
+  orderTrackingId
+) {
+  if (!orderTrackingId) {
+    throw new Error(
+      "PesaPal transaction tracking ID is missing."
+    );
+  }
 
-  const response = await fetch(
-    `${PESAPAL_BASE}/api/Transactions/GetTransactionStatus?orderTrackingId=${encodeURIComponent(
-      orderTrackingId
-    )}`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`
+  const token =
+    await getPesapalToken(env);
+
+  const response =
+    await fetch(
+      `${PESAPAL_BASE}/api/Transactions/GetTransactionStatus?orderTrackingId=${encodeURIComponent(
+        orderTrackingId
+      )}`,
+      {
+        method:
+          "GET",
+
+        headers: {
+          "Accept":
+            "application/json",
+
+          Authorization:
+            `Bearer ${token}`
+        }
       }
-    }
-  );
+    );
 
-  const data = await response.json();
+  const data =
+    await response.json();
 
   if (!response.ok) {
     throw new Error(
@@ -158,45 +256,76 @@ async function getPesapalStatus(env, orderTrackingId) {
 
 async function getDenzServices(env) {
   if (!env.DENZGAINS_API_KEY) {
-    throw new Error("DENZGAINS_API_KEY is not configured.");
+    throw new Error(
+      "DENZGAINS_API_KEY is not configured."
+    );
   }
 
   const url =
     `${DENZGAINS_BASE}/api/v2?action=services&key=` +
-    encodeURIComponent(env.DENZGAINS_API_KEY);
+    encodeURIComponent(
+      env.DENZGAINS_API_KEY
+    );
 
-  const response = await fetch(url);
-  const text = await response.text();
+  const response =
+    await fetch(url);
+
+  const text =
+    await response.text();
 
   let data;
 
   try {
-    data = JSON.parse(text);
+    data =
+      JSON.parse(text);
   } catch {
-    data = {
-      error: "Invalid JSON returned by DenzGains",
-      upstream: text
-    };
+    throw new Error(
+      `DenzGains returned invalid JSON: ${text.slice(
+        0,
+        1000
+      )}`
+    );
   }
 
   if (!response.ok) {
     throw new Error(
-      `DenzGains services failed: ${JSON.stringify({
-        status: response.status,
-        response: data
-      })}`
+      `DenzGains services failed: ${JSON.stringify(
+        {
+          status:
+            response.status,
+
+          response:
+            data
+        }
+      )}`
     );
   }
 
   if (data?.error) {
     throw new Error(
-      `DenzGains services error: ${JSON.stringify(data)}`
+      `DenzGains services error: ${JSON.stringify(
+        data
+      )}`
     );
   }
 
-  return Array.isArray(data)
-    ? data
-    : data.services || [];
+  if (Array.isArray(data)) {
+    return data;
+  }
+
+  if (
+    Array.isArray(
+      data.services
+    )
+  ) {
+    return data.services;
+  }
+
+  throw new Error(
+    `DenzGains returned an unexpected response: ${JSON.stringify(
+      data
+    ).slice(0, 3000)}`
+  );
 }
 
 async function sendOrderToDenzGains(
@@ -206,42 +335,65 @@ async function sendOrderToDenzGains(
   quantity
 ) {
   if (!env.DENZGAINS_API_KEY) {
-    throw new Error("DENZGAINS_API_KEY is not configured.");
+    throw new Error(
+      "DENZGAINS_API_KEY is not configured."
+    );
   }
 
   const url =
     `${DENZGAINS_BASE}/api/v2?action=add` +
-    `&service=${encodeURIComponent(serviceId)}` +
-    `&link=${encodeURIComponent(link)}` +
-    `&quantity=${encodeURIComponent(quantity)}` +
-    `&key=${encodeURIComponent(env.DENZGAINS_API_KEY)}`;
+    `&service=${encodeURIComponent(
+      serviceId
+    )}` +
+    `&link=${encodeURIComponent(
+      link
+    )}` +
+    `&quantity=${encodeURIComponent(
+      quantity
+    )}` +
+    `&key=${encodeURIComponent(
+      env.DENZGAINS_API_KEY
+    )}`;
 
-  const response = await fetch(url);
-  const text = await response.text();
+  const response =
+    await fetch(url);
+
+  const text =
+    await response.text();
 
   let data;
 
   try {
-    data = JSON.parse(text);
+    data =
+      JSON.parse(text);
   } catch {
-    data = {
-      error: "Invalid JSON returned by DenzGains",
-      upstream: text
-    };
+    throw new Error(
+      `DenzGains returned invalid JSON: ${text.slice(
+        0,
+        1000
+      )}`
+    );
   }
 
   if (!response.ok) {
     throw new Error(
-      `DenzGains order failed: ${JSON.stringify({
-        status: response.status,
-        response: data
-      })}`
+      `DenzGains order failed: ${JSON.stringify(
+        {
+          status:
+            response.status,
+
+          response:
+            data
+        }
+      )}`
     );
   }
 
   if (data?.error) {
     throw new Error(
-      `DenzGains order error: ${JSON.stringify(data)}`
+      `DenzGains order error: ${JSON.stringify(
+        data
+      )}`
     );
   }
 
@@ -250,34 +402,65 @@ async function sendOrderToDenzGains(
 
 /* =========================================================
    DATABASE
-   IMPORTANT:
-   This section safely upgrades an EXISTING D1 table.
-   It does NOT delete the table or existing orders.
 ========================================================= */
 
 const REQUIRED_ORDER_COLUMNS = {
-  tracking_id: "TEXT",
-  service_id: "TEXT",
-  service_name: "TEXT",
-  quantity: "INTEGER",
-  link: "TEXT",
-  phone: "TEXT",
-  full_name: "TEXT",
-  amount: "REAL DEFAULT 0",
-  payment_status: "TEXT DEFAULT 'PENDING'",
-  order_status: "TEXT DEFAULT 'Pending'",
-  pesapal_order_tracking_id: "TEXT",
-  pesapal_merchant_reference: "TEXT",
-  supplier_order_id: "TEXT",
-  supplier_response: "TEXT",
-  created_at: "TEXT DEFAULT CURRENT_TIMESTAMP",
-  updated_at: "TEXT DEFAULT CURRENT_TIMESTAMP"
+  tracking_id:
+    "TEXT",
+
+  service_id:
+    "TEXT",
+
+  service_name:
+    "TEXT",
+
+  quantity:
+    "INTEGER",
+
+  link:
+    "TEXT",
+
+  phone:
+    "TEXT",
+
+  full_name:
+    "TEXT",
+
+  amount:
+    "REAL DEFAULT 0",
+
+  payment_status:
+    "TEXT DEFAULT 'PENDING'",
+
+  order_status:
+    "TEXT DEFAULT 'Pending'",
+
+  pesapal_order_tracking_id:
+    "TEXT",
+
+  pesapal_merchant_reference:
+    "TEXT",
+
+  supplier_order_id:
+    "TEXT",
+
+  supplier_response:
+    "TEXT",
+
+  created_at:
+    "TEXT DEFAULT CURRENT_TIMESTAMP",
+
+  updated_at:
+    "TEXT DEFAULT CURRENT_TIMESTAMP"
 };
 
 async function ensureOrdersTable(env) {
-  /*
-   * First create the table if it doesn't exist.
-   */
+  if (!env.DB) {
+    throw new Error(
+      "D1 database binding DB is not configured."
+    );
+  }
+
   await env.DB.prepare(`
     CREATE TABLE IF NOT EXISTS orders (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -300,52 +483,63 @@ async function ensureOrdersTable(env) {
     )
   `).run();
 
-  /*
-   * Now inspect the EXISTING table.
-   */
-  const tableInfo = await env.DB
-    .prepare(`PRAGMA table_info(orders)`)
-    .all();
+  const tableInfo =
+    await env.DB
+      .prepare(
+        `PRAGMA table_info(orders)`
+      )
+      .all();
 
-  const existingColumns = new Set(
-    (tableInfo.results || []).map(
-      column => column.name
-    )
-  );
+  const existingColumns =
+    new Set(
+      (tableInfo.results || [])
+        .map(
+          column =>
+            column.name
+        )
+    );
 
-  /*
-   * Add every missing column.
-   *
-   * This is what fixes:
-   *
-   * D1_ERROR:
-   * table orders has no column named tracking_id
-   */
-  for (const [columnName, definition] of Object.entries(
-    REQUIRED_ORDER_COLUMNS
-  )) {
-    if (!existingColumns.has(columnName)) {
-      await env.DB.prepare(
-        `ALTER TABLE orders ADD COLUMN ${columnName} ${definition}`
-      ).run();
+  for (
+    const [
+      columnName,
+      definition
+    ]
+      of Object.entries(
+        REQUIRED_ORDER_COLUMNS
+      )
+  ) {
+    if (
+      !existingColumns.has(
+        columnName
+      )
+    ) {
+      await env.DB
+        .prepare(
+          `ALTER TABLE orders ADD COLUMN ${columnName} ${definition}`
+        )
+        .run();
     }
   }
 
   /*
-   * Make sure old orders that were created before
-   * tracking_id existed receive a tracking ID.
+   * Give old orders tracking IDs.
    */
-  const oldOrders = await env.DB
-    .prepare(`
-      SELECT id
-      FROM orders
-      WHERE tracking_id IS NULL
-         OR tracking_id = ''
-    `)
-    .all();
+  const oldOrders =
+    await env.DB
+      .prepare(`
+        SELECT id
+        FROM orders
+        WHERE tracking_id IS NULL
+           OR tracking_id = ''
+      `)
+      .all();
 
-  for (const oldOrder of oldOrders.results || []) {
-    const trackingId = makeTrackingId();
+  for (
+    const oldOrder
+      of oldOrders.results || []
+  ) {
+    const trackingId =
+      makeTrackingId();
 
     await env.DB
       .prepare(`
@@ -361,20 +555,19 @@ async function ensureOrdersTable(env) {
       .run();
   }
 
-  /*
-   * Create a unique index for tracking IDs.
-   *
-   * We use an index instead of changing the original
-   * table definition, so existing databases remain safe.
-   */
-  await env.DB.prepare(`
-    CREATE UNIQUE INDEX IF NOT EXISTS
-    idx_orders_tracking_id
-    ON orders(tracking_id)
-  `).run();
+  await env.DB
+    .prepare(`
+      CREATE UNIQUE INDEX IF NOT EXISTS
+      idx_orders_tracking_id
+      ON orders(tracking_id)
+    `)
+    .run();
 }
 
-async function getOrderByTrackingId(env, trackingId) {
+async function getOrderByTrackingId(
+  env,
+  trackingId
+) {
   await ensureOrdersTable(env);
 
   return await env.DB
@@ -388,7 +581,10 @@ async function getOrderByTrackingId(env, trackingId) {
     .first();
 }
 
-async function getOrderById(env, id) {
+async function getOrderById(
+  env,
+  id
+) {
   await ensureOrdersTable(env);
 
   return await env.DB
@@ -402,20 +598,29 @@ async function getOrderById(env, id) {
     .first();
 }
 
-async function updateOrder(env, id, fields) {
-  const entries = Object.entries(fields);
+async function updateOrder(
+  env,
+  id,
+  fields
+) {
+  const entries =
+    Object.entries(fields);
 
   if (!entries.length) {
     return;
   }
 
-  const setParts = entries.map(
-    ([key]) => `${key} = ?`
-  );
+  const setParts =
+    entries.map(
+      ([key]) =>
+        `${key} = ?`
+    );
 
-  const values = entries.map(
-    ([, value]) => value
-  );
+  const values =
+    entries.map(
+      ([, value]) =>
+        value
+    );
 
   setParts.push(
     "updated_at = CURRENT_TIMESTAMP"
@@ -427,7 +632,10 @@ async function updateOrder(env, id, fields) {
       SET ${setParts.join(", ")}
       WHERE id = ?
     `)
-    .bind(...values, id)
+    .bind(
+      ...values,
+      id
+    )
     .run();
 }
 
@@ -436,29 +644,49 @@ async function updateOrder(env, id, fields) {
 ========================================================= */
 
 function trackingInfo(order) {
-  const status = String(
-    order?.order_status || "Pending"
-  ).toLowerCase();
+  const status =
+    String(
+      order?.order_status ||
+        "Pending"
+    ).toLowerCase();
 
   let currentStep = 1;
   let progress = 25;
 
-  if (status.includes("submitting")) {
+  if (
+    status.includes(
+      "submitting"
+    )
+  ) {
     currentStep = 2;
     progress = 50;
-  } else if (status.includes("processing")) {
+  } else if (
+    status.includes(
+      "processing"
+    )
+  ) {
     currentStep = 3;
     progress = 75;
-  } else if (status.includes("completed")) {
+  } else if (
+    status.includes(
+      "completed"
+    )
+  ) {
     currentStep = 4;
     progress = 100;
-  } else if (status.includes("supplier error")) {
+  } else if (
+    status.includes(
+      "supplier error"
+    )
+  ) {
     currentStep = 2;
     progress = 50;
   }
 
   return {
-    current_step: currentStep,
+    current_step:
+      currentStep,
+
     progress
   };
 }
@@ -467,76 +695,121 @@ function trackingInfo(order) {
    PROCESS PAID ORDER
 ========================================================= */
 
-async function processPaidOrder(env, order) {
+async function processPaidOrder(
+  env,
+  order
+) {
   if (!order) {
-    throw new Error("Order not found.");
+    throw new Error(
+      "Order not found."
+    );
   }
 
-  /*
-   * Never submit the same supplier order twice.
-   */
-  if (order.supplier_order_id) {
+  if (
+    order.supplier_order_id
+  ) {
     return {
-      success: true,
-      already_submitted: true,
+      success:
+        true,
+
+      already_submitted:
+        true,
+
       supplier_order_id:
         order.supplier_order_id
     };
   }
 
   if (
-    order.payment_status === "COMPLETED" &&
-    String(order.order_status || "")
+    order.payment_status ===
+      "COMPLETED" &&
+    String(
+      order.order_status ||
+        ""
+    )
       .toLowerCase()
-      .includes("processing")
+      .includes(
+        "processing"
+      )
   ) {
     return {
-      success: true,
-      already_processing: true
+      success:
+        true,
+
+      already_processing:
+        true
     };
   }
 
-  if (!order.pesapal_order_tracking_id) {
+  if (
+    !order.pesapal_order_tracking_id
+  ) {
     throw new Error(
       "PesaPal transaction tracking ID is missing."
     );
   }
 
-  const payment = await getPesapalStatus(
-    env,
-    order.pesapal_order_tracking_id
-  );
+  const payment =
+    await getPesapalStatus(
+      env,
+      order.pesapal_order_tracking_id
+    );
 
-  const paymentStatus = String(
-    payment?.payment_status_description ||
-      payment?.status_code ||
-      payment?.status ||
-      ""
-  ).toUpperCase();
+  const paymentStatus =
+    String(
+      payment?.payment_status_description ||
+        payment?.status_code ||
+        payment?.status ||
+        ""
+    ).toUpperCase();
 
   const isCompleted =
-    paymentStatus.includes("COMPLETED") ||
-    paymentStatus.includes("PAID") ||
-    Number(payment?.status_code) === 1;
+    paymentStatus.includes(
+      "COMPLETED"
+    ) ||
+    paymentStatus.includes(
+      "PAID"
+    ) ||
+    Number(
+      payment?.status_code
+    ) === 1;
 
   if (!isCompleted) {
-    await updateOrder(env, order.id, {
-      payment_status:
-        paymentStatus || "PENDING",
-      order_status: "Payment Pending"
-    });
+    await updateOrder(
+      env,
+      order.id,
+      {
+        payment_status:
+          paymentStatus ||
+          "PENDING",
+
+        order_status:
+          "Payment Pending"
+      }
+    );
 
     return {
-      success: false,
-      paid: false,
+      success:
+        false,
+
+      paid:
+        false,
+
       payment
     };
   }
 
-  await updateOrder(env, order.id, {
-    payment_status: "COMPLETED",
-    order_status: "Submitting"
-  });
+  await updateOrder(
+    env,
+    order.id,
+    {
+      payment_status:
+        "COMPLETED",
+
+      order_status:
+        "Submitting"
+    }
+  );
 
   const supplierResult =
     await sendOrderToDenzGains(
@@ -553,11 +826,19 @@ async function processPaidOrder(env, order) {
     null;
 
   if (!supplierOrderId) {
-    await updateOrder(env, order.id, {
-      order_status: "Supplier Error",
-      supplier_response:
-        JSON.stringify(supplierResult)
-    });
+    await updateOrder(
+      env,
+      order.id,
+      {
+        order_status:
+          "Supplier Error",
+
+        supplier_response:
+          JSON.stringify(
+            supplierResult
+          )
+      }
+    );
 
     throw new Error(
       `DenzGains did not return an order ID: ${JSON.stringify(
@@ -566,21 +847,37 @@ async function processPaidOrder(env, order) {
     );
   }
 
-  await updateOrder(env, order.id, {
-    supplier_order_id:
-      String(supplierOrderId),
+  await updateOrder(
+    env,
+    order.id,
+    {
+      supplier_order_id:
+        String(
+          supplierOrderId
+        ),
 
-    supplier_response:
-      JSON.stringify(supplierResult),
+      supplier_response:
+        JSON.stringify(
+          supplierResult
+        ),
 
-    order_status: "Processing"
-  });
+      order_status:
+        "Processing"
+    }
+  );
 
   return {
-    success: true,
-    paid: true,
+    success:
+      true,
+
+    paid:
+      true,
+
     supplier_order_id:
-      String(supplierOrderId),
+      String(
+        supplierOrderId
+      ),
+
     supplier_response:
       supplierResult
   };
@@ -588,40 +885,56 @@ async function processPaidOrder(env, order) {
 
 /* =========================================================
    CREATE PAYMENT
+   FIXED VERSION
 ========================================================= */
 
 async function handleOrderPayment(
   request,
   env
 ) {
-  await ensureOrdersTable(env);
+  await ensureOrdersTable(
+    env
+  );
 
-  const body = await request.json();
+  const body =
+    await request.json();
 
-  const serviceId = String(
-    body.service_id || ""
-  ).trim();
+  const serviceId =
+    String(
+      body.service_id ||
+        ""
+    ).trim();
 
-  const serviceName = String(
-    body.service_name || ""
-  ).trim();
+  const serviceName =
+    String(
+      body.service_name ||
+        ""
+    ).trim();
 
   const quantity =
-    Number(body.quantity || 0);
+    Number(
+      body.quantity ||
+        0
+    );
 
-  const link = String(
-    body.link || ""
-  ).trim();
+  const link =
+    String(
+      body.link ||
+        ""
+    ).trim();
 
-  const phone = String(
-    body.phone || ""
-  ).trim();
+  const phone =
+    String(
+      body.phone ||
+        ""
+    ).trim();
 
-  const fullName = String(
-    body.full_name ||
-      body.fullName ||
-      "Customer"
-  ).trim();
+  const fullName =
+    String(
+      body.full_name ||
+        body.fullName ||
+        "Customer"
+    ).trim();
 
   if (!serviceId) {
     return json(
@@ -633,7 +946,10 @@ async function handleOrderPayment(
     );
   }
 
-  if (!quantity || quantity <= 0) {
+  if (
+    !quantity ||
+    quantity <= 0
+  ) {
     return json(
       {
         error:
@@ -664,20 +980,23 @@ async function handleOrderPayment(
   }
 
   /*
-   * Get real supplier pricing.
+   * Get supplier services.
    */
   const services =
-    await getDenzServices(env);
+    await getDenzServices(
+      env
+    );
 
-  const service = services.find(
-    item =>
-      String(
-        item.service ||
-          item.service_id ||
-          item.id ||
-          ""
-      ) === serviceId
-  );
+  const service =
+    services.find(
+      item =>
+        String(
+          item.service ||
+            item.service_id ||
+            item.id ||
+            ""
+        ) === serviceId
+    );
 
   if (!service) {
     return json(
@@ -707,17 +1026,28 @@ async function handleOrderPayment(
   }
 
   const amount =
-    (customerPrice(supplierRate) *
-      quantity) /
-    1000;
+    (
+      customerPrice(
+        supplierRate
+      ) *
+      quantity
+    ) / 1000;
 
   /*
-   * IMPORTANT:
-   * Tracking ID is created BEFORE the database insert.
+   * CREATE TRACKING ID FIRST.
    */
   const trackingId =
     makeTrackingId();
 
+  const finalServiceName =
+    serviceName ||
+    service.name ||
+    service.description ||
+    `Service ${serviceId}`;
+
+  /*
+   * INSERT ORDER.
+   */
   const insert =
     await env.DB
       .prepare(`
@@ -738,10 +1068,7 @@ async function handleOrderPayment(
       .bind(
         trackingId,
         serviceId,
-        serviceName ||
-          service.name ||
-          service.description ||
-          `Service ${serviceId}`,
+        finalServiceName,
         quantity,
         link,
         phone,
@@ -752,24 +1079,80 @@ async function handleOrderPayment(
       )
       .run();
 
+  /*
+   * D1 provides last_row_id for a table with
+   * INTEGER PRIMARY KEY.
+   */
   const orderId =
     insert?.meta?.last_row_id;
 
-  if (!orderId) {
+  if (
+    orderId ===
+      undefined ||
+    orderId ===
+      null
+  ) {
     throw new Error(
-      "Order was created but its database ID could not be determined."
+      "The order was inserted, but D1 did not return its row ID."
     );
   }
 
-  const order =
-    await getOrderById(
-      env,
-      orderId
-    );
+  /*
+   * IMPORTANT FIX:
+   *
+   * We DO NOT immediately call getOrderById().
+   *
+   * Instead, we already know everything needed
+   * to send the order to PesaPal.
+   *
+   * This prevents:
+   *
+   * Cannot read properties of null
+   * (reading 'tracking_id')
+   */
+  const order = {
+    id:
+      orderId,
+
+    tracking_id:
+      trackingId,
+
+    service_id:
+      serviceId,
+
+    service_name:
+      finalServiceName,
+
+    quantity:
+      quantity,
+
+    link:
+      link,
+
+    phone:
+      phone,
+
+    full_name:
+      fullName,
+
+    amount:
+      amount,
+
+    payment_status:
+      "PENDING",
+
+    order_status:
+      "Pending"
+  };
 
   const origin =
-    new URL(request.url).origin;
+    new URL(
+      request.url
+    ).origin;
 
+  /*
+   * Create PesaPal payment.
+   */
   const payment =
     await createPesapalOrder(
       env,
@@ -777,6 +1160,9 @@ async function handleOrderPayment(
       origin
     );
 
+  /*
+   * Save PesaPal IDs.
+   */
   await updateOrder(
     env,
     orderId,
@@ -793,10 +1179,19 @@ async function handleOrderPayment(
     }
   );
 
+  /*
+   * Return tracking ID to App.jsx.
+   */
   return json({
-    success: true,
-    tracking_id: trackingId,
-    amount,
+    success:
+      true,
+
+    tracking_id:
+      trackingId,
+
+    amount:
+      amount,
+
     redirect_url:
       payment.redirect_url
   });
@@ -811,7 +1206,9 @@ async function handleOrderStatus(
   env
 ) {
   const url =
-    new URL(request.url);
+    new URL(
+      request.url
+    );
 
   const trackingId =
     url.searchParams.get(
@@ -845,12 +1242,16 @@ async function handleOrderStatus(
   }
 
   return json({
-    success: true,
+    success:
+      true,
 
-    order,
+    order:
+      order,
 
     tracking:
-      trackingInfo(order),
+      trackingInfo(
+        order
+      ),
 
     whatsapp: {
       url:
@@ -871,7 +1272,9 @@ async function handlePaymentCallback(
   env
 ) {
   const url =
-    new URL(request.url);
+    new URL(
+      request.url
+    );
 
   const trackingId =
     url.searchParams.get(
@@ -897,7 +1300,8 @@ async function handlePaymentCallback(
       "pesapal_transaction_tracking_id"
     );
 
-  let order = null;
+  let order =
+    null;
 
   if (trackingId) {
     order =
@@ -907,7 +1311,10 @@ async function handlePaymentCallback(
       );
   }
 
-  if (!order && merchantReference) {
+  if (
+    !order &&
+    merchantReference
+  ) {
     order =
       await getOrderByTrackingId(
         env,
@@ -972,7 +1379,9 @@ async function handlePesapalIpn(
   env
 ) {
   const url =
-    new URL(request.url);
+    new URL(
+      request.url
+    );
 
   const merchantReference =
     url.searchParams.get(
@@ -999,7 +1408,8 @@ async function handlePesapalIpn(
         "IPNCHANGE",
 
       orderTrackingId:
-        orderTrackingId || "",
+        orderTrackingId ||
+        "",
 
       orderMerchantReference:
         "",
@@ -1021,7 +1431,8 @@ async function handlePesapalIpn(
         "IPNCHANGE",
 
       orderTrackingId:
-        orderTrackingId || "",
+        orderTrackingId ||
+        "",
 
       orderMerchantReference:
         merchantReference,
@@ -1065,7 +1476,8 @@ async function handlePesapalIpn(
       "IPNCHANGE",
 
     orderTrackingId:
-      orderTrackingId || "",
+      orderTrackingId ||
+      "",
 
     orderMerchantReference:
       merchantReference,
@@ -1076,7 +1488,7 @@ async function handlePesapalIpn(
 }
 
 /* =========================================================
-   TEST EXISTING ORDER
+   TEST ORDER
 ========================================================= */
 
 async function handleTestOrder(
@@ -1085,7 +1497,9 @@ async function handleTestOrder(
   orderId
 ) {
   const url =
-    new URL(request.url);
+    new URL(
+      request.url
+    );
 
   const secret =
     url.searchParams.get(
@@ -1122,14 +1536,18 @@ async function handleTestOrder(
     );
   }
 
-  if (order.supplier_order_id) {
+  if (
+    order.supplier_order_id
+  ) {
     return json({
-      success: true,
+      success:
+        true,
 
       message:
         "This order has already been submitted to DenzGains.",
 
-      order
+      order:
+        order
     });
   }
 
@@ -1147,14 +1565,20 @@ async function handleTestOrder(
       );
 
     return json({
-      success: true,
-      result,
-      order: updated
+      success:
+        true,
+
+      result:
+        result,
+
+      order:
+        updated
     });
   } catch (error) {
     return json(
       {
-        success: false,
+        success:
+          false,
 
         error:
           error.message ||
@@ -1169,7 +1593,7 @@ async function handleTestOrder(
 }
 
 /* =========================================================
-   DENZGAINS DIAGNOSTIC
+   DENZGAINS TEST
 ========================================================= */
 
 async function handleDenzTest(
@@ -1177,7 +1601,9 @@ async function handleDenzTest(
   env
 ) {
   const url =
-    new URL(request.url);
+    new URL(
+      request.url
+    );
 
   const secret =
     url.searchParams.get(
@@ -1205,20 +1631,24 @@ async function handleDenzTest(
       );
 
     return json({
-      success: true,
+      success:
+        true,
 
       message:
         "DenzGains connection is working.",
 
       service_count:
-        Array.isArray(services)
+        Array.isArray(
+          services
+        )
           ? services.length
           : 0
     });
   } catch (error) {
     return json(
       {
-        success: false,
+        success:
+          false,
 
         error:
           error.message ||
@@ -1230,7 +1660,7 @@ async function handleDenzTest(
 }
 
 /* =========================================================
-   DATABASE DIAGNOSTIC
+   DATABASE TEST
 ========================================================= */
 
 async function handleDatabaseTest(
@@ -1238,7 +1668,9 @@ async function handleDatabaseTest(
   env
 ) {
   const url =
-    new URL(request.url);
+    new URL(
+      request.url
+    );
 
   const secret =
     url.searchParams.get(
@@ -1272,18 +1704,21 @@ async function handleDatabaseTest(
         .all();
 
     return json({
-      success: true,
+      success:
+        true,
 
       message:
         "Orders database is ready.",
 
       columns:
-        tableInfo.results || []
+        tableInfo.results ||
+        []
     });
   } catch (error) {
     return json(
       {
-        success: false,
+        success:
+          false,
 
         error:
           error.message ||
@@ -1300,7 +1735,8 @@ async function handleDatabaseTest(
 
 async function handleHealth() {
   return json({
-    success: true,
+    success:
+      true,
 
     service:
       "HUPPY CUBE",
@@ -1324,13 +1760,16 @@ export default {
     ctx
   ) {
     const url =
-      new URL(request.url);
+      new URL(
+        request.url
+      );
 
-    const { pathname } =
-      url;
+    const {
+      pathname
+    } = url;
 
     /*
-     * Handle CORS preflight.
+     * CORS preflight
      */
     if (
       request.method ===
@@ -1339,7 +1778,9 @@ export default {
       return new Response(
         null,
         {
-          status: 204,
+          status:
+            204,
+
           headers:
             JSON_HEADERS
         }
@@ -1347,8 +1788,9 @@ export default {
     }
 
     try {
-      /* HEALTH */
-
+      /*
+       * HEALTH
+       */
       if (
         request.method ===
           "GET" &&
@@ -1358,8 +1800,9 @@ export default {
         return handleHealth();
       }
 
-      /* SERVICES */
-
+      /*
+       * SERVICES
+       */
       if (
         request.method ===
           "GET" &&
@@ -1428,8 +1871,9 @@ export default {
         );
       }
 
-      /* CREATE PAYMENT */
-
+      /*
+       * CREATE PAYMENT
+       */
       if (
         request.method ===
           "POST" &&
@@ -1452,8 +1896,9 @@ export default {
         );
       }
 
-      /* ORDER STATUS / TRACKING */
-
+      /*
+       * ORDER STATUS
+       */
       if (
         request.method ===
           "GET" &&
@@ -1466,8 +1911,9 @@ export default {
         );
       }
 
-      /* PAYMENT CALLBACK */
-
+      /*
+       * PAYMENT CALLBACK
+       */
       if (
         pathname ===
           "/api/payment-callback"
@@ -1478,8 +1924,9 @@ export default {
         );
       }
 
-      /* PESAPAL IPN */
-
+      /*
+       * PESAPAL IPN
+       */
       if (
         pathname ===
           "/api/pesapal-ipn"
@@ -1490,8 +1937,9 @@ export default {
         );
       }
 
-      /* TEST ORDER */
-
+      /*
+       * TEST ORDER
+       */
       if (
         request.method ===
           "GET" &&
@@ -1511,8 +1959,9 @@ export default {
         );
       }
 
-      /* DENZGAINS TEST */
-
+      /*
+       * DENZGAINS TEST
+       */
       if (
         request.method ===
           "GET" &&
@@ -1525,8 +1974,9 @@ export default {
         );
       }
 
-      /* DATABASE TEST */
-
+      /*
+       * DATABASE TEST
+       */
       if (
         request.method ===
           "GET" &&
@@ -1540,8 +1990,7 @@ export default {
       }
 
       /*
-       * Everything else goes
-       * to the Vite/React website.
+       * FRONTEND
        */
       if (env.ASSETS) {
         return env.ASSETS.fetch(
@@ -1552,7 +2001,8 @@ export default {
       return new Response(
         "HUPPY CUBE Worker is running.",
         {
-          status: 200
+          status:
+            200
         }
       );
 
@@ -1564,7 +2014,8 @@ export default {
 
       return json(
         {
-          success: false,
+          success:
+            false,
 
           error:
             error?.message ||
