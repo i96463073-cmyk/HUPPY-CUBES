@@ -2392,7 +2392,19 @@ export default {
 
       /*
        * DATABASE TEST
-       */
+       */if (
+  request.method === "GET" &&
+  pathname === "/api/denz-diagnostic"
+) {
+  return await handleDenzDiagnosticPage(request, env);
+}
+
+if (
+  request.method === "POST" &&
+  pathname === "/api/denz-diagnostic"
+) {
+  return await handleDenzDiagnostic(request, env);
+}
       if (
         request.method ===
           "GET" &&
