@@ -2396,7 +2396,32 @@ export default {
       if (
         request.method ===
           "GET" &&
-        pathname ===
+        pathname ===if (request.method === "GET" && pathname === "/api/denz-test") {
+  return await handleDenzTest(request, env);
+}
+
+/* DenzGains Diagnostic */
+if (
+  request.method === "GET" &&
+  pathname === "/api/denz-diagnostic"
+) {
+  return await handleDenzDiagnosticPage(request, env);
+}
+
+if (
+  request.method === "POST" &&
+  pathname === "/api/denz-diagnostic"
+) {
+  return await handleDenzDiagnostic(request, env);
+}
+
+/* Database Test */
+if (
+  request.method === "GET" &&
+  pathname === "/api/database-test"
+) {
+  return await handleDatabaseTest(request, env);
+    }
           "/api/database-test"
       ) {
         return await handleDatabaseTest(
