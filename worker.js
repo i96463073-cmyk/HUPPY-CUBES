@@ -2400,6 +2400,29 @@ export default {
   return await handleDenzTest(request, env);
 }
 
+if (
+  request.method === "GET" &&
+  pathname === "/api/denz-diagnostic"
+) {
+  return await handleDenzDiagnosticPage(request, env);
+}
+
+if (
+  request.method === "POST" &&
+  pathname === "/api/denz-diagnostic"
+) {
+  return await handleDenzDiagnostic(request, env);
+}
+
+if (
+  request.method === "GET" &&
+  pathname === "/api/database-test"
+) {
+  return await handleDatabaseTest(request, env);
+}
+  return await handleDenzTest(request, env);
+}
+
 /* DenzGains Diagnostic */
 if (
   request.method === "GET" &&
