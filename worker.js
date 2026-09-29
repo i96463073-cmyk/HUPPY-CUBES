@@ -1857,7 +1857,317 @@ async function handleHealth() {
       new Date().toISOString()
   });
 }
+/* =========================================================
+   TEMPORARY DENZGAINS DIAGNOSTIC
+   REMOVE AFTER TESTING
+========================================================= */
 
+async function handleDenzDiagnosticPage(request, env) {
+  const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>DenzGains Diagnostic</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #111827;
+      color: white;
+      padding: 20px;
+      max-width: 700px;
+      margin: auto;
+    }
+
+    h1 {
+      font-size: 24px;
+    }
+
+    .warning {
+      background: #3f1d1d;
+      border: 1px solid #ef4444;
+      padding: 14px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      margin-top: 15px;
+      margin-bottom: 6px;
+      font-weight: bold;
+    }
+
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 13px;
+      border-radius: 8px;
+      border: 1px solid #374151;
+      background: #1f2937;
+      color: white;
+      font-size: 16px;
+    }
+
+    button {
+      margin-top: 20px;
+      width: 100%;
+      padding: 14px;
+      border: 0;
+      border-radius: 8px;
+      background: #22c55e;
+      color: white;
+      font-size: 16px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: .6;
+    }
+
+    pre {
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: #000;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+
+<body>
+
+<h1>DenzGains API Diagnostic</h1>
+
+<div class="warning">
+  <strong>Important:</strong>
+  This sends a real test order to DenzGains.
+  Use the smallest quantity allowed.
+</div>
+
+<form id="testForm">
+
+  <label>Test Secret</label>
+  <input
+    id="secret"
+    type="password"
+    required
+    autocomplete="off"
+    placeholder="Enter TEST_ORDER_SECRET"
+  >
+
+  <label>DenzGains Service ID</label>
+  <input
+    id="service"
+    type="number"
+    value="1"
+    min="1"
+    required
+  >
+
+  <label>Target Link</label>
+  <input
+    id="link"
+    type="url"
+    placeholder="https://example.com/..."
+    required
+  >
+
+  <label>Quantity</label>
+  <input
+    id="quantity"
+    type="number"
+    value="10"
+    min="1"
+    required
+  >
+
+  <button id="submitButton" type="submit">
+    Send Test Order
+  </button>
+
+</form>
+
+<h2>DenzGains Response</h2>
+
+<pre id="result">No test submitted yet.</pre>
+
+<script>
+const form = document.getElementById("testForm");
+const result = document.getElementById("result");
+const button = document.getElementById("submitButton");
+
+form.addEventListener("submit", async function(event) {
+  event.preventDefault();
+
+  button.disabled = true;
+  button.textContent = "Sending...";
+  result.textContent = "Sending request to DenzGains...";
+
+  try {
+    const response = await fetch("/api/denz-diagnostic", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        secret: document.getElementById("secret").value,
+        service: document.getElementById("service").value,
+        link: document.getElementById("link").value,
+        quantity: document.getElementById("quantity").value
+      })
+    });
+
+    const text = await response.text();
+
+    try {
+      result.textContent = JSON.stringify(
+        JSON.parse(text),
+        null,
+        2
+      );
+    } catch {
+      result.textContent = text;
+    }
+
+  } catch (error) {
+    result.textContent =
+      "Browser error: " +
+      (error?.message || String(error));
+  } finally {
+    button.disabled = false;
+    button.textContent = "Send Test Order";
+  }
+});
+</script>
+
+</body>
+</html>`;
+
+  return new Response(html, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/html; charset=UTF-8",
+      "Cache-Control": "no-store"
+    }
+  });
+}
+
+
+async function handleDenzDiagnostic(request, env) {
+  if (!env.TEST_ORDER_SECRET) {
+    return json({
+      success: false,
+      error: "TEST_ORDER_SECRET is not configured."
+    }, 500);
+  }
+
+  let body;
+
+  try {
+    body = await request.json();
+  } catch {
+    return json({
+      success: false,
+      error: "Invalid JSON request."
+    }, 400);
+  }
+
+  if (
+    !body.secret ||
+    body.secret !== env.TEST_ORDER_SECRET
+  ) {
+    return json({
+      success: false,
+      error: "Unauthorized."
+    }, 401);
+  }
+
+  const service = String(body.service || "").trim();
+  const link = String(body.link || "").trim();
+  const quantity = Number(body.quantity || 0);
+
+  if (!service) {
+    return json({
+      success: false,
+      error: "Service ID is required."
+    }, 400);
+  }
+
+  if (!link) {
+    return json({
+      success: false,
+      error: "Target link is required."
+    }, 400);
+  }
+
+  if (!quantity || quantity <= 0) {
+    return json({
+      success: false,
+      error: "Quantity must be greater than zero."
+    }, 400);
+  }
+
+  try {
+    if (!env.DENZGAINS_API_KEY) {
+      return json({
+        success: false,
+        error: "DENZGAINS_API_KEY is not configured."
+      }, 500);
+    }
+
+    const url =
+      `${DENZGAINS_BASE}/api/v2?action=add` +
+      `&service=${encodeURIComponent(service)}` +
+      `&link=${encodeURIComponent(link)}` +
+      `&quantity=${encodeURIComponent(String(quantity))}` +
+      `&key=${encodeURIComponent(env.DENZGAINS_API_KEY)}`;
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Accept: "application/json"
+      }
+    });
+
+    const responseText = await response.text();
+
+    let parsedResponse;
+
+    try {
+      parsedResponse = JSON.parse(responseText);
+    } catch {
+      parsedResponse = null;
+    }
+
+    return json({
+      success: true,
+      request: {
+        endpoint: `${DENZGAINS_BASE}/api/v2`,
+        method: "GET",
+        action: "add",
+        service: service,
+        link: link,
+        quantity: quantity
+      },
+      denzgains: {
+        http_status: response.status,
+        http_ok: response.ok,
+        content_type: response.headers.get("content-type"),
+        parsed_json: parsedResponse,
+        raw_response: responseText
+      }
+    });
+
+  } catch (error) {
+    return json({
+      success: false,
+      error: error?.message || String(error)
+    }, 502);
+  }
+          }
 /* =========================================================
    MAIN WORKER
 ========================================================= */
