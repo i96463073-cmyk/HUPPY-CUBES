@@ -1,5 +1,5 @@
 const PESAPAL_BASE = "https://pay.pesapal.com/v3";
-const DENZGAINS_BASE = "https://denzgains.com/api/v2";
+const DENZGAINS_BASE = "https://denzgains.com";
 
 const JSON_HEADERS = {
   "Content-Type": "application/json",
