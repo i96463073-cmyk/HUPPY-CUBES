@@ -1742,15 +1742,3 @@ createRoot(
     <App />
   </React.StrictMode>
 );
-
-Now do only this
-
-1. Open "App.jsx".
-2. Select everything in that file.
-3. Delete it.
-4. Paste the code above.
-5. Save the file.
-6. Don't change "worker.js" or "wrangler.jsonc".
-7. Tell me when you've saved it.
-
-Then I'll give you the next step for deploying it, one step at a time.
