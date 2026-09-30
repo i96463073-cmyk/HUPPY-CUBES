@@ -53,231 +53,68 @@ function safeJsonString(value) {
 }
 
 /*
-  PRICING RULE:
+=========================================================
+   HUPPY CUBE PRICING
 
-  DenzGains supplier price = 30
-  HUPPY CUBE customer price = 60
-  Profit = 30
+   DenzGains rate is ALREADY IN KES.
 
-  Therefore:
+   DenzGains:
+   KSh 100 / 1,000
 
-  customer price = supplier price × 2
+   HUPPY CUBE:
+   KSh 200 / 1,000
+
+   RULE:
+   customer rate = supplier rate × 2
+=========================================================
 */
 
 function customerPrice(supplierRate) {
   return Number(supplierRate || 0) * 2;
 }
 
-/* =========================================================
-   CURRENCY
-========================================================= */
-
-const COUNTRY_CURRENCIES = [
-  { prefix: "254", country: "KE", currency: "KES", symbol: "KSh" },
-  { prefix: "255", country: "TZ", currency: "TZS", symbol: "TSh" },
-  { prefix: "256", country: "UG", currency: "UGX", symbol: "USh" },
-  { prefix: "250", country: "RW", currency: "RWF", symbol: "FRw" },
-  { prefix: "257", country: "BI", currency: "BIF", symbol: "FBu" },
-  { prefix: "211", country: "SS", currency: "SSP", symbol: "£" },
-  { prefix: "252", country: "SO", currency: "SOS", symbol: "S" },
-  { prefix: "260", country: "ZM", currency: "ZMW", symbol: "ZK" },
-  { prefix: "263", country: "ZW", currency: "ZWL", symbol: "Z$" },
-  { prefix: "265", country: "MW", currency: "MWK", symbol: "MK" },
-  { prefix: "258", country: "MZ", currency: "MZN", symbol: "MT" },
-  { prefix: "264", country: "NA", currency: "NAD", symbol: "N$" },
-  { prefix: "267", country: "BW", currency: "BWP", symbol: "P" },
-  { prefix: "266", country: "LS", currency: "LSL", symbol: "L" },
-  { prefix: "268", country: "SZ", currency: "SZL", symbol: "E" },
-  { prefix: "27", country: "ZA", currency: "ZAR", symbol: "R" },
-
-  { prefix: "234", country: "NG", currency: "NGN", symbol: "₦" },
-  { prefix: "233", country: "GH", currency: "GHS", symbol: "GH₵" },
-  { prefix: "225", country: "CI", currency: "XOF", symbol: "CFA" },
-  { prefix: "221", country: "SN", currency: "XOF", symbol: "CFA" },
-  { prefix: "223", country: "ML", currency: "XOF", symbol: "CFA" },
-  { prefix: "226", country: "BF", currency: "XOF", symbol: "CFA" },
-  { prefix: "227", country: "NE", currency: "XOF", symbol: "CFA" },
-  { prefix: "228", country: "TG", currency: "XOF", symbol: "CFA" },
-  { prefix: "229", country: "BJ", currency: "XOF", symbol: "CFA" },
-  { prefix: "237", country: "CM", currency: "XAF", symbol: "FCFA" },
-  { prefix: "243", country: "CD", currency: "CDF", symbol: "FC" },
-  { prefix: "212", country: "MA", currency: "MAD", symbol: "DH" },
-  { prefix: "20", country: "EG", currency: "EGP", symbol: "E£" },
-  { prefix: "249", country: "SD", currency: "SDG", symbol: "ج.س" },
-  { prefix: "251", country: "ET", currency: "ETB", symbol: "Br" },
-
-  { prefix: "1", country: "US", currency: "USD", symbol: "$" },
-  { prefix: "44", country: "GB", currency: "GBP", symbol: "£" },
-  { prefix: "33", country: "FR", currency: "EUR", symbol: "€" },
-  { prefix: "49", country: "DE", currency: "EUR", symbol: "€" },
-  { prefix: "39", country: "IT", currency: "EUR", symbol: "€" },
-  { prefix: "34", country: "ES", currency: "EUR", symbol: "€" },
-  { prefix: "31", country: "NL", currency: "EUR", symbol: "€" },
-  { prefix: "32", country: "BE", currency: "EUR", symbol: "€" },
-  { prefix: "351", country: "PT", currency: "EUR", symbol: "€" },
-  { prefix: "353", country: "IE", currency: "EUR", symbol: "€" },
-  { prefix: "358", country: "FI", currency: "EUR", symbol: "€" },
-  { prefix: "30", country: "GR", currency: "EUR", symbol: "€" },
-
-  { prefix: "91", country: "IN", currency: "INR", symbol: "₹" },
-  { prefix: "92", country: "PK", currency: "PKR", symbol: "₨" },
-  { prefix: "880", country: "BD", currency: "BDT", symbol: "৳" },
-  { prefix: "94", country: "LK", currency: "LKR", symbol: "Rs" },
-  { prefix: "971", country: "AE", currency: "AED", symbol: "د.إ" },
-  { prefix: "966", country: "SA", currency: "SAR", symbol: "﷼" },
-  { prefix: "974", country: "QA", currency: "QAR", symbol: "﷼" },
-  { prefix: "965", country: "KW", currency: "KWD", symbol: "د.ك" },
-  { prefix: "972", country: "IL", currency: "ILS", symbol: "₪" },
-  { prefix: "90", country: "TR", currency: "TRY", symbol: "₺" },
-  { prefix: "86", country: "CN", currency: "CNY", symbol: "¥" },
-  { prefix: "81", country: "JP", currency: "JPY", symbol: "¥" },
-  { prefix: "82", country: "KR", currency: "KRW", symbol: "₩" },
-  { prefix: "62", country: "ID", currency: "IDR", symbol: "Rp" },
-  { prefix: "60", country: "MY", currency: "MYR", symbol: "RM" },
-  { prefix: "65", country: "SG", currency: "SGD", symbol: "S$" },
-  { prefix: "66", country: "TH", currency: "THB", symbol: "฿" },
-
-  { prefix: "61", country: "AU", currency: "AUD", symbol: "A$" },
-  { prefix: "64", country: "NZ", currency: "NZD", symbol: "NZ$" },
-
-  { prefix: "7", country: "RU", currency: "RUB", symbol: "₽" },
-  { prefix: "55", country: "BR", currency: "BRL", symbol: "R$" },
-  { prefix: "52", country: "MX", currency: "MXN", symbol: "MX$" },
-  { prefix: "54", country: "AR", currency: "ARS", symbol: "$" },
-  { prefix: "56", country: "CL", currency: "CLP", symbol: "$" },
-  { prefix: "57", country: "CO", currency: "COP", symbol: "$" }
-];
-
-function getCurrencyFromPhone(phone) {
-  const normalized = normalizePhone(phone);
-
-  for (const item of COUNTRY_CURRENCIES) {
-    if (normalized.startsWith(item.prefix)) {
-      return item;
-    }
-  }
+function calculatePricePer1000(supplierRate) {
+  const supplier = Number(supplierRate || 0);
 
   return {
-    prefix: "254",
+    supplierRate: supplier,
+    customerRate: supplier * 2
+  };
+}
+
+function calculateOrderAmount(ratePer1000, quantity) {
+  return (
+    Number(ratePer1000 || 0) *
+    Number(quantity || 0)
+  ) / 1000;
+}
+
+function roundMoney(value) {
+  return Math.round(
+    Number(value || 0) * 100
+  ) / 100;
+}
+
+function formatKES(amount) {
+  return `KSh ${Number(amount || 0).toFixed(2)}`;
+}
+
+/* =========================================================
+   CURRENCY
+
+   IMPORTANT:
+   DenzGains pricing is KES.
+
+   HUPPY CUBE therefore uses KES directly for supplier
+   pricing, customer pricing and PesaPal checkout.
+========================================================= */
+
+function getCurrencyFromPhone() {
+  return {
     country: "KE",
     currency: "KES",
     symbol: "KSh"
   };
-}
-
-const DEFAULT_FX = {
-  USD: 1,
-  KES: 130,
-  TZS: 2500,
-  UGX: 3700,
-  RWF: 1450,
-  BIF: 2900,
-  SSP: 130,
-  SOS: 570,
-  ZMW: 23,
-  ZWL: 25,
-  MWK: 1750,
-  MZN: 64,
-  NAD: 17,
-  BWP: 13.5,
-  LSL: 17,
-  SZL: 17,
-  ZAR: 17,
-
-  NGN: 1500,
-  GHS: 12.5,
-  XOF: 600,
-  XAF: 600,
-  CDF: 2800,
-  MAD: 10,
-  EGP: 48,
-  SDG: 600,
-  ETB: 145,
-
-  GBP: 0.75,
-  EUR: 0.86,
-  INR: 88,
-  PKR: 280,
-  BDT: 122,
-  LKR: 310,
-  AED: 3.67,
-  SAR: 3.75,
-  QAR: 3.64,
-  KWD: 0.31,
-  ILS: 3.3,
-  TRY: 43,
-
-  CNY: 7.1,
-  JPY: 150,
-  KRW: 1450,
-  IDR: 16500,
-  MYR: 4.2,
-  SGD: 1.28,
-  THB: 32,
-
-  AUD: 1.5,
-  NZD: 1.75,
-
-  RUB: 80,
-  BRL: 5.3,
-  MXN: 18.5,
-  ARS: 1450,
-  CLP: 950,
-  COP: 3900
-};
-
-function getFxRate(currency, env) {
-  const code = String(currency || "KES").toUpperCase();
-
-  if (code === "KES" && env.USD_TO_KES) {
-    const custom = Number(env.USD_TO_KES);
-
-    if (Number.isFinite(custom) && custom > 0) {
-      return custom;
-    }
-  }
-
-  return Number(DEFAULT_FX[code] || 1);
-}
-
-function usdToCurrency(amountUsd, currency, env) {
-  const rate = getFxRate(currency, env);
-  return Number(amountUsd || 0) * rate;
-}
-
-function roundMoney(value, currency) {
-  const code = String(currency || "").toUpperCase();
-
-  const zeroDecimal = new Set([
-    "JPY",
-    "KRW",
-    "UGX",
-    "TZS",
-    "RWF",
-    "BIF",
-    "XOF",
-    "XAF",
-    "VND",
-    "CLP",
-    "COP"
-  ]);
-
-  if (zeroDecimal.has(code)) {
-    return Math.round(Number(value || 0));
-  }
-
-  return Math.round(Number(value || 0) * 100) / 100;
-}
-
-function formatMoney(amount, currency) {
-  try {
-    return new Intl.NumberFormat("en", {
-      style: "currency",
-      currency
-    }).format(amount);
-  } catch {
-    return `${currency} ${amount}`;
-  }
 }
 
 /* =========================================================
@@ -303,8 +140,11 @@ async function getPesapalToken(env) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        consumer_key: env.PESAPAL_CONSUMER_KEY,
-        consumer_secret: env.PESAPAL_CONSUMER_SECRET
+        consumer_key:
+          env.PESAPAL_CONSUMER_KEY,
+
+        consumer_secret:
+          env.PESAPAL_CONSUMER_SECRET
       })
     }
   );
@@ -333,7 +173,11 @@ async function getPesapalToken(env) {
   return data.token;
 }
 
-async function createPesapalOrder(env, order, origin) {
+async function createPesapalOrder(
+  env,
+  order,
+  origin
+) {
   if (!order) {
     throw new Error(
       "Order could not be loaded after database insert."
@@ -346,7 +190,8 @@ async function createPesapalOrder(env, order, origin) {
     );
   }
 
-  const token = await getPesapalToken(env);
+  const token =
+    await getPesapalToken(env);
 
   if (!env.PESAPAL_IPN_ID) {
     throw new Error(
@@ -354,37 +199,54 @@ async function createPesapalOrder(env, order, origin) {
     );
   }
 
-  const currency = order.currency || "KES";
-  const amount = Number(order.amount || 0);
+  /*
+    HUPPY CUBE uses KES directly.
+  */
+
+  const currency = "KES";
+
+  const amount =
+    roundMoney(order.amount);
 
   const payload = {
-    id: order.tracking_id,
+    id:
+      order.tracking_id,
 
     currency,
 
     amount,
 
     description:
-      `HUPPY CUBE - ${order.service_name}`.slice(0, 100),
+      `HUPPY CUBE - ${order.service_name}`.slice(
+        0,
+        100
+      ),
 
     callback_url:
       `${origin}/api/payment-callback?tracking_id=` +
-      encodeURIComponent(order.tracking_id),
+      encodeURIComponent(
+        order.tracking_id
+      ),
 
-    notification_id: env.PESAPAL_IPN_ID,
+    notification_id:
+      env.PESAPAL_IPN_ID,
 
     billing_address: {
       email_address:
-        order.email || "customer@huppycube.com",
+        order.email ||
+        "customer@huppycube.com",
 
       phone_number:
         normalizePhone(order.phone),
 
       country_code:
-        order.country_code || "KE",
+        "KE",
 
       first_name:
-        String(order.full_name || "Customer").slice(0, 50),
+        String(
+          order.full_name ||
+          "Customer"
+        ).slice(0, 50),
 
       last_name:
         "Customer"
@@ -395,16 +257,21 @@ async function createPesapalOrder(env, order, origin) {
     `${PESAPAL_BASE}/api/Transactions/SubmitOrderRequest`,
     {
       method: "POST",
+
       headers: {
         Accept: "application/json",
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`
+        Authorization:
+          `Bearer ${token}`
       },
-      body: JSON.stringify(payload)
+
+      body:
+        JSON.stringify(payload)
     }
   );
 
-  const text = await response.text();
+  const text =
+    await response.text();
 
   let data;
 
@@ -419,23 +286,32 @@ async function createPesapalOrder(env, order, origin) {
     );
   }
 
-  if (!response.ok || !data.redirect_url) {
+  if (
+    !response.ok ||
+    !data.redirect_url
+  ) {
     throw new Error(
-      `PesaPal order creation failed: ${safeJsonString(data)}`
+      `PesaPal order creation failed: ${safeJsonString(
+        data
+      )}`
     );
   }
 
   return data;
 }
 
-async function getPesapalStatus(env, orderTrackingId) {
+async function getPesapalStatus(
+  env,
+  orderTrackingId
+) {
   if (!orderTrackingId) {
     throw new Error(
       "PesaPal transaction tracking ID is missing."
     );
   }
 
-  const token = await getPesapalToken(env);
+  const token =
+    await getPesapalToken(env);
 
   const response = await fetch(
     `${PESAPAL_BASE}/api/Transactions/GetTransactionStatus?orderTrackingId=${encodeURIComponent(
@@ -443,14 +319,18 @@ async function getPesapalStatus(env, orderTrackingId) {
     )}`,
     {
       method: "GET",
+
       headers: {
         Accept: "application/json",
-        Authorization: `Bearer ${token}`
+
+        Authorization:
+          `Bearer ${token}`
       }
     }
   );
 
-  const text = await response.text();
+  const text =
+    await response.text();
 
   let data;
 
@@ -467,7 +347,9 @@ async function getPesapalStatus(env, orderTrackingId) {
 
   if (!response.ok) {
     throw new Error(
-      `PesaPal status check failed: ${safeJsonString(data)}`
+      `PesaPal status check failed: ${safeJsonString(
+        data
+      )}`
     );
   }
 
@@ -478,41 +360,59 @@ async function getPesapalStatus(env, orderTrackingId) {
    DENZGAINS
 ========================================================= */
 
-async function denzGainsRequest(env, payload) {
+async function denzGainsRequest(
+  env,
+  payload
+) {
   if (!env.DENZGAINS_API_KEY) {
     throw new Error(
       "DENZGAINS_API_KEY is not configured."
     );
   }
 
-  const params = new URLSearchParams();
+  const params =
+    new URLSearchParams();
 
   params.set(
     "key",
-    String(env.DENZGAINS_API_KEY)
+    String(
+      env.DENZGAINS_API_KEY
+    )
   );
 
-  for (const [key, value] of Object.entries(payload || {})) {
+  for (
+    const [key, value]
+    of Object.entries(
+      payload || {}
+    )
+  ) {
     if (
       value !== undefined &&
       value !== null &&
       value !== ""
     ) {
-      params.set(key, String(value));
+      params.set(
+        key,
+        String(value)
+      );
     }
   }
 
   const url =
     `${DENZGAINS_BASE}?${params.toString()}`;
 
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      Accept: "application/json"
-    }
-  });
+  const response =
+    await fetch(url, {
+      method: "GET",
 
-  const text = await response.text();
+      headers: {
+        Accept:
+          "application/json"
+      }
+    });
+
+  const text =
+    await response.text();
 
   let data;
 
@@ -537,7 +437,9 @@ async function denzGainsRequest(env, payload) {
 
   if (data?.error) {
     throw new Error(
-      `DenzGains API error: ${safeJsonString(data)}`
+      `DenzGains API error: ${safeJsonString(
+        data
+      )}`
     );
   }
 
@@ -545,15 +447,24 @@ async function denzGainsRequest(env, payload) {
 }
 
 async function getDenzGainsServices(env) {
-  const data = await denzGainsRequest(env, {
-    action: "services"
-  });
+  const data =
+    await denzGainsRequest(
+      env,
+      {
+        action:
+          "services"
+      }
+    );
 
   if (Array.isArray(data)) {
     return data;
   }
 
-  if (Array.isArray(data.services)) {
+  if (
+    Array.isArray(
+      data.services
+    )
+  ) {
     return data.services;
   }
 
@@ -582,21 +493,31 @@ async function sendOrderToDenzGains(
     );
   }
 
-  if (!quantity || Number(quantity) <= 0) {
+  if (
+    !quantity ||
+    Number(quantity) <= 0
+  ) {
     throw new Error(
       "DenzGains quantity is invalid."
     );
   }
 
-  return await denzGainsRequest(env, {
-    action: "add",
+  return await denzGainsRequest(
+    env,
+    {
+      action:
+        "add",
 
-    service: String(serviceId),
+      service:
+        String(serviceId),
 
-    link: String(link),
+      link:
+        String(link),
 
-    quantity: Number(quantity)
-  });
+      quantity:
+        Number(quantity)
+    }
+  );
 }
 
 async function getDenzGainsOrderStatus(
@@ -609,16 +530,27 @@ async function getDenzGainsOrderStatus(
     );
   }
 
-  return await denzGainsRequest(env, {
-    action: "status",
+  return await denzGainsRequest(
+    env,
+    {
+      action:
+        "status",
 
-    order: String(supplierOrderId)
-  });
+      order:
+        String(
+          supplierOrderId
+        )
+    }
+  );
 }
 
-function normalizeSupplierStatus(status) {
+function normalizeSupplierStatus(
+  status
+) {
   const value =
-    String(status || "")
+    String(
+      status || ""
+    )
       .toLowerCase()
       .trim();
 
@@ -636,7 +568,9 @@ function normalizeSupplierStatus(status) {
     return "Cancelled";
   }
 
-  if (value.includes("partial")) {
+  if (
+    value.includes("partial")
+  ) {
     return "Partial";
   }
 
@@ -663,25 +597,38 @@ function normalizeSupplierStatus(status) {
    DENZGAINS TEST
 ========================================================= */
 
-async function handleDenzGainsTest(request, env) {
-  const url = new URL(request.url);
+async function handleDenzGainsTest(
+  request,
+  env
+) {
+  const url =
+    new URL(request.url);
 
   const secret =
-    url.searchParams.get("secret");
+    url.searchParams.get(
+      "secret"
+    );
 
   if (
     !env.TEST_ORDER_SECRET ||
-    secret !== env.TEST_ORDER_SECRET
+    secret !==
+      env.TEST_ORDER_SECRET
   ) {
-    return json({
-      success: false,
-      error: "Unauthorized."
-    }, 401);
+    return json(
+      {
+        success: false,
+        error:
+          "Unauthorized."
+      },
+      401
+    );
   }
 
   try {
     const services =
-      await getDenzGainsServices(env);
+      await getDenzGainsServices(
+        env
+      );
 
     return json({
       success: true,
@@ -695,16 +642,19 @@ async function handleDenzGainsTest(request, env) {
       services
     });
   } catch (error) {
-    return json({
-      success: false,
+    return json(
+      {
+        success: false,
 
-      message:
-        "DenzGains rejected the services request.",
+        message:
+          "DenzGains rejected the services request.",
 
-      error:
-        error?.message ||
-        String(error)
-    }, 502);
+        error:
+          error?.message ||
+          String(error)
+      },
+      502
+    );
   }
 }
 
@@ -726,67 +676,92 @@ const REQUIRED_ORDER_COLUMNS = {
   amount: "REAL DEFAULT 0",
   supplier_amount: "REAL DEFAULT 0",
   profit_amount: "REAL DEFAULT 0",
-  payment_status: "TEXT DEFAULT 'PENDING'",
-  order_status: "TEXT DEFAULT 'Pending'",
-  pesapal_order_tracking_id: "TEXT",
-  pesapal_merchant_reference: "TEXT",
-  supplier_order_id: "TEXT",
-  supplier_response: "TEXT",
-  created_at: "TEXT DEFAULT CURRENT_TIMESTAMP",
-  updated_at: "TEXT DEFAULT CURRENT_TIMESTAMP"
+  payment_status:
+    "TEXT DEFAULT 'PENDING'",
+  order_status:
+    "TEXT DEFAULT 'Pending'",
+  pesapal_order_tracking_id:
+    "TEXT",
+  pesapal_merchant_reference:
+    "TEXT",
+  supplier_order_id:
+    "TEXT",
+  supplier_response:
+    "TEXT",
+  created_at:
+    "TEXT DEFAULT CURRENT_TIMESTAMP",
+  updated_at:
+    "TEXT DEFAULT CURRENT_TIMESTAMP"
 };
 
-async function ensureOrdersTable(env) {
+async function ensureOrdersTable(
+  env
+) {
   if (!env.DB) {
     throw new Error(
       "D1 database binding DB is not configured."
     );
   }
 
-  await env.DB.prepare(`
-    CREATE TABLE IF NOT EXISTS orders (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      tracking_id TEXT,
-      service_id TEXT,
-      service_name TEXT,
-      quantity INTEGER,
-      link TEXT,
-      phone TEXT,
-      full_name TEXT,
-      email TEXT,
-      country_code TEXT,
-      currency TEXT DEFAULT 'KES',
-      amount REAL DEFAULT 0,
-      supplier_amount REAL DEFAULT 0,
-      profit_amount REAL DEFAULT 0,
-      payment_status TEXT DEFAULT 'PENDING',
-      order_status TEXT DEFAULT 'Pending',
-      pesapal_order_tracking_id TEXT,
-      pesapal_merchant_reference TEXT,
-      supplier_order_id TEXT,
-      supplier_response TEXT,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )
-  `).run();
+  await env.DB
+    .prepare(`
+      CREATE TABLE IF NOT EXISTS orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        tracking_id TEXT,
+        service_id TEXT,
+        service_name TEXT,
+        quantity INTEGER,
+        link TEXT,
+        phone TEXT,
+        full_name TEXT,
+        email TEXT,
+        country_code TEXT,
+        currency TEXT DEFAULT 'KES',
+        amount REAL DEFAULT 0,
+        supplier_amount REAL DEFAULT 0,
+        profit_amount REAL DEFAULT 0,
+        payment_status TEXT DEFAULT 'PENDING',
+        order_status TEXT DEFAULT 'Pending',
+        pesapal_order_tracking_id TEXT,
+        pesapal_merchant_reference TEXT,
+        supplier_order_id TEXT,
+        supplier_response TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `)
+    .run();
 
   const tableInfo =
     await env.DB
-      .prepare(`PRAGMA table_info(orders)`)
+      .prepare(
+        `PRAGMA table_info(orders)`
+      )
       .all();
 
   const existingColumns =
     new Set(
-      (tableInfo.results || []).map(
-        column => column.name
-      )
+      (tableInfo.results || [])
+        .map(
+          column =>
+            column.name
+        )
     );
 
   for (
-    const [columnName, definition]
-    of Object.entries(REQUIRED_ORDER_COLUMNS)
+    const [
+      columnName,
+      definition
+    ]
+    of Object.entries(
+      REQUIRED_ORDER_COLUMNS
+    )
   ) {
-    if (!existingColumns.has(columnName)) {
+    if (
+      !existingColumns.has(
+        columnName
+      )
+    ) {
       await env.DB
         .prepare(
           `ALTER TABLE orders ADD COLUMN ${columnName} ${definition}`
@@ -836,7 +811,9 @@ async function getOrderByTrackingId(
   env,
   trackingId
 ) {
-  await ensureOrdersTable(env);
+  await ensureOrdersTable(
+    env
+  );
 
   return await env.DB
     .prepare(`
@@ -849,8 +826,13 @@ async function getOrderByTrackingId(
     .first();
 }
 
-async function getOrderById(env, id) {
-  await ensureOrdersTable(env);
+async function getOrderById(
+  env,
+  id
+) {
+  await ensureOrdersTable(
+    env
+  );
 
   return await env.DB
     .prepare(`
@@ -879,7 +861,9 @@ async function updateOrder(
     Object.entries(fields)
       .filter(
         ([key]) =>
-          allowedFields.has(key)
+          allowedFields.has(
+            key
+          )
       );
 
   if (!entries.length) {
@@ -929,25 +913,47 @@ function trackingInfo(order) {
   let currentStep = 1;
   let progress = 25;
 
-  if (status.includes("submitting")) {
+  if (
+    status.includes(
+      "submitting"
+    )
+  ) {
     currentStep = 2;
     progress = 50;
-  } else if (status.includes("processing")) {
+  } else if (
+    status.includes(
+      "processing"
+    )
+  ) {
     currentStep = 3;
     progress = 75;
-  } else if (status.includes("completed")) {
+  } else if (
+    status.includes(
+      "completed"
+    )
+  ) {
     currentStep = 4;
     progress = 100;
-  } else if (status.includes("cancel")) {
+  } else if (
+    status.includes(
+      "cancel"
+    )
+  ) {
     currentStep = 3;
     progress = 75;
-  } else if (status.includes("supplier error")) {
+  } else if (
+    status.includes(
+      "supplier error"
+    )
+  ) {
     currentStep = 2;
     progress = 50;
   }
 
   return {
-    current_step: currentStep,
+    current_step:
+      currentStep,
+
     progress
   };
 }
@@ -956,25 +962,24 @@ function trackingInfo(order) {
    PROCESS PAID ORDER
 ========================================================= */
 
-async function processPaidOrder(env, order) {
+async function processPaidOrder(
+  env,
+  order
+) {
   if (!order) {
-    throw new Error("Order not found.");
+    throw new Error(
+      "Order not found."
+    );
   }
 
-  /*
-    Prevent duplicate submission.
-
-    If a previous DenzGains submission was accepted but
-    did not return a visible order ID, we use the stored
-    supplier response and order status to avoid sending
-    the same order repeatedly.
-  */
-
-  if (order.supplier_order_id) {
+  if (
+    order.supplier_order_id
+  ) {
     return {
       success: true,
 
-      already_submitted: true,
+      already_submitted:
+        true,
 
       supplier_order_id:
         order.supplier_order_id
@@ -984,15 +989,19 @@ async function processPaidOrder(env, order) {
   if (
     order.supplier_response &&
     (
-      order.order_status === "Processing" ||
-      order.order_status === "Partial" ||
-      order.order_status === "Completed"
+      order.order_status ===
+        "Processing" ||
+      order.order_status ===
+        "Partial" ||
+      order.order_status ===
+        "Completed"
     )
   ) {
     return {
       success: true,
 
-      already_submitted: true,
+      already_submitted:
+        true,
 
       supplier_order_id:
         null,
@@ -1002,7 +1011,9 @@ async function processPaidOrder(env, order) {
     };
   }
 
-  if (!order.pesapal_order_tracking_id) {
+  if (
+    !order.pesapal_order_tracking_id
+  ) {
     throw new Error(
       "PesaPal transaction tracking ID is missing."
     );
@@ -1023,9 +1034,15 @@ async function processPaidOrder(env, order) {
     ).toUpperCase();
 
   const isCompleted =
-    paymentStatus.includes("COMPLETED") ||
-    paymentStatus.includes("PAID") ||
-    Number(payment?.status_code) === 1;
+    paymentStatus.includes(
+      "COMPLETED"
+    ) ||
+    paymentStatus.includes(
+      "PAID"
+    ) ||
+    Number(
+      payment?.status_code
+    ) === 1;
 
   if (!isCompleted) {
     await updateOrder(
@@ -1033,7 +1050,8 @@ async function processPaidOrder(env, order) {
       order.id,
       {
         payment_status:
-          paymentStatus || "PENDING",
+          paymentStatus ||
+          "PENDING",
 
         order_status:
           "Payment Pending"
@@ -1053,17 +1071,15 @@ async function processPaidOrder(env, order) {
     env,
     order.id,
     {
-      payment_status: "COMPLETED",
+      payment_status:
+        "COMPLETED",
 
-      order_status: "Submitting"
+      order_status:
+        "Submitting"
     }
   );
 
   try {
-    /*
-      Send the paid order to DenzGains.
-    */
-
     const supplierResult =
       await sendOrderToDenzGains(
         env,
@@ -1075,26 +1091,12 @@ async function processPaidOrder(env, order) {
         order.quantity
       );
 
-    /*
-      DenzGains normally may return an order identifier
-      using one of these common fields.
-    */
-
     const supplierOrderId =
       supplierResult?.order ||
       supplierResult?.order_id ||
       supplierResult?.id ||
       supplierResult?.orderId ||
       null;
-
-    /*
-      If DenzGains accepted the request but does not
-      provide an order ID in the response, do not mark
-      the customer's order as an error merely because
-      the ID is missing.
-
-      We store the complete response so it can be inspected.
-    */
 
     if (!supplierOrderId) {
       const returnedStatus =
@@ -1142,7 +1144,9 @@ async function processPaidOrder(env, order) {
       order.id,
       {
         supplier_order_id:
-          String(supplierOrderId),
+          String(
+            supplierOrderId
+          ),
 
         supplier_response:
           safeJsonString(
@@ -1163,7 +1167,9 @@ async function processPaidOrder(env, order) {
       paid: true,
 
       supplier_order_id:
-        String(supplierOrderId),
+        String(
+          supplierOrderId
+        ),
 
       supplier_response:
         supplierResult
@@ -1258,17 +1264,23 @@ async function handleOrderPayment(
   request,
   env
 ) {
-  await ensureOrdersTable(env);
+  await ensureOrdersTable(
+    env
+  );
 
   let body;
 
   try {
-    body = await request.json();
+    body =
+      await request.json();
   } catch {
-    return json({
-      error:
-        "Invalid JSON request."
-    }, 400);
+    return json(
+      {
+        error:
+          "Invalid JSON request."
+      },
+      400
+    );
   }
 
   const serviceId =
@@ -1309,48 +1321,71 @@ async function handleOrderPayment(
     ).trim();
 
   if (!serviceId) {
-    return json({
-      error:
-        "Service ID is required."
-    }, 400);
+    return json(
+      {
+        error:
+          "Service ID is required."
+      },
+      400
+    );
   }
 
-  if (!quantity || quantity <= 0) {
-    return json({
-      error:
-        "Valid quantity is required."
-    }, 400);
+  if (
+    !quantity ||
+    quantity <= 0
+  ) {
+    return json(
+      {
+        error:
+          "Valid quantity is required."
+      },
+      400
+    );
   }
 
   if (!link) {
-    return json({
-      error:
-        "Target link is required."
-    }, 400);
+    return json(
+      {
+        error:
+          "Target link is required."
+      },
+      400
+    );
   }
 
   if (!phone) {
-    return json({
-      error:
-        "Phone number is required."
-    }, 400);
+    return json(
+      {
+        error:
+          "Phone number is required."
+      },
+      400
+    );
   }
 
+  /*
+    HUPPY CUBE / DenzGains pricing is KES.
+  */
+
   const currencyInfo =
-    getCurrencyFromPhone(phone);
+    getCurrencyFromPhone(
+      phone
+    );
 
   const currency =
-    currencyInfo.currency;
+    "KES";
 
   const countryCode =
-    currencyInfo.country;
+    "KE";
 
   /*
-    Get the live DenzGains catalog.
+    Get LIVE DenzGains catalog.
   */
 
   const services =
-    await getDenzGainsServices(env);
+    await getDenzGainsServices(
+      env
+    );
 
   const service =
     services.find(
@@ -1364,18 +1399,31 @@ async function handleOrderPayment(
     );
 
   if (!service) {
-    return json({
-      error:
-        "Selected service was not found in the DenzGains catalog."
-    }, 404);
+    return json(
+      {
+        error:
+          "Selected service was not found in the DenzGains catalog."
+      },
+      404
+    );
   }
 
   /*
-    DenzGains rate is treated as USD per 1,000 units.
+  =========================================================
+    IMPORTANT PRICE FIX
 
-    YOUR SELLING PRICE:
+    DenzGains rate is KES per 1,000.
 
-      supplier rate × 2
+    Example:
+
+    DenzGains rate = 100 KES
+    HUPPY CUBE rate = 200 KES
+
+    NOT:
+
+    100 × 130
+    NOT USD conversion
+  =========================================================
   */
 
   const supplierRate =
@@ -1391,10 +1439,13 @@ async function handleOrderPayment(
     ) ||
     supplierRate <= 0
   ) {
-    return json({
-      error:
-        "DenzGains price is unavailable for this service."
-    }, 400);
+    return json(
+      {
+        error:
+          "DenzGains KES price is unavailable for this service."
+      },
+      400
+    );
   }
 
   const supplierMin =
@@ -1415,71 +1466,77 @@ async function handleOrderPayment(
     supplierMin > 0 &&
     quantity < supplierMin
   ) {
-    return json({
-      error:
-        `Minimum quantity for this service is ${supplierMin}.`
-    }, 400);
+    return json(
+      {
+        error:
+          `Minimum quantity for this service is ${supplierMin}.`
+      },
+      400
+    );
   }
 
   if (
     supplierMax > 0 &&
     quantity > supplierMax
   ) {
-    return json({
-      error:
-        `Maximum quantity for this service is ${supplierMax}.`
-    }, 400);
+    return json(
+      {
+        error:
+          `Maximum quantity for this service is ${supplierMax}.`
+      },
+      400
+    );
   }
 
-  const supplierAmountUsd =
-    (
-      supplierRate *
-      quantity
-    ) / 1000;
+  /*
+    Supplier cost per 1,000.
+  */
 
-  const customerRate =
+  const supplierRateKES =
+    supplierRate;
+
+  /*
+    Customer price per 1,000.
+
+    ×2 markup.
+  */
+
+  const customerRateKES =
     customerPrice(
-      supplierRate
+      supplierRateKES
     );
 
-  const customerAmountUsd =
-    (
-      customerRate *
-      quantity
-    ) / 1000;
+  /*
+    Correct quantity calculation.
 
-  const profitAmountUsd =
-    customerAmountUsd -
-    supplierAmountUsd;
+    Example:
+    200 KES / 1,000
+    quantity 100
+
+    200 × 100 ÷ 1000
+    = 20 KES
+  */
 
   const supplierAmount =
     roundMoney(
-      usdToCurrency(
-        supplierAmountUsd,
-        currency,
-        env
-      ),
-      currency
+      calculateOrderAmount(
+        supplierRateKES,
+        quantity
+      )
     );
 
   const amount =
     roundMoney(
-      usdToCurrency(
-        customerAmountUsd,
-        currency,
-        env
-      ),
-      currency
+      calculateOrderAmount(
+        customerRateKES,
+        quantity
+      )
     );
 
   const profitAmount =
     roundMoney(
-      usdToCurrency(
-        profitAmountUsd,
-        currency,
-        env
-      ),
-      currency
+      amount -
+      supplierAmount
     );
 
   const trackingId =
@@ -1518,19 +1575,33 @@ async function handleOrderPayment(
       `)
       .bind(
         trackingId,
+
         serviceId,
+
         finalServiceName,
+
         quantity,
+
         link,
+
         phone,
+
         fullName,
+
         email,
+
         countryCode,
-        currency,
+
+        "KES",
+
         amount,
+
         supplierAmount,
+
         profitAmount,
+
         "PENDING",
+
         "Pending"
       )
       .run();
@@ -1548,7 +1619,8 @@ async function handleOrderPayment(
   }
 
   const order = {
-    id: orderId,
+    id:
+      orderId,
 
     tracking_id:
       trackingId,
@@ -1573,7 +1645,8 @@ async function handleOrderPayment(
     country_code:
       countryCode,
 
-    currency,
+    currency:
+      "KES",
 
     amount,
 
@@ -1591,7 +1664,9 @@ async function handleOrderPayment(
   };
 
   const origin =
-    new URL(request.url).origin;
+    new URL(
+      request.url
+    ).origin;
 
   const payment =
     await createPesapalOrder(
@@ -1617,29 +1692,42 @@ async function handleOrderPayment(
   );
 
   return json({
-    success: true,
+    success:
+      true,
 
     tracking_id:
       trackingId,
 
     amount,
 
-    currency,
+    currency:
+      "KES",
 
     currency_symbol:
-      currencyInfo.symbol,
+      "KSh",
 
     formatted_amount:
-      formatMoney(
-        amount,
-        currency
+      formatKES(
+        amount
       ),
+
+    /*
+      Useful for debugging/display.
+    */
+
+    supplier_rate:
+      supplierRateKES,
+
+    customer_rate:
+      customerRateKES,
+
+    supplier_cost:
+      supplierAmount,
 
     profit:
       profitAmount,
 
-    supplier_cost:
-      supplierAmount,
+    quantity,
 
     redirect_url:
       payment.redirect_url
@@ -1654,27 +1742,25 @@ async function handleServices(
   request,
   env
 ) {
-  const url =
-    new URL(request.url);
+  /*
+    IMPORTANT:
 
-  const phone =
-    url.searchParams.get("phone") || "";
+    DenzGains rates are already KES.
 
-  const currencyInfo =
-    getCurrencyFromPhone(phone);
+    We therefore DO NOT:
+    - convert USD
+    - multiply by 130
+    - use FX rates
 
-  const currency =
-    currencyInfo.currency;
+    We simply:
+
+    DenzGains rate × 2
+  */
 
   const services =
-    await getDenzGainsServices(env);
-
-  /*
-    Sort from the LOWEST DenzGains supplier price.
-
-    Because your selling price is ×2, the lowest
-    supplier price also produces the lowest customer price.
-  */
+    await getDenzGainsServices(
+      env
+    );
 
   const sortedServices =
     [...services].sort(
@@ -1706,22 +1792,7 @@ async function handleServices(
             supplierRate
           );
 
-        const localRate =
-          roundMoney(
-            usdToCurrency(
-              customerRate,
-              currency,
-              env
-            ),
-            currency
-          );
-
         return {
-          /*
-            Keep the original DenzGains fields so the
-            frontend can continue using them.
-          */
-
           service_id:
             String(
               service.service ||
@@ -1770,37 +1841,54 @@ async function handleServices(
             false,
 
           /*
-            Customer selling price per 1,000
-            in the detected currency.
+            DenzGains supplier rate
+            is KES per 1,000.
+          */
+
+          supplier_rate:
+            supplierRate,
+
+          /*
+            HUPPY CUBE selling rate
+            is exactly ×2.
           */
 
           customer_rate:
-            localRate,
+            roundMoney(
+              customerRate
+            ),
 
-          currency,
+          currency:
+            "KES",
 
           currency_symbol:
-            currencyInfo.symbol,
+            "KSh",
+
+          supplier_rate_formatted:
+            formatKES(
+              supplierRate
+            ),
 
           customer_rate_formatted:
-            formatMoney(
-              localRate,
-              currency
+            formatKES(
+              customerRate
             )
         };
       }
     );
 
   return json({
-    success: true,
+    success:
+      true,
 
-    currency,
+    currency:
+      "KES",
 
     currency_symbol:
-      currencyInfo.symbol,
+      "KSh",
 
     country:
-      currencyInfo.country,
+      "KE",
 
     services:
       mapped
@@ -1824,10 +1912,13 @@ async function handleOrderStatus(
     );
 
   if (!trackingId) {
-    return json({
-      error:
-        "Tracking ID is required."
-    }, 400);
+    return json(
+      {
+        error:
+          "Tracking ID is required."
+      },
+      400
+    );
   }
 
   let order =
@@ -1837,16 +1928,14 @@ async function handleOrderStatus(
     );
 
   if (!order) {
-    return json({
-      error:
-        "Order not found."
-    }, 404);
+    return json(
+      {
+        error:
+          "Order not found."
+      },
+      404
+    );
   }
-
-  /*
-    If payment is complete but the DenzGains order has
-    not yet been submitted, submit it.
-  */
 
   if (
     order.payment_status ===
@@ -1875,12 +1964,9 @@ async function handleOrderStatus(
     }
   }
 
-  /*
-    If DenzGains gave us an order ID, check the latest
-    supplier status.
-  */
-
-  if (order?.supplier_order_id) {
+  if (
+    order?.supplier_order_id
+  ) {
     order =
       await syncSupplierStatus(
         env,
@@ -1889,12 +1975,15 @@ async function handleOrderStatus(
   }
 
   return json({
-    success: true,
+    success:
+      true,
 
     order,
 
     tracking:
-      trackingInfo(order),
+      trackingInfo(
+        order
+      ),
 
     whatsapp: {
       url:
@@ -2138,16 +2227,22 @@ async function handleDatabaseTest(
 
   if (
     !env.TEST_ORDER_SECRET ||
-    secret !== env.TEST_ORDER_SECRET
+    secret !==
+      env.TEST_ORDER_SECRET
   ) {
-    return json({
-      error:
-        "Unauthorized."
-    }, 401);
+    return json(
+      {
+        error:
+          "Unauthorized."
+      },
+      401
+    );
   }
 
   try {
-    await ensureOrdersTable(env);
+    await ensureOrdersTable(
+      env
+    );
 
     const tableInfo =
       await env.DB
@@ -2157,7 +2252,8 @@ async function handleDatabaseTest(
         .all();
 
     return json({
-      success: true,
+      success:
+        true,
 
       message:
         "Orders database is ready.",
@@ -2166,13 +2262,17 @@ async function handleDatabaseTest(
         tableInfo.results || []
     });
   } catch (error) {
-    return json({
-      success: false,
+    return json(
+      {
+        success:
+          false,
 
-      error:
-        error?.message ||
-        String(error)
-    }, 500);
+        error:
+          error?.message ||
+          String(error)
+      },
+      500
+    );
   }
 }
 
@@ -2182,13 +2282,20 @@ async function handleDatabaseTest(
 
 async function handleHealth() {
   return json({
-    success: true,
+    success:
+      true,
 
     service:
       "HUPPY CUBE",
 
     supplier:
       "DenzGains",
+
+    currency:
+      "KES",
+
+    markup:
+      "2x",
 
     status:
       "online",
@@ -2200,6 +2307,10 @@ async function handleHealth() {
 
 /* =========================================================
    CURRENCY TEST
+
+   Kept for compatibility.
+
+   HUPPY CUBE now uses KES directly.
 ========================================================= */
 
 async function handleCurrencyTest(
@@ -2209,57 +2320,33 @@ async function handleCurrencyTest(
   const url =
     new URL(request.url);
 
-  const phone =
-    url.searchParams.get(
-      "phone"
-    ) || "";
-
-  const info =
-    getCurrencyFromPhone(phone);
-
-  const exampleUsd =
+  const amount =
     Number(
       url.searchParams.get(
         "amount"
       ) || 1
     );
 
-  const localAmount =
-    roundMoney(
-      usdToCurrency(
-        exampleUsd,
-        info.currency,
-        env
-      ),
-      info.currency
-    );
-
   return json({
-    success: true,
-
-    phone_received:
-      phone,
-
-    country:
-      info.country,
+    success:
+      true,
 
     currency:
-      info.currency,
+      "KES",
 
     symbol:
-      info.symbol,
+      "KSh",
 
-    example_usd:
-      exampleUsd,
-
-    converted_amount:
-      localAmount,
+    amount:
+      amount,
 
     formatted:
-      formatMoney(
-        localAmount,
-        info.currency
-      )
+      formatKES(
+        amount
+      ),
+
+    message:
+      "HUPPY CUBE uses DenzGains KES pricing directly. No USD conversion is applied."
   });
 }
 
@@ -2290,7 +2377,9 @@ export default {
       return new Response(
         null,
         {
-          status: 204,
+          status:
+            204,
+
           headers:
             JSON_HEADERS
         }
@@ -2301,8 +2390,10 @@ export default {
       /* HEALTH */
 
       if (
-        request.method === "GET" &&
-        pathname === "/api/health"
+        request.method ===
+          "GET" &&
+        pathname ===
+          "/api/health"
       ) {
         return handleHealth();
       }
@@ -2310,8 +2401,10 @@ export default {
       /* DENZGAINS TEST */
 
       if (
-        request.method === "GET" &&
-        pathname === "/api/denzgains-test"
+        request.method ===
+          "GET" &&
+        pathname ===
+          "/api/denzgains-test"
       ) {
         return await handleDenzGainsTest(
           request,
@@ -2322,8 +2415,10 @@ export default {
       /* CURRENCY TEST */
 
       if (
-        request.method === "GET" &&
-        pathname === "/api/currency-test"
+        request.method ===
+          "GET" &&
+        pathname ===
+          "/api/currency-test"
       ) {
         return await handleCurrencyTest(
           request,
@@ -2334,8 +2429,10 @@ export default {
       /* SERVICES */
 
       if (
-        request.method === "GET" &&
-        pathname === "/api/services"
+        request.method ===
+          "GET" &&
+        pathname ===
+          "/api/services"
       ) {
         return await handleServices(
           request,
@@ -2346,13 +2443,23 @@ export default {
       /* CREATE PAYMENT */
 
       if (
-        request.method === "POST" &&
+        request.method ===
+          "POST" &&
         (
-          pathname === "/api/order-payment" ||
-          pathname === "/api/create-payment" ||
-          pathname === "/api/create-order" ||
-          pathname === "/api/order" ||
-          pathname === "/api/pay"
+          pathname ===
+            "/api/order-payment" ||
+
+          pathname ===
+            "/api/create-payment" ||
+
+          pathname ===
+            "/api/create-order" ||
+
+          pathname ===
+            "/api/order" ||
+
+          pathname ===
+            "/api/pay"
         )
       ) {
         return await handleOrderPayment(
@@ -2364,8 +2471,10 @@ export default {
       /* ORDER STATUS */
 
       if (
-        request.method === "GET" &&
-        pathname === "/api/order-status"
+        request.method ===
+          "GET" &&
+        pathname ===
+          "/api/order-status"
       ) {
         return await handleOrderStatus(
           request,
@@ -2376,7 +2485,8 @@ export default {
       /* PAYMENT CALLBACK */
 
       if (
-        pathname === "/api/payment-callback"
+        pathname ===
+          "/api/payment-callback"
       ) {
         return await handlePaymentCallback(
           request,
@@ -2387,7 +2497,8 @@ export default {
       /* PESAPAL IPN */
 
       if (
-        pathname === "/api/pesapal-ipn"
+        pathname ===
+          "/api/pesapal-ipn"
       ) {
         return await handlePesapalIpn(
           request,
@@ -2398,8 +2509,10 @@ export default {
       /* DATABASE TEST */
 
       if (
-        request.method === "GET" &&
-        pathname === "/api/database-test"
+        request.method ===
+          "GET" &&
+        pathname ===
+          "/api/database-test"
       ) {
         return await handleDatabaseTest(
           request,
@@ -2410,7 +2523,9 @@ export default {
       /* FRONTEND */
 
       if (env.ASSETS) {
-        return env.ASSETS.fetch(request);
+        return env.ASSETS.fetch(
+          request
+        );
       }
 
       return new Response(
@@ -2426,13 +2541,17 @@ export default {
         error
       );
 
-      return json({
-        success: false,
+      return json(
+        {
+          success:
+            false,
 
-        error:
-          error?.message ||
-          String(error)
-      }, 500);
+          error:
+            error?.message ||
+            String(error)
+        },
+        500
+      );
     }
   }
 };
