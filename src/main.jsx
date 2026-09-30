@@ -62,10 +62,7 @@ function detectPlatform(service) {
     service?.category || ""
   } ${service?.type || ""}`.toLowerCase();
 
-  if (
-    text.includes("instagram") ||
-    text.includes("ig ")
-  ) {
+  if (text.includes("instagram") || text.includes("ig ")) {
     return "Instagram";
   }
 
@@ -119,6 +116,19 @@ function detectPlatform(service) {
   return "Other";
 }
 
+/* =========================================================
+   PRICE HELPERS
+========================================================= */
+
+function getCustomerRate(service) {
+  return Number(
+    service?.customer_rate ??
+      service?.price ??
+      service?.rate ??
+      0
+  );
+}
+
 function formatKES(value) {
   return `KSh ${Number(value || 0).toLocaleString(
     "en-KE",
@@ -130,10 +140,7 @@ function formatKES(value) {
 }
 
 function priceFor(service, quantity) {
-  const rate = Number(
-    service?.customer_rate || 0
-  );
-
+  const rate = getCustomerRate(service);
   const qty = Number(quantity || 0);
 
   return (rate * qty) / 1000;
@@ -154,8 +161,7 @@ function statusLabel(status) {
     return "Payment Pending";
   }
 
-  const value =
-    String(status).toLowerCase();
+  const value = String(status).toLowerCase();
 
   if (value.includes("completed")) {
     return "Completed";
@@ -228,9 +234,7 @@ function TrackingProgress({ tracking }) {
           currentStep === step.number;
 
         return (
-          <React.Fragment
-            key={step.number}
-          >
+          <React.Fragment key={step.number}>
             <div
               className={`tracking-step ${
                 active ? "active" : ""
@@ -245,12 +249,10 @@ function TrackingProgress({ tracking }) {
               <span>{step.title}</span>
             </div>
 
-            {index <
-              steps.length - 1 && (
+            {index < steps.length - 1 && (
               <div
                 className={`tracking-line ${
-                  currentStep >
-                  step.number
+                  currentStep > step.number
                     ? "active"
                     : ""
                 }`}
@@ -281,9 +283,7 @@ function OrderTracking({
   const [trackingError, setTrackingError] =
     useState("");
 
-  async function loadTracking(
-    showLoader = false
-  ) {
+  async function loadTracking(showLoader = false) {
     try {
       if (showLoader) {
         setLoading(true);
@@ -356,11 +356,8 @@ function OrderTracking({
     };
   }, [trackingId]);
 
-  const order =
-    trackingData?.order;
-
-  const tracking =
-    trackingData?.tracking;
+  const order = trackingData?.order;
+  const tracking = trackingData?.tracking;
 
   const whatsappUrl =
     trackingData?.whatsapp?.url ||
@@ -375,9 +372,7 @@ function OrderTracking({
             size={35}
           />
 
-          <h2>
-            Loading your order...
-          </h2>
+          <h2>Loading your order...</h2>
 
           <p>
             Please wait while we check
@@ -405,9 +400,7 @@ function OrderTracking({
             ORDER TRACKING
           </span>
 
-          <h2>
-            Track your order
-          </h2>
+          <h2>Track your order</h2>
 
           <p>
             Your order status updates
@@ -435,9 +428,7 @@ function OrderTracking({
         <>
           <div className="tracking-id-box">
             <div>
-              <span>
-                Tracking ID
-              </span>
+              <span>Tracking ID</span>
 
               <strong>
                 {order.tracking_id}
@@ -459,9 +450,7 @@ function OrderTracking({
           <div className="tracking-status-card">
             <div className="tracking-status-top">
               <div>
-                <span>
-                  Current status
-                </span>
+                <span>Current status</span>
 
                 <strong>
                   {statusLabel(
@@ -483,8 +472,7 @@ function OrderTracking({
                 className="progress-fill"
                 style={{
                   width: `${Number(
-                    tracking?.progress ||
-                      0
+                    tracking?.progress || 0
                   )}%`
                 }}
               />
@@ -497,9 +485,7 @@ function OrderTracking({
 
           <div className="tracking-details">
             <div className="tracking-detail">
-              <span>
-                Service
-              </span>
+              <span>Service</span>
 
               <strong>
                 {order.service_name}
@@ -507,9 +493,7 @@ function OrderTracking({
             </div>
 
             <div className="tracking-detail">
-              <span>
-                Quantity
-              </span>
+              <span>Quantity</span>
 
               <strong>
                 {Number(
@@ -519,9 +503,7 @@ function OrderTracking({
             </div>
 
             <div className="tracking-detail">
-              <span>
-                Payment
-              </span>
+              <span>Payment</span>
 
               <strong>
                 {order.payment_status ||
@@ -530,9 +512,7 @@ function OrderTracking({
             </div>
 
             <div className="tracking-detail">
-              <span>
-                Supplier Order
-              </span>
+              <span>Supplier Order</span>
 
               <strong>
                 {order.supplier_order_id ||
@@ -568,9 +548,7 @@ function OrderTracking({
             <MessageCircle size={20} />
 
             <div>
-              <strong>
-                WhatsApp Help
-              </strong>
+              <strong>WhatsApp Help</strong>
 
               <span>
                 Need help with this
@@ -665,9 +643,7 @@ function App() {
           "huppy_cube_tracking_id",
           returnedTrackingId
         );
-      } catch {
-        // Ignore localStorage errors.
-      }
+      } catch {}
 
       setShowTracking(true);
     }
@@ -795,7 +771,9 @@ function App() {
 
     setQuantity(
       String(
-        service.min_quantity || ""
+        service.min_quantity ??
+          service.min ??
+          ""
       )
     );
 
@@ -823,9 +801,7 @@ function App() {
      OPEN TRACKING
   ======================================================= */
 
-  function openTracking(
-    id = trackingId
-  ) {
+  function openTracking(id = trackingId) {
     if (!id) {
       setError(
         "Your tracking number has not been created yet."
@@ -843,10 +819,6 @@ function App() {
 
   /* =======================================================
      SUBMIT ORDER
-     
-     IMPORTANT FIX:
-     We now safely read the Worker response
-     before trying to access tracking_id.
   ======================================================= */
 
   async function submitOrder(event) {
@@ -860,13 +832,15 @@ function App() {
 
     const minimum =
       Number(
-        selectedService.min_quantity ||
+        selectedService.min_quantity ??
+          selectedService.min ??
           0
       );
 
     const maximum =
       Number(
-        selectedService.max_quantity ||
+        selectedService.max_quantity ??
+          selectedService.max ??
           0
       );
 
@@ -975,9 +949,7 @@ function App() {
         );
       }
 
-      if (
-        !data.tracking_id
-      ) {
+      if (!data.tracking_id) {
         throw new Error(
           "Payment was created without a tracking ID. Please contact support before trying again."
         );
@@ -992,9 +964,7 @@ function App() {
           "huppy_cube_tracking_id",
           data.tracking_id
         );
-      } catch {
-        // Ignore localStorage errors.
-      }
+      } catch {}
 
       if (data.redirect_url) {
         window.location.href =
@@ -1037,9 +1007,7 @@ function App() {
       if (saved) {
         setTrackingId(saved);
       }
-    } catch {
-      // Ignore localStorage errors.
-    }
+    } catch {}
   }, [trackingId]);
 
   /* =======================================================
@@ -1081,9 +1049,7 @@ function App() {
             target="_blank"
             rel="noreferrer"
           >
-            <MessageCircle
-              size={18}
-            />
+            <MessageCircle size={18} />
 
             <span>
               WhatsApp Help
@@ -1095,9 +1061,7 @@ function App() {
           <OrderTracking
             trackingId={trackingId}
             onClose={() => {
-              setShowTracking(
-                false
-              );
+              setShowTracking(false);
 
               window.history.replaceState(
                 {},
@@ -1147,9 +1111,7 @@ function App() {
                 openTracking()
               }
             >
-              <PackageCheck
-                size={18}
-              />
+              <PackageCheck size={18} />
 
               <span>
                 Track Order
@@ -1163,13 +1125,9 @@ function App() {
             target="_blank"
             rel="noreferrer"
           >
-            <MessageCircle
-              size={18}
-            />
+            <MessageCircle size={18} />
 
-            <span>
-              Support
-            </span>
+            <span>Support</span>
           </a>
         </div>
       </header>
@@ -1184,10 +1142,7 @@ function App() {
 
           <h1>
             Grow your
-            <span>
-              {" "}
-              social presence.
-            </span>
+            <span>{" "}social presence.</span>
           </h1>
 
           <p>
@@ -1200,33 +1155,22 @@ function App() {
           <div className="hero-stats">
             <div className="hero-stat">
               <strong>
-                {services.length ||
-                  "500+"}
+                {services.length || "500+"}
               </strong>
 
-              <span>
-                Services
-              </span>
+              <span>Services</span>
             </div>
 
             <div className="hero-stat">
-              <strong>
-                24/7
-              </strong>
+              <strong>24/7</strong>
 
-              <span>
-                Ordering
-              </span>
+              <span>Ordering</span>
             </div>
 
             <div className="hero-stat">
-              <strong>
-                ⚡
-              </strong>
+              <strong>⚡</strong>
 
-              <span>
-                Fast Delivery
-              </span>
+              <span>Fast Delivery</span>
             </div>
           </div>
         </section>
@@ -1244,9 +1188,7 @@ function App() {
             </div>
 
             <div className="service-count">
-              {
-                filteredServices.length
-              }{" "}
+              {filteredServices.length}{" "}
               services
             </div>
           </div>
@@ -1255,21 +1197,17 @@ function App() {
             {PLATFORM_ORDER.map(
               (platform) => {
                 const Icon =
-                  platform ===
-                  "All"
+                  platform === "All"
                     ? Sparkles
                     : PLATFORM_ICONS[
                         platform
                       ] || Globe;
 
                 const count =
-                  platform ===
-                  "All"
+                  platform === "All"
                     ? enrichedServices.length
                     : enrichedServices.filter(
-                        (
-                          service
-                        ) =>
+                        (service) =>
                           service.platform ===
                           platform
                       ).length;
@@ -1300,8 +1238,7 @@ function App() {
                       </strong>
 
                       <small>
-                        {count}{" "}
-                        services
+                        {count} services
                       </small>
                     </span>
 
@@ -1322,9 +1259,7 @@ function App() {
               type="text"
               placeholder="Search services..."
               value={search}
-              onChange={(
-                event
-              ) =>
+              onChange={(event) =>
                 setSearch(
                   event.target.value
                 )
@@ -1359,25 +1294,19 @@ function App() {
             !selectedService ? (
             <div className="error-state">
               <strong>
-                Unable to load
-                services
+                Unable to load services
               </strong>
 
-              <span>
-                {error}
-              </span>
+              <span>{error}</span>
 
               <button
                 type="button"
-                onClick={
-                  loadServices
-                }
+                onClick={loadServices}
               >
                 Try Again
               </button>
             </div>
-          ) : filteredServices.length ===
-            0 ? (
+          ) : filteredServices.length === 0 ? (
             <div className="empty-state">
               <Search size={35} />
 
@@ -1399,6 +1328,11 @@ function App() {
                       service.platform
                     ] || Globe;
 
+                  const customerRate =
+                    getCustomerRate(
+                      service
+                    );
+
                   return (
                     <article
                       className="service-card"
@@ -1409,9 +1343,7 @@ function App() {
                       <div className="service-card-top">
                         <div className="service-platform">
                           <span className="service-platform-icon">
-                            <Icon
-                              size={19}
-                            />
+                            <Icon size={19} />
                           </span>
 
                           {
@@ -1428,16 +1360,15 @@ function App() {
                       </div>
 
                       <h3>
-                        {
-                          service.name
-                        }
+                        {service.name}
                       </h3>
 
                       <div className="service-meta">
                         <span>
                           Min{" "}
                           {Number(
-                            service.min_quantity ||
+                            service.min_quantity ??
+                              service.min ??
                               0
                           ).toLocaleString()}
                         </span>
@@ -1445,7 +1376,8 @@ function App() {
                         <span>
                           Max{" "}
                           {Number(
-                            service.max_quantity ||
+                            service.max_quantity ??
+                              service.max ??
                               0
                           ).toLocaleString()}
                         </span>
@@ -1454,18 +1386,15 @@ function App() {
                       <div className="service-bottom">
                         <div>
                           <small>
-                            Starting
-                            from
+                            Starting from
                           </small>
 
                           <strong>
                             {formatKES(
-                              service.customer_rate
+                              customerRate
                             )}
 
-                            <em>
-                              /1K
-                            </em>
+                            <em>/1K</em>
                           </strong>
                         </div>
 
@@ -1481,9 +1410,7 @@ function App() {
                           Order
 
                           <ShoppingCart
-                            size={
-                              17
-                            }
+                            size={17}
                           />
                         </button>
                       </div>
@@ -1498,14 +1425,12 @@ function App() {
 
       <footer className="footer">
         <span>
-          ©{" "}
-          {new Date().getFullYear()}{" "}
+          © {new Date().getFullYear()}{" "}
           HUPPY CUBE
         </span>
 
         <span>
-          Secure payments • Fast
-          delivery
+          Secure payments • Fast delivery
         </span>
       </footer>
 
@@ -1564,37 +1489,28 @@ function App() {
                 </div>
 
                 <form
-                  onSubmit={
-                    submitOrder
-                  }
+                  onSubmit={submitOrder}
                 >
                   <label className="field">
                     <span>
-                      <Hash
-                        size={16}
-                      />
-
+                      <Hash size={16} />
                       Quantity
                     </span>
 
                     <input
                       type="number"
                       min={
-                        selectedService.min_quantity
+                        selectedService.min_quantity ??
+                        selectedService.min
                       }
                       max={
-                        selectedService.max_quantity
+                        selectedService.max_quantity ??
+                        selectedService.max
                       }
-                      value={
-                        quantity
-                      }
-                      onChange={(
-                        event
-                      ) =>
+                      value={quantity}
+                      onChange={(event) =>
                         setQuantity(
-                          event
-                            .target
-                            .value
+                          event.target.value
                         )
                       }
                       placeholder="Enter quantity"
@@ -1603,12 +1519,14 @@ function App() {
                     <small>
                       Min{" "}
                       {Number(
-                        selectedService.min_quantity ||
+                        selectedService.min_quantity ??
+                          selectedService.min ??
                           0
                       ).toLocaleString()}{" "}
                       • Max{" "}
                       {Number(
-                        selectedService.max_quantity ||
+                        selectedService.max_quantity ??
+                          selectedService.max ??
                           0
                       ).toLocaleString()}
                     </small>
@@ -1616,23 +1534,16 @@ function App() {
 
                   <label className="field">
                     <span>
-                      <LinkIcon
-                        size={16}
-                      />
-
+                      <LinkIcon size={16} />
                       Target link
                     </span>
 
                     <input
                       type="url"
                       value={link}
-                      onChange={(
-                        event
-                      ) =>
+                      onChange={(event) =>
                         setLink(
-                          event
-                            .target
-                            .value
+                          event.target.value
                         )
                       }
                       placeholder="https://..."
@@ -1641,23 +1552,16 @@ function App() {
 
                   <label className="field">
                     <span>
-                      <Phone
-                        size={16}
-                      />
-
+                      <Phone size={16} />
                       Phone number
                     </span>
 
                     <input
                       type="tel"
                       value={phone}
-                      onChange={(
-                        event
-                      ) =>
+                      onChange={(event) =>
                         setPhone(
-                          event
-                            .target
-                            .value
+                          event.target.value
                         )
                       }
                       placeholder="07XXXXXXXX"
@@ -1666,14 +1570,11 @@ function App() {
 
                   <div className="total-box">
                     <div>
-                      <span>
-                        Total
-                      </span>
+                      <span>Total</span>
 
                       <small>
                         {Number(
-                          quantity ||
-                            0
+                          quantity || 0
                         ).toLocaleString()}{" "}
                         units
                       </small>
@@ -1698,9 +1599,7 @@ function App() {
                   <button
                     type="submit"
                     className="pay-button"
-                    disabled={
-                      ordering
-                    }
+                    disabled={ordering}
                   >
                     {ordering ? (
                       <>
@@ -1709,8 +1608,7 @@ function App() {
                           size={19}
                         />
 
-                        Preparing
-                        payment...
+                        Preparing payment...
                       </>
                     ) : (
                       <>
@@ -1725,22 +1623,17 @@ function App() {
 
                   <div className="secure-note">
                     🔒 Secure payment
-                    powered by
-                    PesaPal
+                    powered by PesaPal
                   </div>
                 </form>
               </>
             ) : (
               <div className="success-screen">
                 <div className="success-icon">
-                  <CheckCircle2
-                    size={48}
-                  />
+                  <CheckCircle2 size={48} />
                 </div>
 
-                <h2>
-                  Order Created!
-                </h2>
+                <h2>Order Created!</h2>
 
                 <p>
                   Your order has been
@@ -1763,9 +1656,7 @@ function App() {
                   </div>
 
                   <div>
-                    <span>
-                      Service
-                    </span>
+                    <span>Service</span>
 
                     <strong>
                       {
@@ -1775,9 +1666,7 @@ function App() {
                   </div>
 
                   <div>
-                    <span>
-                      Quantity
-                    </span>
+                    <span>Quantity</span>
 
                     <strong>
                       {Number(
@@ -1787,9 +1676,7 @@ function App() {
                   </div>
 
                   <div>
-                    <span>
-                      Amount
-                    </span>
+                    <span>Amount</span>
 
                     <strong>
                       {formatKES(
@@ -1813,9 +1700,7 @@ function App() {
                 >
                   Track My Order
 
-                  <ChevronRight
-                    size={20}
-                  />
+                  <ChevronRight size={20} />
                 </button>
 
                 <a
@@ -1826,9 +1711,7 @@ function App() {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  <MessageCircle
-                    size={20}
-                  />
+                  <MessageCircle size={20} />
 
                   <div>
                     <strong>
@@ -1836,14 +1719,12 @@ function App() {
                     </strong>
 
                     <span>
-                      Need help with
-                      this order?
+                      Need help with this
+                      order?
                     </span>
                   </div>
 
-                  <ChevronRight
-                    size={19}
-                  />
+                  <ChevronRight size={19} />
                 </a>
               </div>
             )}
@@ -1861,3 +1742,15 @@ createRoot(
     <App />
   </React.StrictMode>
 );
+
+Now do only this
+
+1. Open "App.jsx".
+2. Select everything in that file.
+3. Delete it.
+4. Paste the code above.
+5. Save the file.
+6. Don't change "worker.js" or "wrangler.jsonc".
+7. Tell me when you've saved it.
+
+Then I'll give you the next step for deploying it, one step at a time.
