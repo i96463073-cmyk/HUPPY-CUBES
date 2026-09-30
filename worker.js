@@ -1,5 +1,5 @@
 const PESAPAL_BASE = "https://pay.pesapal.com/v3";
-const SMM_AFRICA_BASE = "https://smm.africa/api/v3";
+const DENZGAINS_BASE = "https://denzgains.com/api/v2";
 
 const JSON_HEADERS = {
   "Content-Type": "application/json",
@@ -53,11 +53,11 @@ function safeJsonString(value) {
 }
 
 /*
-  YOUR PRICING RULE:
+  PRICING RULE:
 
-  Supplier cost = 30
-  Your profit   = 30
-  Customer pays = 60
+  DenzGains supplier price = 30
+  HUPPY CUBE customer price = 60
+  Profit = 30
 
   Therefore:
 
@@ -72,15 +72,6 @@ function customerPrice(supplierRate) {
    CURRENCY
 ========================================================= */
 
-/*
-  Phone country-code detection.
-
-  The storefront can send the customer's phone number.
-  We use the country code to select the default currency.
-
-  If no country can be detected, KES is used.
-*/
-
 const COUNTRY_CURRENCIES = [
   { prefix: "254", country: "KE", currency: "KES", symbol: "KSh" },
   { prefix: "255", country: "TZ", currency: "TZS", symbol: "TSh" },
@@ -89,7 +80,6 @@ const COUNTRY_CURRENCIES = [
   { prefix: "257", country: "BI", currency: "BIF", symbol: "FBu" },
   { prefix: "211", country: "SS", currency: "SSP", symbol: "£" },
   { prefix: "252", country: "SO", currency: "SOS", symbol: "S" },
-  { prefix: "255", country: "TZ", currency: "TZS", symbol: "TSh" },
   { prefix: "260", country: "ZM", currency: "ZMW", symbol: "ZK" },
   { prefix: "263", country: "ZW", currency: "ZWL", symbol: "Z$" },
   { prefix: "265", country: "MW", currency: "MWK", symbol: "MK" },
@@ -149,7 +139,6 @@ const COUNTRY_CURRENCIES = [
 
   { prefix: "61", country: "AU", currency: "AUD", symbol: "A$" },
   { prefix: "64", country: "NZ", currency: "NZD", symbol: "NZ$" },
-  { prefix: "1", country: "CA", currency: "CAD", symbol: "C$" },
 
   { prefix: "7", country: "RU", currency: "RUB", symbol: "₽" },
   { prefix: "55", country: "BR", currency: "BRL", symbol: "R$" },
@@ -175,20 +164,6 @@ function getCurrencyFromPhone(phone) {
     symbol: "KSh"
   };
 }
-
-/*
-  Approximate USD exchange rates.
-
-  IMPORTANT:
-  SMM Africa catalog rates are treated as the supplier's
-  base rate. For your current catalog, we use USD as the
-  supplier base currency.
-
-  KES is kept around 130 per USD by default.
-
-  You can override USD_TO_KES through a Cloudflare variable
-  later without changing this code.
-*/
 
 const DEFAULT_FX = {
   USD: 1,
@@ -242,7 +217,6 @@ const DEFAULT_FX = {
 
   AUD: 1.5,
   NZD: 1.75,
-  CAD: 1.38,
 
   RUB: 80,
   BRL: 5.3,
@@ -274,11 +248,6 @@ function usdToCurrency(amountUsd, currency, env) {
 function roundMoney(value, currency) {
   const code = String(currency || "").toUpperCase();
 
-  /*
-    Most currencies can safely display 2 decimals.
-    Zero-decimal currencies are rounded to whole units.
-  */
-
   const zeroDecimal = new Set([
     "JPY",
     "KRW",
@@ -297,20 +266,15 @@ function roundMoney(value, currency) {
     return Math.round(Number(value || 0));
   }
 
-  return Math.round(
-    Number(value || 0) * 100
-  ) / 100;
+  return Math.round(Number(value || 0) * 100) / 100;
 }
 
 function formatMoney(amount, currency) {
   try {
-    return new Intl.NumberFormat(
-      "en",
-      {
-        style: "currency",
-        currency
-      }
-    ).format(amount);
+    return new Intl.NumberFormat("en", {
+      style: "currency",
+      currency
+    }).format(amount);
   } catch {
     return `${currency} ${amount}`;
   }
@@ -369,11 +333,7 @@ async function getPesapalToken(env) {
   return data.token;
 }
 
-async function createPesapalOrder(
-  env,
-  order,
-  origin
-) {
+async function createPesapalOrder(env, order, origin) {
   if (!order) {
     throw new Error(
       "Order could not be loaded after database insert."
@@ -386,8 +346,7 @@ async function createPesapalOrder(
     );
   }
 
-  const token =
-    await getPesapalToken(env);
+  const token = await getPesapalToken(env);
 
   if (!env.PESAPAL_IPN_ID) {
     throw new Error(
@@ -395,11 +354,8 @@ async function createPesapalOrder(
     );
   }
 
-  const currency =
-    order.currency || "KES";
-
-  const amount =
-    Number(order.amount || 0);
+  const currency = order.currency || "KES";
+  const amount = Number(order.amount || 0);
 
   const payload = {
     id: order.tracking_id,
@@ -409,24 +365,17 @@ async function createPesapalOrder(
     amount,
 
     description:
-      `HUPPY CUBE - ${order.service_name}`.slice(
-        0,
-        100
-      ),
+      `HUPPY CUBE - ${order.service_name}`.slice(0, 100),
 
     callback_url:
       `${origin}/api/payment-callback?tracking_id=` +
-      encodeURIComponent(
-        order.tracking_id
-      ),
+      encodeURIComponent(order.tracking_id),
 
-    notification_id:
-      env.PESAPAL_IPN_ID,
+    notification_id: env.PESAPAL_IPN_ID,
 
     billing_address: {
       email_address:
-        order.email ||
-        "customer@huppycube.com",
+        order.email || "customer@huppycube.com",
 
       phone_number:
         normalizePhone(order.phone),
@@ -435,36 +384,27 @@ async function createPesapalOrder(
         order.country_code || "KE",
 
       first_name:
-        String(
-          order.full_name ||
-          "Customer"
-        ).slice(0, 50),
+        String(order.full_name || "Customer").slice(0, 50),
 
       last_name:
         "Customer"
     }
   };
 
-  const response =
-    await fetch(
-      `${PESAPAL_BASE}/api/Transactions/SubmitOrderRequest`,
-      {
-        method: "POST",
-        headers: {
-          Accept:
-            "application/json",
-          "Content-Type":
-            "application/json",
-          Authorization:
-            `Bearer ${token}`
-        },
-        body:
-          JSON.stringify(payload)
-      }
-    );
+  const response = await fetch(
+    `${PESAPAL_BASE}/api/Transactions/SubmitOrderRequest`,
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    }
+  );
 
-  const text =
-    await response.text();
+  const text = await response.text();
 
   let data;
 
@@ -479,51 +419,38 @@ async function createPesapalOrder(
     );
   }
 
-  if (
-    !response.ok ||
-    !data.redirect_url
-  ) {
+  if (!response.ok || !data.redirect_url) {
     throw new Error(
-      `PesaPal order creation failed: ${safeJsonString(
-        data
-      )}`
+      `PesaPal order creation failed: ${safeJsonString(data)}`
     );
   }
 
   return data;
 }
 
-async function getPesapalStatus(
-  env,
-  orderTrackingId
-) {
+async function getPesapalStatus(env, orderTrackingId) {
   if (!orderTrackingId) {
     throw new Error(
       "PesaPal transaction tracking ID is missing."
     );
   }
 
-  const token =
-    await getPesapalToken(env);
+  const token = await getPesapalToken(env);
 
-  const response =
-    await fetch(
-      `${PESAPAL_BASE}/api/Transactions/GetTransactionStatus?orderTrackingId=${encodeURIComponent(
-        orderTrackingId
-      )}`,
-      {
-        method: "GET",
-        headers: {
-          Accept:
-            "application/json",
-          Authorization:
-            `Bearer ${token}`
-        }
+  const response = await fetch(
+    `${PESAPAL_BASE}/api/Transactions/GetTransactionStatus?orderTrackingId=${encodeURIComponent(
+      orderTrackingId
+    )}`,
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`
       }
-    );
+    }
+  );
 
-  const text =
-    await response.text();
+  const text = await response.text();
 
   let data;
 
@@ -540,9 +467,7 @@ async function getPesapalStatus(
 
   if (!response.ok) {
     throw new Error(
-      `PesaPal status check failed: ${safeJsonString(
-        data
-      )}`
+      `PesaPal status check failed: ${safeJsonString(data)}`
     );
   }
 
@@ -550,41 +475,44 @@ async function getPesapalStatus(
 }
 
 /* =========================================================
-   SMM AFRICA
+   DENZGAINS
 ========================================================= */
 
-async function smmAfricaRequest(
-  env,
-  payload
-) {
-  if (!env.SMM_AFRICA_API_KEY) {
+async function denzGainsRequest(env, payload) {
+  if (!env.DENZGAINS_API_KEY) {
     throw new Error(
-      "SMM_AFRICA_API_KEY is not configured."
+      "DENZGAINS_API_KEY is not configured."
     );
   }
 
-  const response =
-    await fetch(
-      SMM_AFRICA_BASE,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type":
-            "application/json",
-          Accept:
-            "application/json"
-        },
-        body:
-          JSON.stringify({
-            key:
-              env.SMM_AFRICA_API_KEY,
-            ...payload
-          })
-      }
-    );
+  const params = new URLSearchParams();
 
-  const text =
-    await response.text();
+  params.set(
+    "key",
+    String(env.DENZGAINS_API_KEY)
+  );
+
+  for (const [key, value] of Object.entries(payload || {})) {
+    if (
+      value !== undefined &&
+      value !== null &&
+      value !== ""
+    ) {
+      params.set(key, String(value));
+    }
+  }
+
+  const url =
+    `${DENZGAINS_BASE}?${params.toString()}`;
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      Accept: "application/json"
+    }
+  });
+
+  const text = await response.text();
 
   let data;
 
@@ -592,7 +520,7 @@ async function smmAfricaRequest(
     data = JSON.parse(text);
   } catch {
     throw new Error(
-      `SMM Africa returned invalid JSON: ${text.slice(
+      `DenzGains returned invalid JSON: ${text.slice(
         0,
         1500
       )}`
@@ -601,7 +529,7 @@ async function smmAfricaRequest(
 
   if (!response.ok) {
     throw new Error(
-      `SMM Africa request failed (${response.status}): ${safeJsonString(
+      `DenzGains request failed (${response.status}): ${safeJsonString(
         data
       )}`
     );
@@ -609,24 +537,17 @@ async function smmAfricaRequest(
 
   if (data?.error) {
     throw new Error(
-      `SMM Africa API error: ${safeJsonString(
-        data
-      )}`
+      `DenzGains API error: ${safeJsonString(data)}`
     );
   }
 
   return data;
 }
 
-async function getSmmServices(env) {
-  const data =
-    await smmAfricaRequest(
-      env,
-      {
-        action:
-          "services"
-      }
-    );
+async function getDenzGainsServices(env) {
+  const data = await denzGainsRequest(env, {
+    action: "services"
+  });
 
   if (Array.isArray(data)) {
     return data;
@@ -637,87 +558,62 @@ async function getSmmServices(env) {
   }
 
   throw new Error(
-    `SMM Africa returned an unexpected services response: ${safeJsonString(
+    `DenzGains returned an unexpected services response: ${safeJsonString(
       data
     ).slice(0, 3000)}`
   );
 }
 
-async function sendOrderToSmmAfrica(
+async function sendOrderToDenzGains(
   env,
   serviceId,
   link,
-  quantity,
-  idempotencyKey
+  quantity
 ) {
   if (!serviceId) {
     throw new Error(
-      "SMM Africa service ID is missing."
+      "DenzGains service ID is missing."
     );
   }
 
   if (!link) {
     throw new Error(
-      "SMM Africa target link is missing."
+      "DenzGains target link is missing."
     );
   }
 
-  if (
-    !quantity ||
-    Number(quantity) <= 0
-  ) {
+  if (!quantity || Number(quantity) <= 0) {
     throw new Error(
-      "SMM Africa quantity is invalid."
+      "DenzGains quantity is invalid."
     );
   }
 
-  if (!idempotencyKey) {
-    throw new Error(
-      "SMM Africa idempotency key is missing."
-    );
-  }
+  return await denzGainsRequest(env, {
+    action: "add",
 
-  return await smmAfricaRequest(
-    env,
-    {
-      action:
-        "add",
+    service: String(serviceId),
 
-      service:
-        Number(serviceId),
+    link: String(link),
 
-      link:
-        String(link),
-
-      quantity:
-        Number(quantity),
-
-      idempotency_key:
-        String(idempotencyKey)
-    }
-  );
+    quantity: Number(quantity)
+  });
 }
 
-async function getSmmOrderStatus(
+async function getDenzGainsOrderStatus(
   env,
   supplierOrderId
 ) {
   if (!supplierOrderId) {
     throw new Error(
-      "SMM Africa order ID is missing."
+      "DenzGains order ID is missing."
     );
   }
 
-  return await smmAfricaRequest(
-    env,
-    {
-      action:
-        "status",
+  return await denzGainsRequest(env, {
+    action: "status",
 
-      order:
-        String(supplierOrderId)
-    }
-  );
+    order: String(supplierOrderId)
+  });
 }
 
 function normalizeSupplierStatus(status) {
@@ -740,9 +636,7 @@ function normalizeSupplierStatus(status) {
     return "Cancelled";
   }
 
-  if (
-    value.includes("partial")
-  ) {
+  if (value.includes("partial")) {
     return "Partial";
   }
 
@@ -766,20 +660,14 @@ function normalizeSupplierStatus(status) {
 }
 
 /* =========================================================
-   SMM AFRICA TEST
+   DENZGAINS TEST
 ========================================================= */
 
-async function handleSmmTest(
-  request,
-  env
-) {
-  const url =
-    new URL(request.url);
+async function handleDenzGainsTest(request, env) {
+  const url = new URL(request.url);
 
   const secret =
-    url.searchParams.get(
-      "secret"
-    );
+    url.searchParams.get("secret");
 
   if (
     !env.TEST_ORDER_SECRET ||
@@ -787,22 +675,19 @@ async function handleSmmTest(
   ) {
     return json({
       success: false,
-      error:
-        "Unauthorized."
+      error: "Unauthorized."
     }, 401);
   }
 
   try {
     const services =
-      await getSmmServices(
-        env
-      );
+      await getDenzGainsServices(env);
 
     return json({
       success: true,
 
       message:
-        "SMM Africa API connection is working.",
+        "DenzGains API connection is working.",
 
       service_count:
         services.length,
@@ -814,7 +699,7 @@ async function handleSmmTest(
       success: false,
 
       message:
-        "SMM Africa rejected the services request.",
+        "DenzGains rejected the services request.",
 
       error:
         error?.message ||
@@ -887,33 +772,21 @@ async function ensureOrdersTable(env) {
 
   const tableInfo =
     await env.DB
-      .prepare(
-        `PRAGMA table_info(orders)`
-      )
+      .prepare(`PRAGMA table_info(orders)`)
       .all();
 
   const existingColumns =
     new Set(
-      (tableInfo.results || [])
-        .map(
-          column =>
-            column.name
-        )
+      (tableInfo.results || []).map(
+        column => column.name
+      )
     );
 
   for (
-    const [
-      columnName,
-      definition
-    ] of Object.entries(
-      REQUIRED_ORDER_COLUMNS
-    )
+    const [columnName, definition]
+    of Object.entries(REQUIRED_ORDER_COLUMNS)
   ) {
-    if (
-      !existingColumns.has(
-        columnName
-      )
-    ) {
+    if (!existingColumns.has(columnName)) {
       await env.DB
         .prepare(
           `ALTER TABLE orders ADD COLUMN ${columnName} ${definition}`
@@ -940,8 +813,7 @@ async function ensureOrdersTable(env) {
       .prepare(`
         UPDATE orders
         SET tracking_id = ?,
-            updated_at =
-              CURRENT_TIMESTAMP
+            updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `)
       .bind(
@@ -964,9 +836,7 @@ async function getOrderByTrackingId(
   env,
   trackingId
 ) {
-  await ensureOrdersTable(
-    env
-  );
+  await ensureOrdersTable(env);
 
   return await env.DB
     .prepare(`
@@ -979,13 +849,8 @@ async function getOrderByTrackingId(
     .first();
 }
 
-async function getOrderById(
-  env,
-  id
-) {
-  await ensureOrdersTable(
-    env
-  );
+async function getOrderById(env, id) {
+  await ensureOrdersTable(env);
 
   return await env.DB
     .prepare(`
@@ -1014,9 +879,7 @@ async function updateOrder(
     Object.entries(fields)
       .filter(
         ([key]) =>
-          allowedFields.has(
-            key
-          )
+          allowedFields.has(key)
       );
 
   if (!entries.length) {
@@ -1066,47 +929,25 @@ function trackingInfo(order) {
   let currentStep = 1;
   let progress = 25;
 
-  if (
-    status.includes(
-      "submitting"
-    )
-  ) {
+  if (status.includes("submitting")) {
     currentStep = 2;
     progress = 50;
-  } else if (
-    status.includes(
-      "processing"
-    )
-  ) {
+  } else if (status.includes("processing")) {
     currentStep = 3;
     progress = 75;
-  } else if (
-    status.includes(
-      "completed"
-    )
-  ) {
+  } else if (status.includes("completed")) {
     currentStep = 4;
     progress = 100;
-  } else if (
-    status.includes(
-      "cancel"
-    )
-  ) {
+  } else if (status.includes("cancel")) {
     currentStep = 3;
     progress = 75;
-  } else if (
-    status.includes(
-      "supplier error"
-    )
-  ) {
+  } else if (status.includes("supplier error")) {
     currentStep = 2;
     progress = 50;
   }
 
   return {
-    current_step:
-      currentStep,
-
+    current_step: currentStep,
     progress
   };
 }
@@ -1115,24 +956,25 @@ function trackingInfo(order) {
    PROCESS PAID ORDER
 ========================================================= */
 
-async function processPaidOrder(
-  env,
-  order
-) {
+async function processPaidOrder(env, order) {
   if (!order) {
-    throw new Error(
-      "Order not found."
-    );
+    throw new Error("Order not found.");
   }
 
-  if (
-    order.supplier_order_id
-  ) {
+  /*
+    Prevent duplicate submission.
+
+    If a previous DenzGains submission was accepted but
+    did not return a visible order ID, we use the stored
+    supplier response and order status to avoid sending
+    the same order repeatedly.
+  */
+
+  if (order.supplier_order_id) {
     return {
       success: true,
 
-      already_submitted:
-        true,
+      already_submitted: true,
 
       supplier_order_id:
         order.supplier_order_id
@@ -1140,8 +982,27 @@ async function processPaidOrder(
   }
 
   if (
-    !order.pesapal_order_tracking_id
+    order.supplier_response &&
+    (
+      order.order_status === "Processing" ||
+      order.order_status === "Partial" ||
+      order.order_status === "Completed"
+    )
   ) {
+    return {
+      success: true,
+
+      already_submitted: true,
+
+      supplier_order_id:
+        null,
+
+      supplier_response:
+        order.supplier_response
+    };
+  }
+
+  if (!order.pesapal_order_tracking_id) {
     throw new Error(
       "PesaPal transaction tracking ID is missing."
     );
@@ -1162,15 +1023,9 @@ async function processPaidOrder(
     ).toUpperCase();
 
   const isCompleted =
-    paymentStatus.includes(
-      "COMPLETED"
-    ) ||
-    paymentStatus.includes(
-      "PAID"
-    ) ||
-    Number(
-      payment?.status_code
-    ) === 1;
+    paymentStatus.includes("COMPLETED") ||
+    paymentStatus.includes("PAID") ||
+    Number(payment?.status_code) === 1;
 
   if (!isCompleted) {
     await updateOrder(
@@ -1178,8 +1033,7 @@ async function processPaidOrder(
       order.id,
       {
         payment_status:
-          paymentStatus ||
-          "PENDING",
+          paymentStatus || "PENDING",
 
         order_status:
           "Payment Pending"
@@ -1188,7 +1042,9 @@ async function processPaidOrder(
 
     return {
       success: false,
+
       paid: false,
+
       payment
     };
   }
@@ -1197,35 +1053,32 @@ async function processPaidOrder(
     env,
     order.id,
     {
-      payment_status:
-        "COMPLETED",
+      payment_status: "COMPLETED",
 
-      order_status:
-        "Submitting"
+      order_status: "Submitting"
     }
   );
 
   try {
     /*
-      IMPORTANT:
-      We use the HUPPY tracking ID as the idempotency key.
-
-      If the request needs to be retried, the same logical
-      order gets the same idempotency key.
+      Send the paid order to DenzGains.
     */
 
     const supplierResult =
-      await sendOrderToSmmAfrica(
+      await sendOrderToDenzGains(
         env,
 
         order.service_id,
 
         order.link,
 
-        order.quantity,
-
-        order.tracking_id
+        order.quantity
       );
+
+    /*
+      DenzGains normally may return an order identifier
+      using one of these common fields.
+    */
 
     const supplierOrderId =
       supplierResult?.order ||
@@ -1234,26 +1087,54 @@ async function processPaidOrder(
       supplierResult?.orderId ||
       null;
 
+    /*
+      If DenzGains accepted the request but does not
+      provide an order ID in the response, do not mark
+      the customer's order as an error merely because
+      the ID is missing.
+
+      We store the complete response so it can be inspected.
+    */
+
     if (!supplierOrderId) {
+      const returnedStatus =
+        supplierResult?.status ||
+        supplierResult?.order_status ||
+        supplierResult?.state ||
+        "";
+
+      const normalizedStatus =
+        returnedStatus
+          ? normalizeSupplierStatus(
+              returnedStatus
+            )
+          : "Processing";
+
       await updateOrder(
         env,
         order.id,
         {
-          order_status:
-            "Supplier Error",
-
           supplier_response:
             safeJsonString(
               supplierResult
-            )
+            ),
+
+          order_status:
+            normalizedStatus
         }
       );
 
-      throw new Error(
-        `SMM Africa did not return an order ID: ${safeJsonString(
+      return {
+        success: true,
+
+        paid: true,
+
+        supplier_order_id:
+          null,
+
+        supplier_response:
           supplierResult
-        )}`
-      );
+      };
     }
 
     await updateOrder(
@@ -1261,9 +1142,7 @@ async function processPaidOrder(
       order.id,
       {
         supplier_order_id:
-          String(
-            supplierOrderId
-          ),
+          String(supplierOrderId),
 
         supplier_response:
           safeJsonString(
@@ -1271,7 +1150,10 @@ async function processPaidOrder(
           ),
 
         order_status:
-          "Processing"
+          normalizeSupplierStatus(
+            supplierResult?.status ||
+            "Processing"
+          )
       }
     );
 
@@ -1281,9 +1163,7 @@ async function processPaidOrder(
       paid: true,
 
       supplier_order_id:
-        String(
-          supplierOrderId
-        ),
+        String(supplierOrderId),
 
       supplier_response:
         supplierResult
@@ -1304,8 +1184,7 @@ async function processPaidOrder(
               String(error),
 
             time:
-              new Date()
-                .toISOString()
+              new Date().toISOString()
           })
       }
     );
@@ -1331,7 +1210,7 @@ async function syncSupplierStatus(
 
   try {
     const supplier =
-      await getSmmOrderStatus(
+      await getDenzGainsOrderStatus(
         env,
         order.supplier_order_id
       );
@@ -1367,11 +1246,6 @@ async function syncSupplierStatus(
     );
 
   } catch {
-    /*
-      A status-check failure does not erase the existing
-      order status.
-    */
-
     return order;
   }
 }
@@ -1384,15 +1258,12 @@ async function handleOrderPayment(
   request,
   env
 ) {
-  await ensureOrdersTable(
-    env
-  );
+  await ensureOrdersTable(env);
 
   let body;
 
   try {
-    body =
-      await request.json();
+    body = await request.json();
   } catch {
     return json({
       error:
@@ -1444,10 +1315,7 @@ async function handleOrderPayment(
     }, 400);
   }
 
-  if (
-    !quantity ||
-    quantity <= 0
-  ) {
+  if (!quantity || quantity <= 0) {
     return json({
       error:
         "Valid quantity is required."
@@ -1468,14 +1336,8 @@ async function handleOrderPayment(
     }, 400);
   }
 
-  /*
-    Detect customer currency from phone country code.
-  */
-
   const currencyInfo =
-    getCurrencyFromPhone(
-      phone
-    );
+    getCurrencyFromPhone(phone);
 
   const currency =
     currencyInfo.currency;
@@ -1484,13 +1346,11 @@ async function handleOrderPayment(
     currencyInfo.country;
 
   /*
-    Get SMM Africa catalog.
+    Get the live DenzGains catalog.
   */
 
   const services =
-    await getSmmServices(
-      env
-    );
+    await getDenzGainsServices(env);
 
   const service =
     services.find(
@@ -1506,21 +1366,16 @@ async function handleOrderPayment(
   if (!service) {
     return json({
       error:
-        "Selected service was not found in the SMM Africa catalog."
+        "Selected service was not found in the DenzGains catalog."
     }, 404);
   }
 
   /*
-    SMM Africa service rate is the supplier's price
-    per 1,000 units.
+    DenzGains rate is treated as USD per 1,000 units.
 
-    We double it for your selling price.
+    YOUR SELLING PRICE:
 
-    Example:
-
-    Supplier = 30
-    Customer = 60
-    Profit = 30
+      supplier rate × 2
   */
 
   const supplierRate =
@@ -1538,22 +1393,43 @@ async function handleOrderPayment(
   ) {
     return json({
       error:
-        "Supplier price is unavailable for this service."
+        "DenzGains price is unavailable for this service."
     }, 400);
   }
 
-  /*
-    Supplier catalog is treated as USD-based.
+  const supplierMin =
+    Number(
+      service.min ||
+      service.min_quantity ||
+      0
+    );
 
-    supplierAmountUsd:
-      supplier's actual cost
+  const supplierMax =
+    Number(
+      service.max ||
+      service.max_quantity ||
+      0
+    );
 
-    customerAmountUsd:
-      supplier cost × 2
+  if (
+    supplierMin > 0 &&
+    quantity < supplierMin
+  ) {
+    return json({
+      error:
+        `Minimum quantity for this service is ${supplierMin}.`
+    }, 400);
+  }
 
-    profitAmountUsd:
-      customer - supplier
-  */
+  if (
+    supplierMax > 0 &&
+    quantity > supplierMax
+  ) {
+    return json({
+      error:
+        `Maximum quantity for this service is ${supplierMax}.`
+    }, 400);
+  }
 
   const supplierAmountUsd =
     (
@@ -1561,22 +1437,20 @@ async function handleOrderPayment(
       quantity
     ) / 1000;
 
+  const customerRate =
+    customerPrice(
+      supplierRate
+    );
+
   const customerAmountUsd =
     (
-      customerPrice(
-        supplierRate
-      ) *
+      customerRate *
       quantity
     ) / 1000;
 
   const profitAmountUsd =
     customerAmountUsd -
     supplierAmountUsd;
-
-  /*
-    Convert customer price and supplier cost to the
-    customer's detected currency.
-  */
 
   const supplierAmount =
     roundMoney(
@@ -1674,8 +1548,7 @@ async function handleOrderPayment(
   }
 
   const order = {
-    id:
-      orderId,
+    id: orderId,
 
     tracking_id:
       trackingId,
@@ -1718,9 +1591,7 @@ async function handleOrderPayment(
   };
 
   const origin =
-    new URL(
-      request.url
-    ).origin;
+    new URL(request.url).origin;
 
   const payment =
     await createPesapalOrder(
@@ -1787,25 +1658,41 @@ async function handleServices(
     new URL(request.url);
 
   const phone =
-    url.searchParams.get(
-      "phone"
-    ) || "";
+    url.searchParams.get("phone") || "";
 
   const currencyInfo =
-    getCurrencyFromPhone(
-      phone
-    );
+    getCurrencyFromPhone(phone);
 
   const currency =
     currencyInfo.currency;
 
   const services =
-    await getSmmServices(
-      env
+    await getDenzGainsServices(env);
+
+  /*
+    Sort from the LOWEST DenzGains supplier price.
+
+    Because your selling price is ×2, the lowest
+    supplier price also produces the lowest customer price.
+  */
+
+  const sortedServices =
+    [...services].sort(
+      (a, b) =>
+        Number(
+          a.rate ||
+          a.price ||
+          0
+        ) -
+        Number(
+          b.rate ||
+          b.price ||
+          0
+        )
     );
 
   const mapped =
-    services.map(
+    sortedServices.map(
       service => {
         const supplierRate =
           Number(
@@ -1830,7 +1717,10 @@ async function handleServices(
           );
 
         return {
-          ...service,
+          /*
+            Keep the original DenzGains fields so the
+            frontend can continue using them.
+          */
 
           service_id:
             String(
@@ -1849,22 +1739,35 @@ async function handleServices(
               ""
             }`,
 
-          min_quantity:
+          type:
+            service.type ||
+            "",
+
+          category:
+            service.category ||
+            "",
+
+          min:
             Number(
               service.min ||
               service.min_quantity ||
               0
             ),
 
-          max_quantity:
+          max:
             Number(
               service.max ||
               service.max_quantity ||
               0
             ),
 
-          supplier_rate:
-            supplierRate,
+          refill:
+            service.refill ??
+            false,
+
+          cancel:
+            service.cancel ??
+            false,
 
           /*
             Customer selling price per 1,000
@@ -1941,8 +1844,8 @@ async function handleOrderStatus(
   }
 
   /*
-    If payment is complete but the supplier order has not
-    yet been created, submit it.
+    If payment is complete but the DenzGains order has
+    not yet been submitted, submit it.
   */
 
   if (
@@ -1973,13 +1876,11 @@ async function handleOrderStatus(
   }
 
   /*
-    If SMM Africa already gave us an order ID, check the
-    latest supplier status.
+    If DenzGains gave us an order ID, check the latest
+    supplier status.
   */
 
-  if (
-    order?.supplier_order_id
-  ) {
+  if (order?.supplier_order_id) {
     order =
       await syncSupplierStatus(
         env,
@@ -2089,7 +1990,7 @@ async function handlePaymentCallback(
       );
     } catch {
       /*
-        Supplier/payment error is stored in D1.
+        Payment/supplier error is stored in D1.
       */
     }
   }
@@ -2246,9 +2147,7 @@ async function handleDatabaseTest(
   }
 
   try {
-    await ensureOrdersTable(
-      env
-    );
+    await ensureOrdersTable(env);
 
     const tableInfo =
       await env.DB
@@ -2289,14 +2188,13 @@ async function handleHealth() {
       "HUPPY CUBE",
 
     supplier:
-      "SMM Africa",
+      "DenzGains",
 
     status:
       "online",
 
     time:
-      new Date()
-        .toISOString()
+      new Date().toISOString()
   });
 }
 
@@ -2317,9 +2215,7 @@ async function handleCurrencyTest(
     ) || "";
 
   const info =
-    getCurrencyFromPhone(
-      phone
-    );
+    getCurrencyFromPhone(phone);
 
   const exampleUsd =
     Number(
@@ -2372,13 +2268,11 @@ async function handleCurrencyTest(
 ========================================================= */
 
 export default {
-
   async fetch(
     request,
     env,
     ctx
   ) {
-
     const url =
       new URL(request.url);
 
@@ -2404,25 +2298,22 @@ export default {
     }
 
     try {
-
       /* HEALTH */
 
       if (
         request.method === "GET" &&
-        pathname ===
-          "/api/health"
+        pathname === "/api/health"
       ) {
         return handleHealth();
       }
 
-      /* SMM AFRICA TEST */
+      /* DENZGAINS TEST */
 
       if (
         request.method === "GET" &&
-        pathname ===
-          "/api/smm-test"
+        pathname === "/api/denzgains-test"
       ) {
-        return await handleSmmTest(
+        return await handleDenzGainsTest(
           request,
           env
         );
@@ -2432,8 +2323,7 @@ export default {
 
       if (
         request.method === "GET" &&
-        pathname ===
-          "/api/currency-test"
+        pathname === "/api/currency-test"
       ) {
         return await handleCurrencyTest(
           request,
@@ -2445,8 +2335,7 @@ export default {
 
       if (
         request.method === "GET" &&
-        pathname ===
-          "/api/services"
+        pathname === "/api/services"
       ) {
         return await handleServices(
           request,
@@ -2459,20 +2348,11 @@ export default {
       if (
         request.method === "POST" &&
         (
-          pathname ===
-            "/api/order-payment" ||
-
-          pathname ===
-            "/api/create-payment" ||
-
-          pathname ===
-            "/api/create-order" ||
-
-          pathname ===
-            "/api/order" ||
-
-          pathname ===
-            "/api/pay"
+          pathname === "/api/order-payment" ||
+          pathname === "/api/create-payment" ||
+          pathname === "/api/create-order" ||
+          pathname === "/api/order" ||
+          pathname === "/api/pay"
         )
       ) {
         return await handleOrderPayment(
@@ -2485,8 +2365,7 @@ export default {
 
       if (
         request.method === "GET" &&
-        pathname ===
-          "/api/order-status"
+        pathname === "/api/order-status"
       ) {
         return await handleOrderStatus(
           request,
@@ -2497,8 +2376,7 @@ export default {
       /* PAYMENT CALLBACK */
 
       if (
-        pathname ===
-          "/api/payment-callback"
+        pathname === "/api/payment-callback"
       ) {
         return await handlePaymentCallback(
           request,
@@ -2509,8 +2387,7 @@ export default {
       /* PESAPAL IPN */
 
       if (
-        pathname ===
-          "/api/pesapal-ipn"
+        pathname === "/api/pesapal-ipn"
       ) {
         return await handlePesapalIpn(
           request,
@@ -2522,8 +2399,7 @@ export default {
 
       if (
         request.method === "GET" &&
-        pathname ===
-          "/api/database-test"
+        pathname === "/api/database-test"
       ) {
         return await handleDatabaseTest(
           request,
@@ -2534,9 +2410,7 @@ export default {
       /* FRONTEND */
 
       if (env.ASSETS) {
-        return env.ASSETS.fetch(
-          request
-        );
+        return env.ASSETS.fetch(request);
       }
 
       return new Response(
@@ -2547,7 +2421,6 @@ export default {
       );
 
     } catch (error) {
-
       console.error(
         "Worker error:",
         error
