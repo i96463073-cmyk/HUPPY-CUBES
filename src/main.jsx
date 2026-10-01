@@ -62,56 +62,26 @@ function detectPlatform(service) {
     service?.category || ""
   } ${service?.type || ""}`.toLowerCase();
 
-  if (text.includes("instagram") || text.includes("ig ")) {
-    return "Instagram";
-  }
-
-  if (
-    text.includes("tiktok") ||
-    text.includes("tik tok")
-  ) {
-    return "TikTok";
-  }
-
-  if (
-    text.includes("facebook") ||
-    text.includes("fb ")
-  ) {
-    return "Facebook";
-  }
-
-  if (text.includes("youtube")) {
-    return "YouTube";
-  }
-
-  if (text.includes("telegram")) {
-    return "Telegram";
-  }
-
+  if (text.includes("instagram") || text.includes("ig ")) return "Instagram";
+  if (text.includes("tiktok") || text.includes("tik tok")) return "TikTok";
+  if (text.includes("facebook") || text.includes("fb ")) return "Facebook";
+  if (text.includes("youtube")) return "YouTube";
+  if (text.includes("telegram")) return "Telegram";
   if (
     text.includes("twitter") ||
     text.includes(" x ") ||
     text.startsWith("x ") ||
     text.includes(" x/")
-  ) {
+  )
     return "Twitter / X";
-  }
-
-  if (text.includes("whatsapp")) {
-    return "WhatsApp";
-  }
-
-  if (text.includes("spotify")) {
-    return "Spotify";
-  }
-
+  if (text.includes("whatsapp")) return "WhatsApp";
+  if (text.includes("spotify")) return "Spotify";
   if (
     text.includes("gaming") ||
     text.includes("game ") ||
     text.includes("twitch")
-  ) {
+  )
     return "Gaming";
-  }
 
   return "Other";
 }
@@ -122,27 +92,20 @@ function detectPlatform(service) {
 
 function getCustomerRate(service) {
   return Number(
-    service?.customer_rate ??
-      service?.price ??
-      service?.rate ??
-      0
+    service?.customer_rate ?? service?.price ?? service?.rate ?? 0
   );
 }
 
 function formatKES(value) {
-  return `KSh ${Number(value || 0).toLocaleString(
-    "en-KE",
-    {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    }
-  )}`;
+  return `KSh ${Number(value || 0).toLocaleString("en-KE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })}`;
 }
 
 function priceFor(service, quantity) {
   const rate = getCustomerRate(service);
   const qty = Number(quantity || 0);
-
   return (rate * qty) / 1000;
 }
 
@@ -151,43 +114,81 @@ function getWhatsAppUrl(trackingId = "") {
     ? `Hello HUPPY CUBE, I need help with my order. Tracking ID: ${trackingId}`
     : "Hello HUPPY CUBE, I need help with my order.";
 
-  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
-    message
-  )}`;
+  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
 }
 
+/* =========================================================
+   STATUS LABEL
+========================================================= */
+
 function statusLabel(status) {
-  if (!status) {
-    return "Payment Pending";
+  if (!status) return "Awaiting Payment";
+
+  const v = String(status).toLowerCase().trim();
+
+  if (v.includes("completed")) return "Completed";
+  if (v.includes("partial")) return "Partially Completed";
+  if (v.includes("cancel")) return "Cancelled";
+  if (v.includes("processing")) return "Processing";
+  if (v.includes("submitting")) return "Submitting to Supplier";
+  if (v.includes("supplier error")) return "Supplier Error";
+  if (v.includes("payment mismatch")) return "Payment Amount Mismatch";
+  if (v.includes("payment error")) return "Payment Error";
+  if (v.includes("payment failed")) return "Payment Failed";
+  if (v.includes("reversed")) return "Payment Reversed";
+  if (v.includes("payment pending")) return "Awaiting Payment";
+  if (v === "pending") return "Order Created";
+  if (v.includes("failed")) return "Failed";
+
+  return status;
+}
+
+/* =========================================================
+   PROGRESS DERIVATION
+========================================================= */
+
+const STATUS_PROGRESS = {
+  "payment pending": { current_step: 1, progress: 15 },
+  pending: { current_step: 1, progress: 20 },
+  "payment received": { current_step: 1, progress: 20 },
+  "payment failed": { current_step: 1, progress: 10 },
+  "payment error": { current_step: 1, progress: 10 },
+  "payment mismatch": { current_step: 1, progress: 10 },
+  "payment reversed": { current_step: 1, progress: 10 },
+  submitting: { current_step: 2, progress: 45 },
+  "supplier error": { current_step: 2, progress: 35 },
+  processing: { current_step: 3, progress: 70 },
+  completed: { current_step: 4, progress: 100 },
+  partial: { current_step: 4, progress: 100 },
+  cancelled: { current_step: 4, progress: 100 },
+  failed: { current_step: 4, progress: 100 }
+};
+
+function deriveTracking(order) {
+  const key = String(order?.order_status || "payment pending")
+    .toLowerCase()
+    .trim();
+
+  const direct = STATUS_PROGRESS[key];
+  if (direct) {
+    return {
+      current_step: direct.current_step,
+      progress: direct.progress,
+      status_label: statusLabel(order?.order_status)
+    };
   }
 
-  const value = String(status).toLowerCase();
+  const matched = Object.entries(STATUS_PROGRESS).find(([k]) =>
+    key.includes(k)
+  );
 
-  if (value.includes("completed")) {
-    return "Completed";
-  }
+  const match = matched?.[1] || { current_step: 1, progress: 15 };
 
-  if (value.includes("processing")) {
-    return "Processing";
-  }
-
-  if (value.includes("submitting")) {
-    return "Order Submitted";
-  }
-
-  if (value.includes("supplier error")) {
-    return "Supplier Error";
-  }
-
-  if (value.includes("reversed")) {
-    return "Payment Reversed";
-  }
-
-  if (value.includes("invalid")) {
-    return "Payment Invalid";
-  }
-
-  return "Payment Received";
+  return {
+    current_step: match.current_step,
+    progress: match.progress,
+    status_label: statusLabel(order?.order_status)
+  };
 }
 
 /* =========================================================
@@ -195,66 +196,39 @@ function statusLabel(status) {
 ========================================================= */
 
 function TrackingProgress({ tracking }) {
-  const currentStep = Number(
-    tracking?.current_step || 1
-  );
+  const currentStep = Number(tracking?.current_step || 1);
 
   const steps = [
-    {
-      number: 1,
-      title: "Payment Received",
-      icon: CreditCard
-    },
-    {
-      number: 2,
-      title: "Order Submitted",
-      icon: PackageCheck
-    },
-    {
-      number: 3,
-      title: "Processing",
-      icon: Loader2
-    },
-    {
-      number: 4,
-      title: "Completed",
-      icon: CheckCircle2
-    }
+    { number: 1, title: "Payment Received", icon: CreditCard },
+    { number: 2, title: "Order Submitted", icon: PackageCheck },
+    { number: 3, title: "Processing", icon: Loader2 },
+    { number: 4, title: "Completed", icon: CheckCircle2 }
   ];
 
   return (
     <div className="tracking-progress">
       {steps.map((step, index) => {
         const Icon = step.icon;
-
-        const active =
-          currentStep >= step.number;
-
-        const current =
-          currentStep === step.number;
+        const active = currentStep >= step.number;
+        const current = currentStep === step.number;
 
         return (
           <React.Fragment key={step.number}>
             <div
               className={`tracking-step ${
                 active ? "active" : ""
-              } ${
-                current ? "current" : ""
-              }`}
+              } ${current ? "current" : ""}`}
             >
               <div className="tracking-step-icon">
                 <Icon size={19} />
               </div>
-
               <span>{step.title}</span>
             </div>
 
             {index < steps.length - 1 && (
               <div
                 className={`tracking-line ${
-                  currentStep > step.number
-                    ? "active"
-                    : ""
+                  currentStep > step.number ? "active" : ""
                 }`}
               />
             )}
@@ -269,115 +243,78 @@ function TrackingProgress({ tracking }) {
    ORDER TRACKING
 ========================================================= */
 
-function OrderTracking({
-  trackingId,
-  initialData,
-  onClose
-}) {
-  const [trackingData, setTrackingData] =
-    useState(initialData);
-
-  const [loading, setLoading] =
-    useState(!initialData);
-
-  const [trackingError, setTrackingError] =
-    useState("");
+function OrderTracking({ trackingId, initialData, onClose }) {
+  const [trackingData, setTrackingData] = useState(initialData);
+  const [loading, setLoading] = useState(!initialData);
+  const [trackingError, setTrackingError] = useState("");
 
   async function loadTracking(showLoader = false) {
     try {
-      if (showLoader) {
-        setLoading(true);
-      }
-
+      if (showLoader) setLoading(true);
       setTrackingError("");
 
-      if (!trackingId) {
-        throw new Error(
-          "Tracking ID is missing."
-        );
-      }
+      if (!trackingId) throw new Error("Tracking ID is missing.");
 
       const response = await fetch(
-        `/api/order-status?tracking_id=${encodeURIComponent(
-          trackingId
-        )}`,
+        `/api/order-status?tracking_id=${encodeURIComponent(trackingId)}`,
         {
           credentials: "same-origin",
           cache: "no-store"
         }
       );
 
-      const responseText =
-        await response.text();
+      const responseText = await response.text();
 
       let data = null;
-
       try {
-        data = responseText
-          ? JSON.parse(responseText)
-          : null;
+        data = responseText ? JSON.parse(responseText) : null;
       } catch {
-        throw new Error(
-          "The tracking server returned an invalid response."
-        );
+        throw new Error("The tracking server returned an invalid response.");
       }
 
-      if (
-        !response.ok ||
-        !data ||
-        !data.success
-      ) {
-        throw new Error(
-          data?.error ||
-            "Unable to load order status."
-        );
+      if (!response.ok || !data || !data.success) {
+        throw new Error(data?.error || "Unable to load order status.");
       }
 
       setTrackingData(data);
     } catch (err) {
-      setTrackingError(
-        err?.message ||
-          "Unable to load order status."
-      );
+      setTrackingError(err?.message || "Unable to load order status.");
     } finally {
       setLoading(false);
     }
   }
 
+  const order = trackingData?.order;
+  const tracking = trackingData?.tracking || deriveTracking(order);
+
+  const orderStatusKey = String(order?.order_status || "").toLowerCase();
+  const terminal =
+    orderStatusKey.includes("completed") ||
+    orderStatusKey.includes("partial") ||
+    orderStatusKey.includes("cancel") ||
+    orderStatusKey.includes("failed") ||
+    orderStatusKey.includes("reversed") ||
+    orderStatusKey.includes("supplier error");
+
   useEffect(() => {
     loadTracking(true);
 
-    const interval = setInterval(() => {
-      loadTracking(false);
-    }, 15000);
+    if (terminal) return;
 
-    return () => {
-      clearInterval(interval);
-    };
-  }, [trackingId]);
-
-  const order = trackingData?.order;
-  const tracking = trackingData?.tracking;
+    const interval = setInterval(() => loadTracking(false), 15000);
+    return () => clearInterval(interval);
+  }, [trackingId, terminal]);
 
   const whatsappUrl =
-    trackingData?.whatsapp?.url ||
-    getWhatsAppUrl(trackingId);
+    trackingData?.whatsapp?.url || getWhatsAppUrl(trackingId);
 
   if (loading && !trackingData) {
     return (
       <div className="tracking-screen">
         <div className="tracking-loading">
-          <Loader2
-            className="spin"
-            size={35}
-          />
-
+          <Loader2 className="spin" size={35} />
           <h2>Loading your order...</h2>
-
-          <p>
-            Please wait while we check
-            your order status.
-          </p>
+          <p>Please wait while we check your order status.</p>
         </div>
       </div>
     );
@@ -386,39 +323,22 @@ function OrderTracking({
   return (
     <div className="tracking-screen">
       <div className="tracking-header">
-        <button
-          type="button"
-          className="tracking-back"
-          onClick={onClose}
-        >
+        <button type="button" className="tracking-back" onClick={onClose}>
           <X size={19} />
           Close
         </button>
 
         <div className="tracking-title">
-          <span className="section-kicker">
-            ORDER TRACKING
-          </span>
-
+          <span className="section-kicker">ORDER TRACKING</span>
           <h2>Track your order</h2>
-
-          <p>
-            Your order status updates
-            automatically.
-          </p>
+          <p>Your order status updates automatically.</p>
         </div>
       </div>
 
       {trackingError && (
         <div className="form-error">
           <span>{trackingError}</span>
-
-          <button
-            type="button"
-            onClick={() =>
-              loadTracking(true)
-            }
-          >
+          <button type="button" onClick={() => loadTracking(true)}>
             Try Again
           </button>
         </div>
@@ -429,19 +349,11 @@ function OrderTracking({
           <div className="tracking-id-box">
             <div>
               <span>Tracking ID</span>
-
-              <strong>
-                {order.tracking_id}
-              </strong>
+              <strong>{order.tracking_id}</strong>
             </div>
-
             <button
               type="button"
-              onClick={() => {
-                navigator.clipboard?.writeText(
-                  order.tracking_id
-                );
-              }}
+              onClick={() => navigator.clipboard?.writeText(order.tracking_id)}
             >
               Copy
             </button>
@@ -451,90 +363,56 @@ function OrderTracking({
             <div className="tracking-status-top">
               <div>
                 <span>Current status</span>
-
-                <strong>
-                  {statusLabel(
-                    order.order_status
-                  )}
-                </strong>
+                <strong>{statusLabel(order.order_status)}</strong>
               </div>
-
               <div className="tracking-percent">
-                {Number(
-                  tracking?.progress || 0
-                )}
-                %
+                {Number(tracking?.progress || 0)}%
               </div>
             </div>
 
             <div className="progress-bar">
               <div
                 className="progress-fill"
-                style={{
-                  width: `${Number(
-                    tracking?.progress || 0
-                  )}%`
-                }}
+                style={{ width: `${Number(tracking?.progress || 0)}%` }}
               />
             </div>
           </div>
 
-          <TrackingProgress
-            tracking={tracking}
-          />
+          <TrackingProgress tracking={tracking} />
 
           <div className="tracking-details">
             <div className="tracking-detail">
               <span>Service</span>
-
-              <strong>
-                {order.service_name}
-              </strong>
+              <strong>{order.service_name}</strong>
             </div>
-
             <div className="tracking-detail">
               <span>Quantity</span>
-
-              <strong>
-                {Number(
-                  order.quantity || 0
-                ).toLocaleString()}
-              </strong>
+              <strong>{Number(order.quantity || 0).toLocaleString()}</strong>
             </div>
-
             <div className="tracking-detail">
               <span>Payment</span>
-
-              <strong>
-                {order.payment_status ||
-                  "Pending"}
-              </strong>
+              <strong>{order.payment_status || "Pending"}</strong>
             </div>
-
             <div className="tracking-detail">
               <span>Supplier Order</span>
-
-              <strong>
-                {order.supplier_order_id ||
-                  "Being submitted"}
-              </strong>
+              <strong>{order.supplier_order_id || "Being submitted"}</strong>
             </div>
           </div>
 
+          {order.error_message && (
+            <div className="form-error">
+              <span>{order.error_message}</span>
+            </div>
+          )}
+
           <div className="tracking-auto">
             <Clock3 size={17} />
-
             <span>
-              Status checks automatically
-              every 15 seconds.
+              {terminal
+                ? "This order is complete. No further updates expected."
+                : "Status checks automatically every 15 seconds."}
             </span>
-
-            <button
-              type="button"
-              onClick={() =>
-                loadTracking(true)
-              }
-            >
+            <button type="button" onClick={() => loadTracking(true)}>
               Refresh
             </button>
           </div>
@@ -546,16 +424,10 @@ function OrderTracking({
             rel="noreferrer"
           >
             <MessageCircle size={20} />
-
             <div>
               <strong>WhatsApp Help</strong>
-
-              <span>
-                Need help with this
-                order?
-              </span>
+              <span>Need help with this order?</span>
             </div>
-
             <ChevronRight size={19} />
           </a>
         </>
@@ -569,244 +441,115 @@ function OrderTracking({
 ========================================================= */
 
 function App() {
-  const [services, setServices] =
-    useState([]);
-
-  const [
-    selectedPlatform,
-    setSelectedPlatform
-  ] = useState("All");
-
-  const [search, setSearch] =
-    useState("");
-
-  const [
-    selectedService,
-    setSelectedService
-  ] = useState(null);
-
-  const [quantity, setQuantity] =
-    useState("");
-
-  const [link, setLink] =
-    useState("");
-
-  const [phone, setPhone] =
-    useState("");
-
-  const [
-    loadingServices,
-    setLoadingServices
-  ] = useState(true);
-
-  const [ordering, setOrdering] =
-    useState(false);
-
-  const [
-    orderResult,
-    setOrderResult
-  ] = useState(null);
-
-  const [trackingId, setTrackingId] =
-    useState("");
-
-  const [error, setError] =
-    useState("");
-
-  const [
-    showTracking,
-    setShowTracking
-  ] = useState(false);
-
-  /* =======================================================
-     INITIAL LOAD
-  ======================================================= */
+  const [services, setServices] = useState([]);
+  const [selectedPlatform, setSelectedPlatform] = useState("All");
+  const [search, setSearch] = useState("");
+  const [selectedService, setSelectedService] = useState(null);
+  const [quantity, setQuantity] = useState("");
+  const [link, setLink] = useState("");
+  const [phone, setPhone] = useState("");
+  const [loadingServices, setLoadingServices] = useState(true);
+  const [ordering, setOrdering] = useState(false);
+  const [orderResult, setOrderResult] = useState(null);
+  const [trackingId, setTrackingId] = useState("");
+  const [error, setError] = useState("");
+  const [showTracking, setShowTracking] = useState(false);
 
   useEffect(() => {
     loadServices();
 
-    const params =
-      new URLSearchParams(
-        window.location.search
-      );
-
-    const returnedTrackingId =
-      params.get("tracking_id");
+    const params = new URLSearchParams(window.location.search);
+    const returnedTrackingId = params.get("tracking_id");
 
     if (returnedTrackingId) {
-      setTrackingId(
-        returnedTrackingId
-      );
-
+      setTrackingId(returnedTrackingId);
       try {
-        localStorage.setItem(
-          "huppy_cube_tracking_id",
-          returnedTrackingId
-        );
+        localStorage.setItem("huppy_cube_tracking_id", returnedTrackingId);
       } catch {}
-
       setShowTracking(true);
     }
   }, []);
-
-  /* =======================================================
-     LOAD SERVICES
-  ======================================================= */
 
   async function loadServices() {
     try {
       setLoadingServices(true);
       setError("");
 
-      const response = await fetch(
-        "/api/services",
-        {
-          credentials: "same-origin",
-          cache: "no-store"
-        }
-      );
+      const response = await fetch("/api/services", {
+        credentials: "same-origin",
+        cache: "no-store"
+      });
 
-      const responseText =
-        await response.text();
+      const responseText = await response.text();
 
       let data = null;
-
       try {
-        data = responseText
-          ? JSON.parse(responseText)
-          : null;
+        data = responseText ? JSON.parse(responseText) : null;
       } catch {
-        throw new Error(
-          "The services server returned an invalid response."
-        );
+        throw new Error("The services server returned an invalid response.");
       }
 
       if (!response.ok) {
-        throw new Error(
-          data?.error ||
-            "Unable to load services"
-        );
+        throw new Error(data?.error || "Unable to load services");
       }
 
-      const serviceList =
-        Array.isArray(data)
-          ? data
-          : Array.isArray(
-              data?.services
-            )
-          ? data.services
-          : [];
+      const serviceList = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.services)
+        ? data.services
+        : [];
 
       setServices(serviceList);
     } catch (err) {
-      setError(
-        err?.message ||
-          "Unable to load services"
-      );
+      setError(err?.message || "Unable to load services");
     } finally {
       setLoadingServices(false);
     }
   }
 
-  /* =======================================================
-     ENRICH SERVICES
-  ======================================================= */
+  const enrichedServices = useMemo(() => {
+    return services.map((service) => ({
+      ...service,
+      platform: detectPlatform(service)
+    }));
+  }, [services]);
 
-  const enrichedServices =
-    useMemo(() => {
-      return services.map(
-        (service) => ({
-          ...service,
-          platform:
-            detectPlatform(service)
-        })
-      );
-    }, [services]);
+  const filteredServices = useMemo(() => {
+    const query = search.trim().toLowerCase();
 
-  /* =======================================================
-     FILTER SERVICES
-  ======================================================= */
+    return enrichedServices.filter((service) => {
+      const matchesPlatform =
+        selectedPlatform === "All" || service.platform === selectedPlatform;
 
-  const filteredServices =
-    useMemo(() => {
-      const query =
-        search.trim().toLowerCase();
+      const matchesSearch =
+        !query ||
+        `${service.name} ${service.category} ${service.type} ${service.platform}`
+          .toLowerCase()
+          .includes(query);
 
-      return enrichedServices.filter(
-        (service) => {
-          const matchesPlatform =
-            selectedPlatform ===
-              "All" ||
-            service.platform ===
-              selectedPlatform;
-
-          const matchesSearch =
-            !query ||
-            `${service.name} ${
-              service.category
-            } ${service.type} ${
-              service.platform
-            }`
-              .toLowerCase()
-              .includes(query);
-
-          return (
-            matchesPlatform &&
-            matchesSearch
-          );
-        }
-      );
-    }, [
-      enrichedServices,
-      selectedPlatform,
-      search
-    ]);
-
-  /* =======================================================
-     OPEN ORDER
-  ======================================================= */
+      return matchesPlatform && matchesSearch;
+    });
+  }, [enrichedServices, selectedPlatform, search]);
 
   function openOrder(service) {
     setSelectedService(service);
-
-    setQuantity(
-      String(
-        service.min_quantity ??
-          service.min ??
-          ""
-      )
-    );
-
+    setQuantity(String(service.min_quantity ?? service.min ?? ""));
     setLink("");
     setPhone("");
     setError("");
     setOrderResult(null);
   }
 
-  /* =======================================================
-     CLOSE ORDER
-  ======================================================= */
-
   function closeOrder() {
-    if (ordering) {
-      return;
-    }
-
+    if (ordering) return;
     setSelectedService(null);
     setOrderResult(null);
     setError("");
   }
 
-  /* =======================================================
-     OPEN TRACKING
-  ======================================================= */
-
   function openTracking(id = trackingId) {
     if (!id) {
-      setError(
-        "Your tracking number has not been created yet."
-      );
-
+      setError("Your tracking number has not been created yet.");
       return;
     }
 
@@ -817,62 +560,35 @@ function App() {
     setError("");
   }
 
-  /* =======================================================
-     SUBMIT ORDER
-  ======================================================= */
-
   async function submitOrder(event) {
     event.preventDefault();
-
-    if (!selectedService) {
-      return;
-    }
+    if (!selectedService) return;
 
     const qty = Number(quantity);
-
-    const minimum =
-      Number(
-        selectedService.min_quantity ??
-          selectedService.min ??
-          0
-      );
-
-    const maximum =
-      Number(
-        selectedService.max_quantity ??
-          selectedService.max ??
-          0
-      );
+    const minimum = Number(
+      selectedService.min_quantity ?? selectedService.min ?? 0
+    );
+    const maximum = Number(
+      selectedService.max_quantity ?? selectedService.max ?? 0
+    );
 
     if (!qty || qty < minimum) {
-      setError(
-        `Minimum quantity is ${minimum.toLocaleString()}`
-      );
-
+      setError(`Minimum quantity is ${minimum.toLocaleString()}`);
       return;
     }
 
     if (maximum && qty > maximum) {
-      setError(
-        `Maximum quantity is ${maximum.toLocaleString()}`
-      );
-
+      setError(`Maximum quantity is ${maximum.toLocaleString()}`);
       return;
     }
 
     if (!link.trim()) {
-      setError(
-        "Please enter the target link."
-      );
-
+      setError("Please enter the target link.");
       return;
     }
 
     if (!phone.trim()) {
-      setError(
-        "Please enter your phone number."
-      );
-
+      setError("Please enter your phone number.");
       return;
     }
 
@@ -880,47 +596,24 @@ function App() {
     setOrdering(true);
 
     try {
-      const response =
-        await fetch(
-          "/api/order-payment",
-          {
-            method: "POST",
+      const response = await fetch("/api/order-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          service_id: selectedService.service_id,
+          service_name: selectedService.name,
+          quantity: qty,
+          link: link.trim(),
+          phone: phone.trim()
+        })
+      });
 
-            headers: {
-              "Content-Type":
-                "application/json"
-            },
-
-            credentials:
-              "same-origin",
-
-            body: JSON.stringify({
-              service_id:
-                selectedService.service_id,
-
-              service_name:
-                selectedService.name,
-
-              quantity: qty,
-
-              link: link.trim(),
-
-              phone: phone.trim()
-            })
-          }
-        );
-
-      const responseText =
-        await response.text();
+      const responseText = await response.text();
 
       let data = null;
-
       try {
-        data = responseText
-          ? JSON.parse(
-              responseText
-            )
-          : null;
+        data = responseText ? JSON.parse(responseText) : null;
       } catch {
         throw new Error(
           `The payment server returned an invalid response: ${responseText.slice(
@@ -930,23 +623,14 @@ function App() {
         );
       }
 
-      if (
-        !data ||
-        typeof data !== "object"
-      ) {
+      if (!data || typeof data !== "object") {
         throw new Error(
           "The payment server returned an empty response. Please try again."
         );
       }
 
-      if (
-        !response.ok ||
-        data.success === false
-      ) {
-        throw new Error(
-          data.error ||
-            "Unable to create payment."
-        );
+      if (!response.ok || data.success === false) {
+        throw new Error(data.error || "Unable to create payment.");
       }
 
       if (!data.tracking_id) {
@@ -955,69 +639,36 @@ function App() {
         );
       }
 
-      setTrackingId(
-        data.tracking_id
-      );
-
+      setTrackingId(data.tracking_id);
       try {
-        localStorage.setItem(
-          "huppy_cube_tracking_id",
-          data.tracking_id
-        );
+        localStorage.setItem("huppy_cube_tracking_id", data.tracking_id);
       } catch {}
 
       if (data.redirect_url) {
-        window.location.href =
-          data.redirect_url;
-
+        window.location.href = data.redirect_url;
         return;
       }
 
       setOrderResult(data);
     } catch (err) {
-      console.error(
-        "Order payment error:",
-        err
-      );
-
+      console.error("Order payment error:", err);
       setError(
-        err?.message ||
-          "Something went wrong while creating your order."
+        err?.message || "Something went wrong while creating your order."
       );
     } finally {
       setOrdering(false);
     }
   }
 
-  /* =======================================================
-     RESTORE TRACKING ID
-  ======================================================= */
-
   useEffect(() => {
-    if (trackingId) {
-      return;
-    }
-
+    if (trackingId) return;
     try {
-      const saved =
-        localStorage.getItem(
-          "huppy_cube_tracking_id"
-        );
-
-      if (saved) {
-        setTrackingId(saved);
-      }
+      const saved = localStorage.getItem("huppy_cube_tracking_id");
+      if (saved) setTrackingId(saved);
     } catch {}
   }, [trackingId]);
 
-  /* =======================================================
-     TRACKING PAGE
-  ======================================================= */
-
-  if (
-    showTracking &&
-    trackingId
-  ) {
+  if (showTracking && trackingId) {
     return (
       <div className="app-shell">
         <div className="ambient ambient-one" />
@@ -1029,31 +680,20 @@ function App() {
             <div className="brand-icon">
               <Sparkles size={22} />
             </div>
-
             <div>
-              <div className="brand-name">
-                HUPPY CUBE
-              </div>
-
-              <div className="brand-subtitle">
-                SOCIAL MEDIA SERVICES
-              </div>
+              <div className="brand-name">HUPPY CUBE</div>
+              <div className="brand-subtitle">SOCIAL MEDIA SERVICES</div>
             </div>
           </div>
 
           <a
             className="support-button"
-            href={getWhatsAppUrl(
-              trackingId
-            )}
+            href={getWhatsAppUrl(trackingId)}
             target="_blank"
             rel="noreferrer"
           >
             <MessageCircle size={18} />
-
-            <span>
-              WhatsApp Help
-            </span>
+            <span>WhatsApp Help</span>
           </a>
         </header>
 
@@ -1062,22 +702,13 @@ function App() {
             trackingId={trackingId}
             onClose={() => {
               setShowTracking(false);
-
-              window.history.replaceState(
-                {},
-                "",
-                window.location.pathname
-              );
+              window.history.replaceState({}, "", window.location.pathname);
             }}
           />
         </main>
       </div>
     );
   }
-
-  /* =======================================================
-     MAIN WEBSITE
-  ======================================================= */
 
   return (
     <div className="app-shell">
@@ -1090,15 +721,9 @@ function App() {
           <div className="brand-icon">
             <Sparkles size={22} />
           </div>
-
           <div>
-            <div className="brand-name">
-              HUPPY CUBE
-            </div>
-
-            <div className="brand-subtitle">
-              SOCIAL MEDIA SERVICES
-            </div>
+            <div className="brand-name">HUPPY CUBE</div>
+            <div className="brand-subtitle">SOCIAL MEDIA SERVICES</div>
           </div>
         </div>
 
@@ -1107,15 +732,10 @@ function App() {
             <button
               type="button"
               className="track-button"
-              onClick={() =>
-                openTracking()
-              }
+              onClick={() => openTracking()}
             >
               <PackageCheck size={18} />
-
-              <span>
-                Track Order
-              </span>
+              <span>Track Order</span>
             </button>
           )}
 
@@ -1126,7 +746,6 @@ function App() {
             rel="noreferrer"
           >
             <MessageCircle size={18} />
-
             <span>Support</span>
           </a>
         </div>
@@ -1136,40 +755,31 @@ function App() {
         <section className="hero-section">
           <div className="hero-glow">
             <Sparkles size={18} />
-
             Fast • Simple • Secure
           </div>
 
           <h1>
-            Grow your
-            <span>{" "}social presence.</span>
+            Grow your<span> social presence.</span>
           </h1>
 
           <p>
-            Choose a platform, select
-            your service, enter your
-            details and complete your
-            order in seconds.
+            Choose a platform, select your service, enter your details and
+            complete your order in seconds.
           </p>
 
           <div className="hero-stats">
             <div className="hero-stat">
-              <strong>
-                {services.length || "500+"}
-              </strong>
-
+              <strong>{services.length || "500+"}</strong>
               <span>Services</span>
             </div>
 
             <div className="hero-stat">
               <strong>24/7</strong>
-
               <span>Ordering</span>
             </div>
 
             <div className="hero-stat">
               <strong>⚡</strong>
-
               <span>Fast Delivery</span>
             </div>
           </div>
@@ -1178,78 +788,51 @@ function App() {
         <section className="services-section">
           <div className="section-heading">
             <div>
-              <span className="section-kicker">
-                EXPLORE
-              </span>
-
-              <h2>
-                Choose a platform
-              </h2>
+              <span className="section-kicker">EXPLORE</span>
+              <h2>Choose a platform</h2>
             </div>
 
             <div className="service-count">
-              {filteredServices.length}{" "}
-              services
+              {filteredServices.length} services
             </div>
           </div>
 
           <div className="platform-grid">
-            {PLATFORM_ORDER.map(
-              (platform) => {
-                const Icon =
-                  platform === "All"
-                    ? Sparkles
-                    : PLATFORM_ICONS[
-                        platform
-                      ] || Globe;
+            {PLATFORM_ORDER.map((platform) => {
+              const Icon =
+                platform === "All"
+                  ? Sparkles
+                  : PLATFORM_ICONS[platform] || Globe;
 
-                const count =
-                  platform === "All"
-                    ? enrichedServices.length
-                    : enrichedServices.filter(
-                        (service) =>
-                          service.platform ===
-                          platform
-                      ).length;
+              const count =
+                platform === "All"
+                  ? enrichedServices.length
+                  : enrichedServices.filter(
+                      (service) => service.platform === platform
+                    ).length;
 
-                return (
-                  <button
-                    key={platform}
-                    type="button"
-                    className={`platform-card ${
-                      selectedPlatform ===
-                      platform
-                        ? "active"
-                        : ""
-                    }`}
-                    onClick={() =>
-                      setSelectedPlatform(
-                        platform
-                      )
-                    }
-                  >
-                    <span className="platform-icon">
-                      <Icon size={21} />
-                    </span>
+              return (
+                <button
+                  key={platform}
+                  type="button"
+                  className={`platform-card ${
+                    selectedPlatform === platform ? "active" : ""
+                  }`}
+                  onClick={() => setSelectedPlatform(platform)}
+                >
+                  <span className="platform-icon">
+                    <Icon size={21} />
+                  </span>
 
-                    <span className="platform-info">
-                      <strong>
-                        {platform}
-                      </strong>
+                  <span className="platform-info">
+                    <strong>{platform}</strong>
+                    <small>{count} services</small>
+                  </span>
 
-                      <small>
-                        {count} services
-                      </small>
-                    </span>
-
-                    <ChevronRight
-                      size={17}
-                      className="platform-arrow"
-                    />
-                  </button>
-                );
-              }
-            )}
+                  <ChevronRight size={17} className="platform-arrow" />
+                </button>
+              );
+            })}
           </div>
 
           <div className="search-box">
@@ -1259,20 +842,14 @@ function App() {
               type="text"
               placeholder="Search services..."
               value={search}
-              onChange={(event) =>
-                setSearch(
-                  event.target.value
-                )
-              }
+              onChange={(event) => setSearch(event.target.value)}
             />
 
             {search && (
               <button
                 type="button"
                 className="clear-search"
-                onClick={() =>
-                  setSearch("")
-                }
+                onClick={() => setSearch("")}
               >
                 <X size={17} />
               </button>
@@ -1281,169 +858,98 @@ function App() {
 
           {loadingServices ? (
             <div className="loading-state">
-              <Loader2
-                className="spin"
-                size={30}
-              />
-
-              <span>
-                Loading services...
-              </span>
+              <Loader2 className="spin" size={30} />
+              <span>Loading services...</span>
             </div>
-          ) : error &&
-            !selectedService ? (
+          ) : error && !selectedService ? (
             <div className="error-state">
-              <strong>
-                Unable to load services
-              </strong>
-
+              <strong>Unable to load services</strong>
               <span>{error}</span>
-
-              <button
-                type="button"
-                onClick={loadServices}
-              >
+              <button type="button" onClick={loadServices}>
                 Try Again
               </button>
             </div>
           ) : filteredServices.length === 0 ? (
             <div className="empty-state">
               <Search size={35} />
-
-              <strong>
-                No services found
-              </strong>
-
-              <span>
-                Try another search
-                or platform.
-              </span>
+              <strong>No services found</strong>
+              <span>Try another search or platform.</span>
             </div>
           ) : (
             <div className="services-grid">
-              {filteredServices.map(
-                (service) => {
-                  const Icon =
-                    PLATFORM_ICONS[
-                      service.platform
-                    ] || Globe;
+              {filteredServices.map((service) => {
+                const Icon = PLATFORM_ICONS[service.platform] || Globe;
+                const customerRate = getCustomerRate(service);
 
-                  const customerRate =
-                    getCustomerRate(
-                      service
-                    );
-
-                  return (
-                    <article
-                      className="service-card"
-                      key={
-                        service.service_id
-                      }
-                    >
-                      <div className="service-card-top">
-                        <div className="service-platform">
-                          <span className="service-platform-icon">
-                            <Icon size={19} />
-                          </span>
-
-                          {
-                            service.platform
-                          }
-                        </div>
-
-                        <span className="service-number">
-                          #
-                          {
-                            service.service_id
-                          }
+                return (
+                  <article className="service-card" key={service.service_id}>
+                    <div className="service-card-top">
+                      <div className="service-platform">
+                        <span className="service-platform-icon">
+                          <Icon size={19} />
                         </span>
+                        {service.platform}
                       </div>
 
-                      <h3>
-                        {service.name}
-                      </h3>
+                      <span className="service-number">
+                        #{service.service_id}
+                      </span>
+                    </div>
 
-                      <div className="service-meta">
-                        <span>
-                          Min{" "}
-                          {Number(
-                            service.min_quantity ??
-                              service.min ??
-                              0
-                          ).toLocaleString()}
-                        </span>
+                    <h3>{service.name}</h3>
 
-                        <span>
-                          Max{" "}
-                          {Number(
-                            service.max_quantity ??
-                              service.max ??
-                              0
-                          ).toLocaleString()}
-                        </span>
+                    <div className="service-meta">
+                      <span>
+                        Min{" "}
+                        {Number(
+                          service.min_quantity ?? service.min ?? 0
+                        ).toLocaleString()}
+                      </span>
+
+                      <span>
+                        Max{" "}
+                        {Number(
+                          service.max_quantity ?? service.max ?? 0
+                        ).toLocaleString()}
+                      </span>
+                    </div>
+
+                    <div className="service-bottom">
+                      <div>
+                        <small>Starting from</small>
+                        <strong>
+                          {formatKES(customerRate)}
+                          <em>/1K</em>
+                        </strong>
                       </div>
 
-                      <div className="service-bottom">
-                        <div>
-                          <small>
-                            Starting from
-                          </small>
-
-                          <strong>
-                            {formatKES(
-                              customerRate
-                            )}
-
-                            <em>/1K</em>
-                          </strong>
-                        </div>
-
-                        <button
-                          type="button"
-                          className="order-button"
-                          onClick={() =>
-                            openOrder(
-                              service
-                            )
-                          }
-                        >
-                          Order
-
-                          <ShoppingCart
-                            size={17}
-                          />
-                        </button>
-                      </div>
-                    </article>
-                  );
-                }
-              )}
+                      <button
+                        type="button"
+                        className="order-button"
+                        onClick={() => openOrder(service)}
+                      >
+                        Order
+                        <ShoppingCart size={17} />
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           )}
         </section>
       </main>
 
       <footer className="footer">
-        <span>
-          © {new Date().getFullYear()}{" "}
-          HUPPY CUBE
-        </span>
-
-        <span>
-          Secure payments • Fast delivery
-        </span>
+        <span>© {new Date().getFullYear()} HUPPY CUBE</span>
+        <span>Secure payments • Fast delivery</span>
       </footer>
 
       {selectedService && (
-        <div
-          className="modal-backdrop"
-          onClick={closeOrder}
-        >
+        <div className="modal-backdrop" onClick={closeOrder}>
           <div
             className="order-modal"
-            onClick={(event) =>
-              event.stopPropagation()
-            }
+            onClick={(event) => event.stopPropagation()}
           >
             <button
               type="button"
@@ -1459,38 +965,22 @@ function App() {
                 <div className="modal-header">
                   <div className="modal-service-icon">
                     {React.createElement(
-                      PLATFORM_ICONS[
-                        selectedService
-                          .platform
-                      ] || Globe,
-                      {
-                        size: 25
-                      }
+                      PLATFORM_ICONS[selectedService.platform] || Globe,
+                      { size: 25 }
                     )}
                   </div>
 
                   <div>
-                    <span>
-                      {
-                        selectedService.platform
-                      }
-                    </span>
-
-                    <h2>
-                      Order service
-                    </h2>
+                    <span>{selectedService.platform}</span>
+                    <h2>Order service</h2>
                   </div>
                 </div>
 
                 <div className="selected-service-name">
-                  {
-                    selectedService.name
-                  }
+                  {selectedService.name}
                 </div>
 
-                <form
-                  onSubmit={submitOrder}
-                >
+                <form onSubmit={submitOrder}>
                   <label className="field">
                     <span>
                       <Hash size={16} />
@@ -1500,19 +990,13 @@ function App() {
                     <input
                       type="number"
                       min={
-                        selectedService.min_quantity ??
-                        selectedService.min
+                        selectedService.min_quantity ?? selectedService.min
                       }
                       max={
-                        selectedService.max_quantity ??
-                        selectedService.max
+                        selectedService.max_quantity ?? selectedService.max
                       }
                       value={quantity}
-                      onChange={(event) =>
-                        setQuantity(
-                          event.target.value
-                        )
-                      }
+                      onChange={(event) => setQuantity(event.target.value)}
                       placeholder="Enter quantity"
                     />
 
@@ -1541,11 +1025,7 @@ function App() {
                     <input
                       type="url"
                       value={link}
-                      onChange={(event) =>
-                        setLink(
-                          event.target.value
-                        )
-                      }
+                      onChange={(event) => setLink(event.target.value)}
                       placeholder="https://..."
                     />
                   </label>
@@ -1559,11 +1039,7 @@ function App() {
                     <input
                       type="tel"
                       value={phone}
-                      onChange={(event) =>
-                        setPhone(
-                          event.target.value
-                        )
-                      }
+                      onChange={(event) => setPhone(event.target.value)}
                       placeholder="07XXXXXXXX"
                     />
                   </label>
@@ -1571,30 +1047,17 @@ function App() {
                   <div className="total-box">
                     <div>
                       <span>Total</span>
-
                       <small>
-                        {Number(
-                          quantity || 0
-                        ).toLocaleString()}{" "}
-                        units
+                        {Number(quantity || 0).toLocaleString()} units
                       </small>
                     </div>
 
                     <strong>
-                      {formatKES(
-                        priceFor(
-                          selectedService,
-                          quantity
-                        )
-                      )}
+                      {formatKES(priceFor(selectedService, quantity))}
                     </strong>
                   </div>
 
-                  {error && (
-                    <div className="form-error">
-                      {error}
-                    </div>
-                  )}
+                  {error && <div className="form-error">{error}</div>}
 
                   <button
                     type="submit"
@@ -1603,27 +1066,19 @@ function App() {
                   >
                     {ordering ? (
                       <>
-                        <Loader2
-                          className="spin"
-                          size={19}
-                        />
-
+                        <Loader2 className="spin" size={19} />
                         Preparing payment...
                       </>
                     ) : (
                       <>
                         Pay & Order
-
-                        <ChevronRight
-                          size={20}
-                        />
+                        <ChevronRight size={20} />
                       </>
                     )}
                   </button>
 
                   <div className="secure-note">
-                    🔒 Secure payment
-                    powered by PesaPal
+                    🔒 Secure payment powered by PesaPal
                   </div>
                 </form>
               </>
@@ -1636,55 +1091,30 @@ function App() {
                 <h2>Order Created!</h2>
 
                 <p>
-                  Your order has been
-                  created. Use the
-                  tracking page to
-                  follow its progress.
+                  Your order has been created. Use the tracking page to follow
+                  its progress.
                 </p>
 
                 <div className="success-details">
                   <div>
-                    <span>
-                      Tracking ID
-                    </span>
-
-                    <strong>
-                      {
-                        orderResult.tracking_id
-                      }
-                    </strong>
+                    <span>Tracking ID</span>
+                    <strong>{orderResult.tracking_id}</strong>
                   </div>
 
                   <div>
                     <span>Service</span>
-
-                    <strong>
-                      {
-                        selectedService.name
-                      }
-                    </strong>
+                    <strong>{selectedService.name}</strong>
                   </div>
 
                   <div>
                     <span>Quantity</span>
-
-                    <strong>
-                      {Number(
-                        quantity
-                      ).toLocaleString()}
-                    </strong>
+                    <strong>{Number(quantity).toLocaleString()}</strong>
                   </div>
 
                   <div>
                     <span>Amount</span>
-
                     <strong>
-                      {formatKES(
-                        priceFor(
-                          selectedService,
-                          quantity
-                        )
-                      )}
+                      {formatKES(priceFor(selectedService, quantity))}
                     </strong>
                   </div>
                 </div>
@@ -1692,38 +1122,23 @@ function App() {
                 <button
                   type="button"
                   className="pay-button"
-                  onClick={() =>
-                    openTracking(
-                      orderResult.tracking_id
-                    )
-                  }
+                  onClick={() => openTracking(orderResult.tracking_id)}
                 >
                   Track My Order
-
                   <ChevronRight size={20} />
                 </button>
 
                 <a
                   className="whatsapp-help"
-                  href={getWhatsAppUrl(
-                    orderResult.tracking_id
-                  )}
+                  href={getWhatsAppUrl(orderResult.tracking_id)}
                   target="_blank"
                   rel="noreferrer"
                 >
                   <MessageCircle size={20} />
-
                   <div>
-                    <strong>
-                      WhatsApp Help
-                    </strong>
-
-                    <span>
-                      Need help with this
-                      order?
-                    </span>
+                    <strong>WhatsApp Help</strong>
+                    <span>Need help with this order?</span>
                   </div>
-
                   <ChevronRight size={19} />
                 </a>
               </div>
@@ -1735,9 +1150,7 @@ function App() {
   );
 }
 
-createRoot(
-  document.getElementById("root")
-).render(
+createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <App />
   </React.StrictMode>
