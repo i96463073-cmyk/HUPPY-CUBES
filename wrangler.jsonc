@@ -19,5 +19,9 @@
       "database_name": "huppy-hub-orders",
       "database_id": "67765968-522f-4e2f-8f38-22ccf2abbccb"
     }
-  ]
+  ],
+  "vars": {
+    "PESAPAL_MODE": "live",
+    "PUBLIC_BASE_URL": "https://huppy-cubes.i96463073.workers.dev"
+  }
 }
