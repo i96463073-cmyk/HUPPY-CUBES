@@ -891,25 +891,41 @@ async function processPaidOrder(env, originalOrder) {
     const paidAmount = number(payment?.amount, 0);
     const expectedAmount = number(order.customer_amount, 0);
 
-    if (
-      paidAmount > 0 &&
-      expectedAmount > 0 &&
-      Math.abs(paidAmount - expectedAmount) > 0.01
-    ) {
-      const message =
-        `Payment amount mismatch. Expected KES ${expectedAmount}, ` +
-        `received KES ${paidAmount}.`;
+// PesaPal rounds up small amounts (M-Pesa minimum ~KES 4).
+// Accept anything from the exact amount up to +KES 5 over.
+// Only flag it as a mismatch if the customer UNDERPAID by more
+// than 1 KES, or overpaid by more than 5 KES.
+const difference = paidAmount - expectedAmount;
 
-      await updateOrder(env, order.tracking_id, {
-        payment_status: "PAYMENT_MISMATCH",
-        order_status: "Payment Error",
-        error_message: message,
-        supplier_response: JSON.stringify(payment),
-      });
+const realMismatch =
+  paidAmount > 0 &&
+  expectedAmount > 0 &&
+  (difference < -1.0 || difference > 5.0);
 
-      throw new Error(message);
-    }
+if (realMismatch) {
+  const message =
+    `Payment amount mismatch. Expected KES ${expectedAmount}, ` +
+    `received KES ${paidAmount}.`;
 
+  await updateOrder(env, order.tracking_id, {
+    payment_status: "PAYMENT_MISMATCH",
+    order_status: "Payment Error",
+    error_message: message,
+    supplier_response: JSON.stringify(payment),
+  });
+
+  throw new Error(message);
+}
+
+// Record what was actually paid (may differ from computed
+// by up to PesaPal's rounding).
+if (paidAmount > 0 && Math.abs(difference) > 0.01) {
+  await updateOrder(env, order.tracking_id, {
+    customer_amount: paidAmount,
+  });
+
+  order = await getOrderByTrackingId(env, order.tracking_id);
+}
     const claimed = await claimSupplierSubmission(env, order.tracking_id);
 
     if (!claimed) {
