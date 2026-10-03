@@ -3398,3 +3398,75 @@ a {
     margin-bottom: 14px;
   }
 }
+/* =========================================================
+   MOBILE PERFORMANCE — disable heavy blurs
+   Fixes slow scrolling on phones by removing backdrop-filter
+   (the #1 cause of scroll lag on mobile GPUs).
+========================================================= */
+
+@media (max-width: 700px) {
+  /* Kill backdrop-filter — biggest scroll performance killer */
+  .platform-card,
+  .type-card,
+  .service-card,
+  .recent-ticker,
+  .track-card,
+  .order-modal,
+  .search-box,
+  .admin-order-row,
+  .admin-stat-card {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* Hide the ambient blobs — they use expensive blur filters */
+  .ambient {
+    display: none;
+  }
+
+  /* Remove the fixed background gradient layer */
+  .app-shell::before {
+    background: none;
+  }
+
+  /* Faster hover transitions = smoother tap feedback */
+  .platform-card,
+  .type-card,
+  .service-card,
+  .how-step {
+    transition-duration: 0.1s;
+  }
+
+  /* Reduce the how-it-works glow cost (shadow is expensive) */
+  .how-step-active {
+    box-shadow:
+      0 4px 12px rgba(0, 0, 0, 0.2),
+      0 0 12px rgba(139, 92, 246, 0.12);
+  }
+
+  /* Simpler ticker row fade — no background-color animation */
+  .recent-ticker-row.fresh {
+    animation: none;
+    background: rgba(139, 92, 246, 0.08);
+  }
+
+  /* Faster ticker pulse — cheaper than the big scale */
+  .recent-ticker-dot {
+    animation: none;
+    box-shadow: 0 0 6px rgba(16, 185, 129, 0.7);
+  }
+}
+
+/* =========================================================
+   SMOOTH SCROLLING HINTS
+========================================================= */
+
+/* Tell the browser these often-animate elements are on their own layer */
+.service-card,
+.platform-card,
+.type-card,
+.how-step,
+.recent-ticker-row {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
