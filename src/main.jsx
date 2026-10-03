@@ -22,10 +22,20 @@ import {
   Link as LinkIcon,
   Hash,
   ChevronRight,
+  ChevronLeft,
   Headphones,
   CreditCard,
   PackageCheck,
-  Clock3
+  Clock3,
+  Heart,
+  Eye,
+  MessageSquare,
+  Users,
+  Bookmark,
+  Share2,
+  Radio,
+  Timer,
+  Gift
 } from "lucide-react";
 
 const WHATSAPP_NUMBER = "254796681162";
@@ -57,31 +67,178 @@ const PLATFORM_ICONS = {
   Other: Globe
 };
 
+// ------------------------------------------------------------
+// SERVICE TYPE BUCKETS
+// ------------------------------------------------------------
+
+const TYPE_ORDER = [
+  "Likes",
+  "Views",
+  "Comments",
+  "Followers",
+  "Saves",
+  "Shares",
+  "Live Stream",
+  "Watch Time",
+  "Accounts & Bundles",
+  "Other"
+];
+
+const TYPE_META = {
+  "Likes":             { emoji: "❤️", icon: Heart },
+  "Views":             { emoji: "👁️", icon: Eye },
+  "Comments":          { emoji: "💬", icon: MessageSquare },
+  "Followers":         { emoji: "👥", icon: Users },
+  "Saves":             { emoji: "🔖", icon: Bookmark },
+  "Shares":            { emoji: "🔁", icon: Share2 },
+  "Live Stream":       { emoji: "📡", icon: Radio },
+  "Watch Time":        { emoji: "⏱️", icon: Timer },
+  "Accounts & Bundles":{ emoji: "🎁", icon: Gift },
+  "Other":             { emoji: "📦", icon: PackageCheck }
+};
+
 function detectPlatform(service) {
   const text = `${service?.name || ""} ${
     service?.category || ""
   } ${service?.type || ""}`.toLowerCase();
 
-  if (text.includes("instagram") || text.includes("ig ")) return "Instagram";
-  if (text.includes("tiktok") || text.includes("tik tok")) return "TikTok";
-  if (text.includes("facebook") || text.includes("fb ")) return "Facebook";
-  if (text.includes("youtube")) return "YouTube";
-  if (text.includes("telegram")) return "Telegram";
-  if (
-    text.includes("twitter") ||
-    text.includes(" x ") ||
-    text.startsWith("x ") ||
-    text.includes(" x/")
-  )
-    return "Twitter / X";
-  if (text.includes("whatsapp")) return "WhatsApp";
+  if (text.includes("instagram") || text.includes("ig ") || text.includes(" ig")) return "Instagram";
+  if (text.includes("tiktok") || text.includes("tik tok") || text.includes("tt ")) return "TikTok";
+  if (text.includes("facebook") || text.includes("fb ") || text.includes("fb post") || text.includes("fb group")) return "Facebook";
+  if (text.includes("youtube") || text.includes("yt ") || text.includes("yt-")) return "YouTube";
+  if (text.includes("telegram") || text.includes("tg ")) return "Telegram";
+  if (text.includes("twitter") || text.includes(" x ") || text.startsWith("x ") || text.includes(" x/") || text.includes("x (") || text.includes(" x.com")) return "Twitter / X";
+  if (text.includes("whatsapp") || text.includes("wa chan") || text.includes("wa poll")) return "WhatsApp";
   if (text.includes("spotify")) return "Spotify";
+  if (text.includes("boomplay") || text.includes("gaming") || text.includes("game ") || text.includes("twitch")) return "Gaming";
+
+  return "Other";
+}
+
+// ------------------------------------------------------------
+// SERVICE TYPE DETECTION
+// ------------------------------------------------------------
+//
+// Order matters! "Live Stream" and "Watch Time" have to be checked
+// BEFORE "Views" because live-stream views and watch-time are
+// semantically different from regular views.
+
+function detectServiceType(service) {
+  const name = String(service?.name || "").toLowerCase();
+  const category = String(service?.category || "").toLowerCase();
+  const type = String(service?.type || "").toLowerCase();
+  const combined = `${name} ${category} ${type}`;
+
+  // 0. Accounts & Bundles — catch these first because many have
+  //    "premium", "account", "package", "numbers", "minutes",
+  //    "sms", "data" in the name and would otherwise fall into
+  //    random buckets.
   if (
-    text.includes("gaming") ||
-    text.includes("game ") ||
-    text.includes("twitch")
-  )
-    return "Gaming";
+    type === "package" ||
+    combined.includes("premium accounts") ||
+    combined.includes("netflix") ||
+    combined.includes("chat gpt") ||
+    combined.includes("chatgpt") ||
+    combined.includes("capcut") ||
+    combined.includes("prime video") ||
+    combined.includes("account ") ||
+    combined.includes("vpn") ||
+    combined.includes("whatsapp numbers") ||
+    combined.includes("telegram numbers") ||
+    combined.includes("safaricom") ||
+    combined.includes("data bundles") ||
+    combined.includes("google maps reviews") ||
+    combined.includes("verification")
+  ) {
+    return "Accounts & Bundles";
+  }
+
+  // 1. Live Stream — must be before "Views"
+  if (
+    combined.includes("live stream") ||
+    combined.includes("live video") ||
+    combined.includes("live views") ||
+    combined.includes("live likes") ||
+    combined.includes("live reaction") ||
+    combined.includes("live pk") ||
+    combined.includes("battle points")
+  ) {
+    return "Live Stream";
+  }
+
+  // 2. Watch Time — must be before "Views"
+  if (
+    combined.includes("watchtime") ||
+    combined.includes("watch time") ||
+    combined.includes("watch-time")
+  ) {
+    return "Watch Time";
+  }
+
+  // 3. Likes / Reactions
+  if (
+    combined.includes("like") ||
+    combined.includes("reaction") ||
+    combined.includes("react") ||
+    combined.includes("heart")
+  ) {
+    // Comment Likes should stay as "Likes", which they already are.
+    return "Likes";
+  }
+
+  // 4. Views (broad)
+  if (
+    combined.includes("view") ||
+    combined.includes("views") ||
+    combined.includes("play") ||
+    combined.includes("plays") ||
+    combined.includes("impression") ||
+    combined.includes("reach") ||
+    combined.includes("visits") ||
+    combined.includes("traffic") ||
+    combined.includes("stream") ||
+    combined.includes("listener")
+  ) {
+    return "Views";
+  }
+
+  // 5. Comments
+  if (
+    combined.includes("comment") ||
+    combined.includes("mention")
+  ) {
+    return "Comments";
+  }
+
+  // 6. Followers / Members / Subscribers
+  if (
+    combined.includes("follower") ||
+    combined.includes("subscriber") ||
+    combined.includes("member") ||
+    combined.includes("subs") ||
+    combined.includes("sub ") ||
+    combined.includes("bot start")
+  ) {
+    return "Followers";
+  }
+
+  // 7. Saves
+  if (
+    combined.includes("save") ||
+    combined.includes("bookmark")
+  ) {
+    return "Saves";
+  }
+
+  // 8. Shares / Reposts / Retweets
+  if (
+    combined.includes("share") ||
+    combined.includes("repost") ||
+    combined.includes("retweet") ||
+    combined.includes("repost")
+  ) {
+    return "Shares";
+  }
 
   return "Other";
 }
@@ -189,9 +346,7 @@ function deriveTracking(order) {
     progress: match.progress,
     status_label: statusLabel(order?.order_status)
   };
-}
-
-/* =========================================================
+               }/* =========================================================
    TRACKING PROGRESS
 ========================================================= */
 
@@ -443,6 +598,7 @@ function OrderTracking({ trackingId, initialData, onClose }) {
 function App() {
   const [services, setServices] = useState([]);
   const [selectedPlatform, setSelectedPlatform] = useState("All");
+  const [selectedType, setSelectedType] = useState(null);
   const [search, setSearch] = useState("");
   const [selectedService, setSelectedService] = useState(null);
   const [quantity, setQuantity] = useState("");
@@ -510,17 +666,51 @@ function App() {
   const enrichedServices = useMemo(() => {
     return services.map((service) => ({
       ...service,
-      platform: detectPlatform(service)
+      platform: detectPlatform(service),
+      serviceType: detectServiceType(service)
     }));
   }, [services]);
 
-  // CHANGED: filter, then sort cheapest first.
+  // Services for the currently-selected platform (or all if "All")
+  const platformServices = useMemo(() => {
+    return enrichedServices.filter((service) => {
+      if (selectedPlatform === "All") return true;
+      return service.platform === selectedPlatform;
+    });
+  }, [enrichedServices, selectedPlatform]);
+
+  // Types available for the currently-selected platform, sorted by TYPE_ORDER
+  const availableTypes = useMemo(() => {
+    const counts = {};
+
+    for (const s of platformServices) {
+      const t = s.serviceType || "Other";
+      counts[t] = (counts[t] || 0) + 1;
+    }
+
+    return TYPE_ORDER
+      .filter((t) => counts[t] > 0)
+      .map((t) => ({
+        type: t,
+        count: counts[t],
+        ...TYPE_META[t]
+      }));
+  }, [platformServices]);
+
+  // Decide whether to show the type picker stage
+  const shouldSkipTypeStage = availableTypes.length <= 1;
+
+  // Final filtered list of services to display
   const filteredServices = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    const matched = enrichedServices.filter((service) => {
-      const matchesPlatform =
-        selectedPlatform === "All" || service.platform === selectedPlatform;
+    // Determine which type we're filtering by
+    const activeType = shouldSkipTypeStage
+      ? availableTypes[0]?.type || null
+      : selectedType;
+
+    const matched = platformServices.filter((service) => {
+      const matchesType = !activeType || service.serviceType === activeType;
 
       const matchesSearch =
         !query ||
@@ -528,15 +718,28 @@ function App() {
           .toLowerCase()
           .includes(query);
 
-      return matchesPlatform && matchesSearch;
+      return matchesType && matchesSearch;
     });
 
+    // Cheapest first
     return matched.sort((a, b) => {
       const ra = Number(getCustomerRate(a) || 0);
       const rb = Number(getCustomerRate(b) || 0);
       return ra - rb;
     });
-  }, [enrichedServices, selectedPlatform, search]);
+  }, [
+    platformServices,
+    availableTypes,
+    shouldSkipTypeStage,
+    selectedType,
+    search
+  ]);
+
+  // Reset selected type whenever platform changes
+  useEffect(() => {
+    setSelectedType(null);
+    setSearch("");
+  }, [selectedPlatform]);
 
   function openOrder(service) {
     setSelectedService(service);
@@ -673,9 +876,7 @@ function App() {
       const saved = localStorage.getItem("huppy_cube_tracking_id");
       if (saved) setTrackingId(saved);
     } catch {}
-  }, [trackingId]);
-
-  if (showTracking && trackingId) {
+  }, [trackingId]);  if (showTracking && trackingId) {
     return (
       <div className="app-shell">
         <div className="ambient ambient-one" />
@@ -716,6 +917,289 @@ function App() {
       </div>
     );
   }
+
+  /* =======================================================
+     STAGE 1 — PLATFORM PICKER
+  ======================================================= */
+
+  if (selectedPlatform === "All" && !selectedType) {
+    const hasOnlyOnePlatformPath = false; // reserved
+
+    return (
+      <div className="app-shell">
+        <div className="ambient ambient-one" />
+        <div className="ambient ambient-two" />
+        <div className="ambient ambient-three" />
+
+        <header className="topbar">
+          <div className="brand">
+            <div className="brand-icon">
+              <Sparkles size={22} />
+            </div>
+            <div>
+              <div className="brand-name">HUPPY CUBE</div>
+              <div className="brand-subtitle">SOCIAL MEDIA SERVICES</div>
+            </div>
+          </div>
+
+          <div className="header-actions">
+            {trackingId && (
+              <button
+                type="button"
+                className="track-button"
+                onClick={() => openTracking()}
+              >
+                <PackageCheck size={18} />
+                <span>Track Order</span>
+              </button>
+            )}
+
+            <a
+              className="support-button"
+              href={getWhatsAppUrl()}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <MessageCircle size={18} />
+              <span>Support</span>
+            </a>
+          </div>
+        </header>
+
+        <main className="main-content">
+          <section className="hero-section">
+            <div className="hero-glow">
+              <Sparkles size={18} />
+              Fast • Simple • Secure
+            </div>
+
+            <h1>
+              Grow your<span> social presence.</span>
+            </h1>
+
+            <p>
+              Choose a platform, select your service, enter your details and
+              complete your order in seconds.
+            </p>
+
+            <div className="hero-stats">
+              <div className="hero-stat">
+                <strong>{services.length || "500+"}</strong>
+                <span>Services</span>
+              </div>
+
+              <div className="hero-stat">
+                <strong>24/7</strong>
+                <span>Ordering</span>
+              </div>
+
+              <div className="hero-stat">
+                <strong>⚡</strong>
+                <span>Fast Delivery</span>
+              </div>
+            </div>
+          </section>
+
+          <section className="services-section">
+            <div className="section-heading">
+              <div>
+                <span className="section-kicker">EXPLORE</span>
+                <h2>Choose a platform</h2>
+              </div>
+
+              <div className="service-count">
+                {enrichedServices.length} services
+              </div>
+            </div>
+
+            <div className="platform-grid">
+              {PLATFORM_ORDER.map((platform) => {
+                const Icon =
+                  platform === "All"
+                    ? Sparkles
+                    : PLATFORM_ICONS[platform] || Globe;
+
+                const count =
+                  platform === "All"
+                    ? enrichedServices.length
+                    : enrichedServices.filter(
+                        (service) => service.platform === platform
+                      ).length;
+
+                if (platform === "All") return null;
+
+                return (
+                  <button
+                    key={platform}
+                    type="button"
+                    className="platform-card"
+                    onClick={() => setSelectedPlatform(platform)}
+                  >
+                    <span className="platform-icon">
+                      <Icon size={21} />
+                    </span>
+
+                    <span className="platform-info">
+                      <strong>{platform}</strong>
+                      <small>{count} services</small>
+                    </span>
+
+                    <ChevronRight size={17} className="platform-arrow" />
+                  </button>
+                );
+              })}
+            </div>
+
+            <div
+              style={{
+                marginTop: "20px",
+                textAlign: "center"
+              }}
+            >
+              <button
+                type="button"
+                className="track-button"
+                onClick={() => setSelectedPlatform("All")}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px"
+                }}
+              >
+                <Globe size={16} />
+                Show all services
+              </button>
+            </div>
+          </section>
+        </main>
+
+        <footer className="footer">
+          <span>© {new Date().getFullYear()} HUPPY CUBE</span>
+          <span>Secure payments • Fast delivery</span>
+        </footer>
+      </div>
+    );
+  }
+
+  /* =======================================================
+     STAGE 2 — TYPE PICKER (only when more than 1 type)
+  ======================================================= */
+
+  if (
+    !shouldSkipTypeStage &&
+    !selectedType &&
+    selectedPlatform !== "All"
+  ) {
+    return (
+      <div className="app-shell">
+        <div className="ambient ambient-one" />
+        <div className="ambient ambient-two" />
+        <div className="ambient ambient-three" />
+
+        <header className="topbar">
+          <div className="brand">
+            <div className="brand-icon">
+              <Sparkles size={22} />
+            </div>
+            <div>
+              <div className="brand-name">HUPPY CUBE</div>
+              <div className="brand-subtitle">SOCIAL MEDIA SERVICES</div>
+            </div>
+          </div>
+
+          <div className="header-actions">
+            {trackingId && (
+              <button
+                type="button"
+                className="track-button"
+                onClick={() => openTracking()}
+              >
+                <PackageCheck size={18} />
+                <span>Track Order</span>
+              </button>
+            )}
+
+            <a
+              className="support-button"
+              href={getWhatsAppUrl()}
+              target="_blank"
+              rel="noreferrer"
+            >
+              <MessageCircle size={18} />
+              <span>Support</span>
+            </a>
+          </div>
+        </header>
+
+        <main className="main-content">
+          <section className="services-section">
+            <div className="section-heading">
+              <div>
+                <button
+                  type="button"
+                  className="tracking-back"
+                  onClick={() => {
+                    setSelectedPlatform("All");
+                    setSelectedType(null);
+                  }}
+                  style={{ marginBottom: "12px" }}
+                >
+                  <ChevronLeft size={16} />
+                  Back to platforms
+                </button>
+
+                <span className="section-kicker">EXPLORE</span>
+                <h2>{selectedPlatform}</h2>
+                <p style={{ marginTop: "6px", opacity: 0.7 }}>
+                  What type of engagement do you need?
+                </p>
+              </div>
+            </div>
+
+            <div className="type-grid">
+              {availableTypes.map((t) => {
+                const Icon = t.icon;
+
+                return (
+                  <button
+                    key={t.type}
+                    type="button"
+                    className="type-card"
+                    onClick={() => setSelectedType(t.type)}
+                  >
+                    <span className="type-emoji">{t.emoji}</span>
+
+                    <span className="type-info">
+                      <strong>
+                        <Icon size={17} />
+                        {t.type}
+                      </strong>
+                      <small>{t.count} services</small>
+                    </span>
+
+                    <ChevronRight size={18} className="type-arrow" />
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        </main>
+
+        <footer className="footer">
+          <span>© {new Date().getFullYear()} HUPPY CUBE</span>
+          <span>Secure payments • Fast delivery</span>
+        </footer>
+      </div>
+    );
+  }
+
+  /* =======================================================
+     STAGE 3 — SERVICE LIST (filtered)
+  ======================================================= */
+
+  const activeType = shouldSkipTypeStage
+    ? availableTypes[0]?.type || null
+    : selectedType;
 
   return (
     <div className="app-shell">
@@ -759,44 +1243,35 @@ function App() {
       </header>
 
       <main className="main-content">
-        <section className="hero-section">
-          <div className="hero-glow">
-            <Sparkles size={18} />
-            Fast • Simple • Secure
-          </div>
-
-          <h1>
-            Grow your<span> social presence.</span>
-          </h1>
-
-          <p>
-            Choose a platform, select your service, enter your details and
-            complete your order in seconds.
-          </p>
-
-          <div className="hero-stats">
-            <div className="hero-stat">
-              <strong>{services.length || "500+"}</strong>
-              <span>Services</span>
-            </div>
-
-            <div className="hero-stat">
-              <strong>24/7</strong>
-              <span>Ordering</span>
-            </div>
-
-            <div className="hero-stat">
-              <strong>⚡</strong>
-              <span>Fast Delivery</span>
-            </div>
-          </div>
-        </section>
-
         <section className="services-section">
           <div className="section-heading">
             <div>
-              <span className="section-kicker">EXPLORE</span>
-              <h2>Choose a platform</h2>
+              <button
+                type="button"
+                className="tracking-back"
+                onClick={() => {
+                  if (shouldSkipTypeStage) {
+                    setSelectedPlatform("All");
+                  } else {
+                    setSelectedType(null);
+                  }
+                }}
+                style={{ marginBottom: "12px" }}
+              >
+                <ChevronLeft size={16} />
+                {shouldSkipTypeStage
+                  ? "Back to platforms"
+                  : `Back to ${selectedPlatform} types`}
+              </button>
+
+              <span className="section-kicker">
+                {selectedPlatform.toUpperCase()}
+              </span>
+              <h2>
+                {activeType
+                  ? `${TYPE_META[activeType]?.emoji || ""} ${activeType}`
+                  : selectedPlatform}
+              </h2>
             </div>
 
             <div className="service-count">
@@ -804,50 +1279,12 @@ function App() {
             </div>
           </div>
 
-          <div className="platform-grid">
-            {PLATFORM_ORDER.map((platform) => {
-              const Icon =
-                platform === "All"
-                  ? Sparkles
-                  : PLATFORM_ICONS[platform] || Globe;
-
-              const count =
-                platform === "All"
-                  ? enrichedServices.length
-                  : enrichedServices.filter(
-                      (service) => service.platform === platform
-                    ).length;
-
-              return (
-                <button
-                  key={platform}
-                  type="button"
-                  className={`platform-card ${
-                    selectedPlatform === platform ? "active" : ""
-                  }`}
-                  onClick={() => setSelectedPlatform(platform)}
-                >
-                  <span className="platform-icon">
-                    <Icon size={21} />
-                  </span>
-
-                  <span className="platform-info">
-                    <strong>{platform}</strong>
-                    <small>{count} services</small>
-                  </span>
-
-                  <ChevronRight size={17} className="platform-arrow" />
-                </button>
-              );
-            })}
-          </div>
-
           <div className="search-box">
             <Search size={20} />
 
             <input
               type="text"
-              placeholder="Search services..."
+              placeholder={`Search ${activeType || "services"}...`}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
@@ -1161,4 +1598,124 @@ createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <App />
   </React.StrictMode>
-);
+);/* =========================================================
+   TYPE PICKER (Stage 2 of the grouped services flow)
+========================================================= */
+
+.type-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.type-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition: transform 0.15s ease, background 0.15s ease,
+    border-color 0.15s ease;
+  font-family: inherit;
+}
+
+.type-card:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(139, 92, 246, 0.45);
+  transform: translateY(-2px);
+}
+
+.type-card:active {
+  transform: translateY(0);
+}
+
+.type-emoji {
+  font-size: 26px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.type-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.type-info strong {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.type-info small {
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+.type-arrow {
+  flex-shrink: 0;
+  opacity: 0.5;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.type-card:hover .type-arrow {
+  opacity: 1;
+  transform: translateX(3px);
+}
+
+/* Back button used inside services-section */
+.tracking-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: inherit;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.tracking-back:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(139, 92, 246, 0.4);
+}
+
+/* =========================================================
+   MOBILE ADJUSTMENTS
+========================================================= */
+
+@media (max-width: 640px) {
+  .type-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .type-card {
+    padding: 14px 16px;
+  }
+
+  .type-emoji {
+    font-size: 22px;
+  }
+
+  .type-info strong {
+    font-size: 14px;
+  }
+  }
