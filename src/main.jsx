@@ -514,10 +514,11 @@ function App() {
     }));
   }, [services]);
 
+  // CHANGED: filter, then sort cheapest first.
   const filteredServices = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    return enrichedServices.filter((service) => {
+    const matched = enrichedServices.filter((service) => {
       const matchesPlatform =
         selectedPlatform === "All" || service.platform === selectedPlatform;
 
@@ -528,6 +529,12 @@ function App() {
           .includes(query);
 
       return matchesPlatform && matchesSearch;
+    });
+
+    return matched.sort((a, b) => {
+      const ra = Number(getCustomerRate(a) || 0);
+      const rb = Number(getCustomerRate(b) || 0);
+      return ra - rb;
     });
   }, [enrichedServices, selectedPlatform, search]);
 
@@ -918,8 +925,8 @@ function App() {
                       <div>
                         <small>Starting from</small>
                         <strong>
-                          {formatKES(customerRate)}
-                          <em>/1K</em>
+                          {formatKES(customerRate / 2)}
+                          <em>/500</em>
                         </strong>
                       </div>
 
