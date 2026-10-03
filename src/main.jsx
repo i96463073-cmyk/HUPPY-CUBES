@@ -416,6 +416,38 @@ function RecentOrdersTicker() {
 }
 
 /* =========================================================
+   TRACK ORDER CARD
+========================================================= */
+
+function TrackOrderCard({ hasTrackingId, onTrack }) {
+  return (
+    <div className="track-card">
+      <div className="track-card-icon">
+        <PackageCheck size={22} />
+      </div>
+
+      <div className="track-card-info">
+        <strong>Already placed an order?</strong>
+        <span>
+          {hasTrackingId
+            ? "Open your tracking page to see live status."
+            : "View live status of your recent order."}
+        </span>
+      </div>
+
+      <button
+        type="button"
+        className="track-card-btn"
+        onClick={onTrack}
+      >
+        Track Order
+        <ChevronRight size={17} />
+      </button>
+    </div>
+  );
+}
+
+/* =========================================================
    STATUS LABEL
 ========================================================= */
 
@@ -487,7 +519,7 @@ function deriveTracking(order) {
     progress: match.progress,
     status_label: statusLabel(order?.order_status)
   };
-    }/* =========================================================
+  }/* =========================================================
    TRACKING PROGRESS
 ========================================================= */
 
@@ -1070,28 +1102,15 @@ function App() {
             </div>
           </div>
 
-          <div className="header-actions">
-            {trackingId && (
-              <button
-                type="button"
-                className="track-button"
-                onClick={() => openTracking()}
-              >
-                <PackageCheck size={18} />
-                <span>Track Order</span>
-              </button>
-            )}
-
-            <a
-              className="support-button support-button-wa"
-              href={getWhatsAppUrl()}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <WhatsAppIcon size={18} />
-              <span>WhatsApp Support</span>
-            </a>
-          </div>
+          <a
+            className="support-button support-button-wa"
+            href={getWhatsAppUrl()}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <WhatsAppIcon size={18} />
+            <span>WhatsApp Support</span>
+          </a>
         </header>
 
         <main className="main-content">
@@ -1127,6 +1146,11 @@ function App() {
               </div>
             </div>
           </section>
+
+          <TrackOrderCard
+            hasTrackingId={Boolean(trackingId)}
+            onTrack={() => openTracking()}
+          />
 
           <section className="services-section">
             <div className="section-heading">
@@ -1172,22 +1196,6 @@ function App() {
               })}
             </div>
 
-            <div style={{ marginTop: "20px", textAlign: "center" }}>
-              <button
-                type="button"
-                className="track-button"
-                onClick={() => setSelectedPlatform("All")}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "6px"
-                }}
-              >
-                <Globe size={16} />
-                Show all services
-              </button>
-            </div>
-
             <RecentOrdersTicker />
           </section>
         </main>
@@ -1218,28 +1226,15 @@ function App() {
             </div>
           </div>
 
-          <div className="header-actions">
-            {trackingId && (
-              <button
-                type="button"
-                className="track-button"
-                onClick={() => openTracking()}
-              >
-                <PackageCheck size={18} />
-                <span>Track Order</span>
-              </button>
-            )}
-
-            <a
-              className="support-button support-button-wa"
-              href={getWhatsAppUrl()}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <WhatsAppIcon size={18} />
-              <span>WhatsApp Support</span>
-            </a>
-          </div>
+          <a
+            className="support-button support-button-wa"
+            href={getWhatsAppUrl()}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <WhatsAppIcon size={18} />
+            <span>WhatsApp Support</span>
+          </a>
         </header>
 
         <main className="main-content">
@@ -1324,28 +1319,15 @@ function App() {
           </div>
         </div>
 
-        <div className="header-actions">
-          {trackingId && (
-            <button
-              type="button"
-              className="track-button"
-              onClick={() => openTracking()}
-            >
-              <PackageCheck size={18} />
-              <span>Track Order</span>
-            </button>
-          )}
-
-          <a
-            className="support-button support-button-wa"
-            href={getWhatsAppUrl()}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <WhatsAppIcon size={18} />
-            <span>WhatsApp Support</span>
-          </a>
-        </div>
+        <a
+          className="support-button support-button-wa"
+          href={getWhatsAppUrl()}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <WhatsAppIcon size={18} />
+          <span>WhatsApp Support</span>
+        </a>
       </header>
 
       <main className="main-content">
