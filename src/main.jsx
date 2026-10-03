@@ -376,7 +376,7 @@ function RecentOrdersTicker() {
         const fresh = buildRandomOrder();
         return [fresh, ...prev].slice(0, 4);
       });
-    }, 3500);
+    }, 6000);
 
     return () => clearInterval(interval);
   }, []);
@@ -477,7 +477,7 @@ function HowItWorks() {
   useEffect(() => {
     const interval = setInterval(() => {
       setActiveStep((prev) => (prev + 1) % HOW_STEPS.length);
-    }, 2500);
+    }, 4000);
 
     return () => clearInterval(interval);
   }, []);
@@ -605,7 +605,7 @@ function deriveTracking(order) {
     progress: match.progress,
     status_label: statusLabel(order?.order_status)
   };
-}/* =========================================================
+  }/* =========================================================
    TRACKING PROGRESS
 ========================================================= */
 
@@ -973,11 +973,13 @@ function App() {
       return matchesType && matchesSearch;
     });
 
-    return matched.sort((a, b) => {
-      const ra = Number(getCustomerRate(a) || 0);
-      const rb = Number(getCustomerRate(b) || 0);
-      return ra - rb;
-    });
+    return matched
+      .sort((a, b) => {
+        const ra = Number(getCustomerRate(a) || 0);
+        const rb = Number(getCustomerRate(b) || 0);
+        return ra - rb;
+      })
+      .slice(0, 60);
   }, [
     platformServices,
     availableTypes,
