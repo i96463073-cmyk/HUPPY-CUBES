@@ -3170,3 +3170,231 @@ a {
     text-align: center;
   }
   }
+/* =========================================================
+   HOW IT WORKS
+========================================================= */
+
+.how-it-works {
+  margin: 40px auto 0;
+  max-width: 900px;
+  padding: 32px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+}
+
+.how-it-works-head {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.how-it-works-head h2 {
+  margin: 6px 0 6px;
+  font-size: 26px;
+  letter-spacing: -0.03em;
+}
+
+.how-it-works-head p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 13px;
+}
+
+.how-it-works-steps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.how-step {
+  position: relative;
+  padding: 20px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.025);
+  transition: transform 0.4s ease, border-color 0.4s ease,
+    background 0.4s ease, box-shadow 0.4s ease;
+}
+
+.how-step:hover {
+  transform: translateY(-3px);
+  border-color: rgba(167, 139, 250, 0.35);
+  background: rgba(139, 92, 246, 0.06);
+}
+
+.how-step-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.how-step-number {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 900;
+  color: #c4b5fd;
+  background: rgba(139, 92, 246, 0.15);
+  border: 1px solid rgba(167, 139, 250, 0.3);
+  transition: all 0.3s ease;
+}
+
+.how-step-emoji {
+  font-size: 24px;
+  line-height: 1;
+  transition: transform 0.3s ease;
+}
+
+.how-step h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+}
+
+.how-step p {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.how-step-active {
+  border-color: rgba(167, 139, 250, 0.65);
+  background: linear-gradient(
+    135deg,
+    rgba(139, 92, 246, 0.14),
+    rgba(37, 99, 235, 0.06)
+  );
+  transform: translateY(-3px);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.25),
+    0 0 24px rgba(139, 92, 246, 0.18);
+}
+
+.how-step-active .how-step-number {
+  color: #fff;
+  background: linear-gradient(135deg, #7c3aed, #2563eb);
+  border-color: rgba(167, 139, 250, 0.8);
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.4);
+}
+
+.how-step-active .how-step-emoji {
+  transform: scale(1.1);
+}
+
+.how-step-active h3 {
+  color: #fff;
+}
+
+.how-it-works-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.how-dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.how-dot:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.how-dot-active {
+  width: 24px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #7c3aed, #67e8f9);
+  box-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+}
+
+.how-it-works-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding-top: 20px;
+  margin-top: 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  text-align: center;
+}
+
+.how-it-works-footer svg {
+  color: #c4b5fd;
+  flex-shrink: 0;
+}
+
+@media (max-width: 1050px) {
+  .how-it-works-steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .how-it-works {
+    padding: 24px 16px;
+    margin-top: 30px;
+  }
+
+  .how-it-works-head {
+    margin-bottom: 20px;
+  }
+
+  .how-it-works-head h2 {
+    font-size: 22px;
+  }
+
+  .how-it-works-steps {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+
+  .how-step {
+    padding: 16px;
+  }
+
+  .how-step h3 {
+    font-size: 13px;
+  }
+
+  .how-step p {
+    font-size: 11px;
+  }
+
+  .how-step-emoji {
+    font-size: 20px;
+  }
+
+  .how-step-active {
+    transform: translateY(-2px);
+  }
+
+  .how-it-works-footer {
+    font-size: 11px;
+    padding-top: 16px;
+    margin-top: 16px;
+  }
+
+  .how-it-works-dots {
+    margin-bottom: 14px;
+  }
+}
