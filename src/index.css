@@ -3470,3 +3470,142 @@ a {
   transform: translateZ(0);
   backface-visibility: hidden;
 }
+/* =========================================================
+   TIER 2 — AGGRESSIVE MOBILE PERFORMANCE
+========================================================= */
+
+@media (max-width: 700px) {
+  /* 1. Kill ALL remaining blurs site-wide */
+  *,
+  *::before,
+  *::after {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* 2. Simplify shadows on mobile — box-shadows are expensive */
+  .platform-card,
+  .type-card,
+  .service-card,
+  .track-card,
+  .recent-ticker,
+  .how-step,
+  .order-button,
+  .pay-button,
+  .brand-icon {
+    box-shadow: none !important;
+  }
+
+  /* 3. Only keep the border for active states */
+  .how-step-active,
+  .platform-card.active {
+    box-shadow: 0 0 0 1px rgba(167, 139, 250, 0.5) !important;
+  }
+
+  /* 4. Kill the brand icon glow */
+  .brand-icon {
+    box-shadow: none !important;
+  }
+
+  /* 5. Reduce the size of gradient backgrounds — smaller paint area */
+  .app-shell {
+    background: #05030d;
+  }
+
+  /* 6. Faster transitions everywhere */
+  * {
+    transition-duration: 0.08s !important;
+  }
+
+  /* 7. Remove animations we don't need */
+  .how-step-active .how-step-emoji {
+    transform: none;
+  }
+
+  .how-step-active {
+    transform: none;
+  }
+
+  .recent-ticker-row.fresh {
+    animation: none !important;
+  }
+
+  .recent-ticker-dot {
+    animation: none !important;
+    box-shadow: none;
+    background: #10b981;
+  }
+
+  /* 8. Disable progress bar transition on mobile */
+  .progress-fill {
+    transition: none !important;
+  }
+
+  /* 9. Faster hover responses */
+  .platform-card:hover,
+  .type-card:hover,
+  .service-card:hover,
+  .how-step:hover {
+    transform: none;
+  }
+
+  .platform-card:active,
+  .type-card:active,
+  .service-card:active {
+    transform: scale(0.99);
+  }
+}
+
+/* =========================================================
+   VERY SMALL PHONES (≤ 390px) — LIGHTEST MODE
+========================================================= */
+
+@media (max-width: 390px) {
+  /* Reduce spacing to cut paint cost */
+  .main-content {
+    padding-top: 24px;
+    padding-bottom: 20px;
+  }
+
+  .hero-section {
+    margin-bottom: 30px;
+  }
+
+  .section-heading {
+    margin-bottom: 16px;
+  }
+
+  /* Simpler cards */
+  .platform-card,
+  .type-card,
+  .service-card,
+  .track-card,
+  .recent-ticker,
+  .how-it-works {
+    border-radius: 12px;
+  }
+
+  /* Smaller fonts = less text rendering cost */
+  .hero-section h1 {
+    font-size: 32px;
+  }
+
+  .section-heading h2 {
+    font-size: 22px;
+  }
+}
+
+/* =========================================================
+   REDUCED MOTION (system setting)
+========================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .recent-ticker-row,
+  .how-step,
+  .platform-card,
+  .type-card,
+  .service-card {
+    transition: none !important;
+    animation: none !important;
+  }
+}
