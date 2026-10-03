@@ -2483,3 +2483,191 @@ a {
     font-size: 11px;
   }
   }
+/* =========================================================
+   RECENT ORDERS TICKER (stacked)
+========================================================= */
+
+.recent-ticker {
+  margin: 28px auto 0;
+  max-width: 620px;
+  padding: 18px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
+}
+
+.recent-ticker-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.recent-ticker-sub {
+  margin-left: auto;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.recent-ticker-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.8);
+  animation: tickerPulse 1.8s ease-in-out infinite;
+}
+
+@keyframes tickerPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.45; transform: scale(1.3); }
+}
+
+.recent-ticker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.recent-ticker-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+  font-size: 13px;
+  color: #fff;
+  transition: background 0.15s ease;
+}
+
+.recent-ticker-row.fresh {
+  animation: tickerFade 0.5s ease;
+  background: rgba(139, 92, 246, 0.08);
+}
+
+@keyframes tickerFade {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+    background: rgba(139, 92, 246, 0.18);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    background: rgba(139, 92, 246, 0.08);
+  }
+}
+
+.recent-ticker-emoji {
+  flex-shrink: 0;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.recent-ticker-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-ticker-text strong {
+  font-weight: 800;
+  background: linear-gradient(90deg, #c4b5fd, #67e8f9);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
+
+.recent-ticker-service {
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+.recent-ticker-location {
+  flex-shrink: 0;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  margin-left: auto;
+}
+
+@media (max-width: 700px) {
+  .recent-ticker {
+    max-width: 100%;
+    padding: 14px;
+  }
+
+  .recent-ticker-head {
+    font-size: 10px;
+    margin-bottom: 10px;
+  }
+
+  .recent-ticker-row {
+    padding: 8px 10px;
+    gap: 8px;
+    font-size: 12px;
+  }
+
+  .recent-ticker-text {
+    font-size: 12px;
+  }
+
+  .recent-ticker-emoji {
+    font-size: 14px;
+  }
+
+  .recent-ticker-location {
+    font-size: 9px;
+    padding: 3px 7px;
+  }
+}
+
+/* =========================================================
+   WHATSAPP SUPPORT BUTTON
+========================================================= */
+
+.support-button-wa {
+  color: #fff !important;
+  background: linear-gradient(135deg, #25D366, #128C7E) !important;
+  border-color: rgba(37, 211, 102, 0.4) !important;
+  box-shadow: 0 4px 14px rgba(37, 211, 102, 0.22) !important;
+  font-weight: 700;
+}
+
+.support-button-wa:hover {
+  background: linear-gradient(135deg, #2ecc71, #16a085) !important;
+  border-color: rgba(46, 204, 113, 0.6) !important;
+  box-shadow: 0 6px 18px rgba(37, 211, 102, 0.35) !important;
+  transform: translateY(-1px);
+}
+
+.support-button-wa svg {
+  flex-shrink: 0;
+}
+
+.support-button-wa span {
+  white-space: nowrap;
+  }
