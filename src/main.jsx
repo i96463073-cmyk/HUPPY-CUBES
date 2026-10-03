@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
+import AdminDashboard from "./AdminDashboard.jsx";
 
 import {
   Search,
@@ -67,9 +68,9 @@ const PLATFORM_ICONS = {
   Other: Globe
 };
 
-// ------------------------------------------------------------
-// SERVICE TYPE BUCKETS
-// ------------------------------------------------------------
+/* =========================================================
+   SERVICE TYPE BUCKETS
+========================================================= */
 
 const TYPE_ORDER = [
   "Likes",
@@ -85,16 +86,16 @@ const TYPE_ORDER = [
 ];
 
 const TYPE_META = {
-  "Likes":             { emoji: "❤️", icon: Heart },
-  "Views":             { emoji: "👁️", icon: Eye },
-  "Comments":          { emoji: "💬", icon: MessageSquare },
-  "Followers":         { emoji: "👥", icon: Users },
-  "Saves":             { emoji: "🔖", icon: Bookmark },
-  "Shares":            { emoji: "🔁", icon: Share2 },
-  "Live Stream":       { emoji: "📡", icon: Radio },
-  "Watch Time":        { emoji: "⏱️", icon: Timer },
-  "Accounts & Bundles":{ emoji: "🎁", icon: Gift },
-  "Other":             { emoji: "📦", icon: PackageCheck }
+  Likes: { emoji: "❤️", icon: Heart },
+  Views: { emoji: "👁️", icon: Eye },
+  Comments: { emoji: "💬", icon: MessageSquare },
+  Followers: { emoji: "👥", icon: Users },
+  Saves: { emoji: "🔖", icon: Bookmark },
+  Shares: { emoji: "🔁", icon: Share2 },
+  "Live Stream": { emoji: "📡", icon: Radio },
+  "Watch Time": { emoji: "⏱️", icon: Timer },
+  "Accounts & Bundles": { emoji: "🎁", icon: Gift },
+  Other: { emoji: "📦", icon: PackageCheck }
 };
 
 function detectPlatform(service) {
@@ -102,26 +103,46 @@ function detectPlatform(service) {
     service?.category || ""
   } ${service?.type || ""}`.toLowerCase();
 
-  if (text.includes("instagram") || text.includes("ig ") || text.includes(" ig")) return "Instagram";
-  if (text.includes("tiktok") || text.includes("tik tok") || text.includes("tt ")) return "TikTok";
-  if (text.includes("facebook") || text.includes("fb ") || text.includes("fb post") || text.includes("fb group")) return "Facebook";
-  if (text.includes("youtube") || text.includes("yt ") || text.includes("yt-")) return "YouTube";
+  if (text.includes("instagram") || text.includes("ig ") || text.includes(" ig"))
+    return "Instagram";
+  if (text.includes("tiktok") || text.includes("tik tok") || text.includes("tt "))
+    return "TikTok";
+  if (
+    text.includes("facebook") ||
+    text.includes("fb ") ||
+    text.includes("fb post") ||
+    text.includes("fb group")
+  )
+    return "Facebook";
+  if (text.includes("youtube") || text.includes("yt ") || text.includes("yt-"))
+    return "YouTube";
   if (text.includes("telegram") || text.includes("tg ")) return "Telegram";
-  if (text.includes("twitter") || text.includes(" x ") || text.startsWith("x ") || text.includes(" x/") || text.includes("x (") || text.includes(" x.com")) return "Twitter / X";
-  if (text.includes("whatsapp") || text.includes("wa chan") || text.includes("wa poll")) return "WhatsApp";
+  if (
+    text.includes("twitter") ||
+    text.includes(" x ") ||
+    text.startsWith("x ") ||
+    text.includes(" x/") ||
+    text.includes("x (") ||
+    text.includes(" x.com")
+  )
+    return "Twitter / X";
+  if (
+    text.includes("whatsapp") ||
+    text.includes("wa chan") ||
+    text.includes("wa poll")
+  )
+    return "WhatsApp";
   if (text.includes("spotify")) return "Spotify";
-  if (text.includes("boomplay") || text.includes("gaming") || text.includes("game ") || text.includes("twitch")) return "Gaming";
+  if (
+    text.includes("boomplay") ||
+    text.includes("gaming") ||
+    text.includes("game ") ||
+    text.includes("twitch")
+  )
+    return "Gaming";
 
   return "Other";
 }
-
-// ------------------------------------------------------------
-// SERVICE TYPE DETECTION
-// ------------------------------------------------------------
-//
-// Order matters! "Live Stream" and "Watch Time" have to be checked
-// BEFORE "Views" because live-stream views and watch-time are
-// semantically different from regular views.
 
 function detectServiceType(service) {
   const name = String(service?.name || "").toLowerCase();
@@ -129,10 +150,6 @@ function detectServiceType(service) {
   const type = String(service?.type || "").toLowerCase();
   const combined = `${name} ${category} ${type}`;
 
-  // 0. Accounts & Bundles — catch these first because many have
-  //    "premium", "account", "package", "numbers", "minutes",
-  //    "sms", "data" in the name and would otherwise fall into
-  //    random buckets.
   if (
     type === "package" ||
     combined.includes("premium accounts") ||
@@ -153,7 +170,6 @@ function detectServiceType(service) {
     return "Accounts & Bundles";
   }
 
-  // 1. Live Stream — must be before "Views"
   if (
     combined.includes("live stream") ||
     combined.includes("live video") ||
@@ -166,7 +182,6 @@ function detectServiceType(service) {
     return "Live Stream";
   }
 
-  // 2. Watch Time — must be before "Views"
   if (
     combined.includes("watchtime") ||
     combined.includes("watch time") ||
@@ -175,18 +190,15 @@ function detectServiceType(service) {
     return "Watch Time";
   }
 
-  // 3. Likes / Reactions
   if (
     combined.includes("like") ||
     combined.includes("reaction") ||
     combined.includes("react") ||
     combined.includes("heart")
   ) {
-    // Comment Likes should stay as "Likes", which they already are.
     return "Likes";
   }
 
-  // 4. Views (broad)
   if (
     combined.includes("view") ||
     combined.includes("views") ||
@@ -202,15 +214,10 @@ function detectServiceType(service) {
     return "Views";
   }
 
-  // 5. Comments
-  if (
-    combined.includes("comment") ||
-    combined.includes("mention")
-  ) {
+  if (combined.includes("comment") || combined.includes("mention")) {
     return "Comments";
   }
 
-  // 6. Followers / Members / Subscribers
   if (
     combined.includes("follower") ||
     combined.includes("subscriber") ||
@@ -222,20 +229,14 @@ function detectServiceType(service) {
     return "Followers";
   }
 
-  // 7. Saves
-  if (
-    combined.includes("save") ||
-    combined.includes("bookmark")
-  ) {
+  if (combined.includes("save") || combined.includes("bookmark")) {
     return "Saves";
   }
 
-  // 8. Shares / Reposts / Retweets
   if (
     combined.includes("share") ||
     combined.includes("repost") ||
-    combined.includes("retweet") ||
-    combined.includes("repost")
+    combined.includes("retweet")
   ) {
     return "Shares";
   }
@@ -346,7 +347,7 @@ function deriveTracking(order) {
     progress: match.progress,
     status_label: statusLabel(order?.order_status)
   };
-               }/* =========================================================
+    }/* =========================================================
    TRACKING PROGRESS
 ========================================================= */
 
@@ -671,7 +672,6 @@ function App() {
     }));
   }, [services]);
 
-  // Services for the currently-selected platform (or all if "All")
   const platformServices = useMemo(() => {
     return enrichedServices.filter((service) => {
       if (selectedPlatform === "All") return true;
@@ -679,7 +679,6 @@ function App() {
     });
   }, [enrichedServices, selectedPlatform]);
 
-  // Types available for the currently-selected platform, sorted by TYPE_ORDER
   const availableTypes = useMemo(() => {
     const counts = {};
 
@@ -688,23 +687,18 @@ function App() {
       counts[t] = (counts[t] || 0) + 1;
     }
 
-    return TYPE_ORDER
-      .filter((t) => counts[t] > 0)
-      .map((t) => ({
-        type: t,
-        count: counts[t],
-        ...TYPE_META[t]
-      }));
+    return TYPE_ORDER.filter((t) => counts[t] > 0).map((t) => ({
+      type: t,
+      count: counts[t],
+      ...TYPE_META[t]
+    }));
   }, [platformServices]);
 
-  // Decide whether to show the type picker stage
   const shouldSkipTypeStage = availableTypes.length <= 1;
 
-  // Final filtered list of services to display
   const filteredServices = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    // Determine which type we're filtering by
     const activeType = shouldSkipTypeStage
       ? availableTypes[0]?.type || null
       : selectedType;
@@ -721,7 +715,6 @@ function App() {
       return matchesType && matchesSearch;
     });
 
-    // Cheapest first
     return matched.sort((a, b) => {
       const ra = Number(getCustomerRate(a) || 0);
       const rb = Number(getCustomerRate(b) || 0);
@@ -735,7 +728,6 @@ function App() {
     search
   ]);
 
-  // Reset selected type whenever platform changes
   useEffect(() => {
     setSelectedType(null);
     setSearch("");
@@ -876,7 +868,9 @@ function App() {
       const saved = localStorage.getItem("huppy_cube_tracking_id");
       if (saved) setTrackingId(saved);
     } catch {}
-  }, [trackingId]);  if (showTracking && trackingId) {
+  }, [trackingId]);
+
+  if (showTracking && trackingId) {
     return (
       <div className="app-shell">
         <div className="ambient ambient-one" />
@@ -918,13 +912,7 @@ function App() {
     );
   }
 
-  /* =======================================================
-     STAGE 1 — PLATFORM PICKER
-  ======================================================= */
-
   if (selectedPlatform === "All" && !selectedType) {
-    const hasOnlyOnePlatformPath = false; // reserved
-
     return (
       <div className="app-shell">
         <div className="ambient ambient-one" />
@@ -1014,19 +1002,13 @@ function App() {
 
             <div className="platform-grid">
               {PLATFORM_ORDER.map((platform) => {
-                const Icon =
-                  platform === "All"
-                    ? Sparkles
-                    : PLATFORM_ICONS[platform] || Globe;
-
-                const count =
-                  platform === "All"
-                    ? enrichedServices.length
-                    : enrichedServices.filter(
-                        (service) => service.platform === platform
-                      ).length;
-
                 if (platform === "All") return null;
+
+                const Icon = PLATFORM_ICONS[platform] || Globe;
+
+                const count = enrichedServices.filter(
+                  (service) => service.platform === platform
+                ).length;
 
                 return (
                   <button
@@ -1050,12 +1032,7 @@ function App() {
               })}
             </div>
 
-            <div
-              style={{
-                marginTop: "20px",
-                textAlign: "center"
-              }}
-            >
+            <div style={{ marginTop: "20px", textAlign: "center" }}>
               <button
                 type="button"
                 className="track-button"
@@ -1081,15 +1058,7 @@ function App() {
     );
   }
 
-  /* =======================================================
-     STAGE 2 — TYPE PICKER (only when more than 1 type)
-  ======================================================= */
-
-  if (
-    !shouldSkipTypeStage &&
-    !selectedType &&
-    selectedPlatform !== "All"
-  ) {
+  if (!shouldSkipTypeStage && !selectedType && selectedPlatform !== "All") {
     return (
       <div className="app-shell">
         <div className="ambient ambient-one" />
@@ -1192,10 +1161,6 @@ function App() {
       </div>
     );
   }
-
-  /* =======================================================
-     STAGE 3 — SERVICE LIST (filtered)
-  ======================================================= */
 
   const activeType = shouldSkipTypeStage
     ? availableTypes[0]?.type || null
@@ -1594,10 +1559,20 @@ function App() {
   );
 }
 
+/* =========================================================
+   ROOT — ROUTES /admin TO ADMIN DASHBOARD
+========================================================= */
+
+function Root() {
+  if (window.location.pathname === "/admin") {
+    return <AdminDashboard />;
+  }
+
+  return <App />;
+}
+
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <App />
+    <Root />
   </React.StrictMode>
-);/* =========================================================
-   TYPE PICKER (Stage 2 of the grouped services flow)
-========================================================= */
+);
