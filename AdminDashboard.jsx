@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 /* =========================================================
    ADMIN DASHBOARD
@@ -52,336 +52,10 @@ function statusColor(status) {
 }
 
 /* =========================================================
-   MAIN COMPONENT
-========================================================= */
-
-export default function AdminDashboard() {
-  const [secret, setSecret] = useState(readSecretFromUrl());
-  const [secretInput, setSecretInput] = useState("");
-  const [tab, setTab] = useState("overview");
-
-  const [stats, setStats] = useState(null);
-  const [orders, setOrders] = useState([]);
-  const [events, setEvents] = useState([]);
-
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [search, setSearch] = useState("");
-  const [expandedId, setExpandedId] = useState(null);
-
-  const [lastLiveTime, setLastLiveTime] = useState(Date.now());
-
-  /* ------------------------------------------------------
-     LOAD STATS
-  ------------------------------------------------------ */
-
-  async function loadStats() {
-    try {
-      const r = await fetch(
-        `/api/admin-stats?secret=${encodeURIComponent(secret)}`,
-        { cache: "no-store" }
-      );
-      const data = await r.json();
-
-      if (!data.success) throw new Error(data.error || "Failed to load stats");
-
-      setStats(data.stats);
-    } catch (err) {
-      setError(err?.message || "Failed to load stats");
-    }
-  }
-
-  /* ------------------------------------------------------
-     LOAD ORDERS
-  ------------------------------------------------------ */
-
-  async function loadOrders() {
-    try {
-      setLoading(true);
-
-      const params = new URLSearchParams();
-      params.set("secret", secret);
-      params.set("limit", "200");
-      if (statusFilter && statusFilter !== "all") {
-        params.set("status", statusFilter);
-      }
-      if (search.trim()) {
-        params.set("search", search.trim());
-      }
-
-      const r = await fetch(
-        `/api/admin-orders-list?${params.toString()}`,
-        { cache: "no-store" }
-      );
-      const data = await r.json();
-
-      if (!data.success) throw new Error(data.error || "Failed to load orders");
-
-      setOrders(data.orders || []);
-      setError("");
-    } catch (err) {
-      setError(err?.message || "Failed to load orders");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  /* ------------------------------------------------------
-     LOAD LIVE FEED
-  ------------------------------------------------------ */
-
-  async function loadLive(sinceMs) {
-    try {
-      const params = new URLSearchParams();
-      params.set("secret", secret);
-      if (sinceMs) params.set("since", String(sinceMs));
-
-      const r = await fetch(
-        `/api/admin-live?${params.toString()}`,
-        { cache: "no-store" }
-      );
-      const data = await r.json();
-
-      if (!data.success) throw new Error(data.error || "Failed to load feed");
-
-      const incoming = data.events || [];
-      setLastLiveTime(data.server_time_ms || Date.now());
-
-      if (sinceMs) {
-        // Append new events
-        setEvents((prev) => {
-          const merged = [...prev, ...incoming];
-          // Keep last 200
-          return merged.slice(-200);
-        });
-      } else {
-        // First load — show most recent
-        setEvents(incoming);
-      }
-    } catch (err) {
-      setError(err?.message || "Failed to load live feed");
-    }
-  }
-
-  /* ------------------------------------------------------
-     MANUAL RETRY
-  ------------------------------------------------------ */
-
-  async function retryOrder(trackingId) {
-    if (!window.confirm(`Retry order ${trackingId}?`)) return;
-
-    try {
-      const r = await fetch(
-        `/api/admin-retry?secret=${encodeURIComponent(secret)}&tracking_id=${encodeURIComponent(trackingId)}`,
-        { cache: "no-store" }
-      );
-      const data = await r.json();
-
-      if (!data.success) {
-        alert(`Retry failed: ${data.error || "Unknown error"}`);
-        return;
-      }
-
-      alert("Retry submitted. Refreshing...");
-      await loadStats();
-      await loadOrders();
-    } catch (err) {
-      alert(`Retry error: ${err?.message || err}`);
-    }
-  }
-
-  /* ------------------------------------------------------
-     EFFECTS
-  ------------------------------------------------------ */
-
-  // Initial load once we have a secret
-  useEffect(() => {
-    if (!secret) return;
-    loadStats();
-    loadOrders();
-    loadLive(0);
-  }, [secret]);
-
-  // Reload orders when filter/search changes
-  useEffect(() => {
-    if (!secret) return;
-    loadOrders();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, search]);
-
-  // Poll stats + orders every 15s
-  useEffect(() => {
-    if (!secret) return;
-
-    const t = setInterval(() => {
-      loadStats();
-      loadOrders();
-    }, REFRESH_MS);
-
-    return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secret, statusFilter, search]);
-
-  // Poll live feed every 3s, but only while on live tab
-  useEffect(() => {
-    if (!secret) return;
-    if (tab !== "live") return;
-
-    const t = setInterval(() => {
-      loadLive(lastLiveTime);
-    }, LIVE_REFRESH_MS);
-
-    return () => clearInterval(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secret, tab, lastLiveTime]);
-
-  /* ------------------------------------------------------
-     SECRET PROMPT
-  ------------------------------------------------------ */
-
-  if (!secret) {
-    return (
-      <div className="admin-shell">
-        <div className="admin-login">
-          <h1>HUPPY CUBE ADMIN</h1>
-          <p>Enter your admin secret to continue.</p>
-
-          <input
-            type="password"
-            value={secretInput}
-            onChange={(e) => setSecretInput(e.target.value)}
-            placeholder="Admin secret"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && secretInput.trim()) {
-                setSecret(secretInput.trim());
-              }
-            }}
-          />
-
-          <button
-            type="button"
-            disabled={!secretInput.trim()}
-            onClick={() => setSecret(secretInput.trim())}
-          >
-            Enter
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  /* ------------------------------------------------------
-     MAIN DASHBOARD
-  ------------------------------------------------------ */
-
-  return (
-    <div className="admin-shell">
-      <header className="admin-topbar">
-        <div>
-          <h1>HUPPY CUBE ADMIN</h1>
-          <small>
-            {stats?.server_time_nairobi
-              ? `Server time: ${nairobiTime(stats.server_time_nairobi)}`
-              : "Loading..."}
-          </small>
-        </div>
-
-        <div className="admin-topbar-actions">
-          <button
-            type="button"
-            className={tab === "overview" ? "active" : ""}
-            onClick={() => setTab("overview")}
-          >
-            Overview
-          </button>
-          <button
-            type="button"
-            className={tab === "live" ? "active" : ""}
-            onClick={() => setTab("live")}
-          >
-            Live
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setSecret("");
-              window.history.replaceState({}, "", "/");
-            }}
-          >
-            Logout
-          </button>
-        </div>
-      </header>
-
-      {error && (
-        <div className="admin-error">
-          {error}
-        </div>
-      )}
-
-      {tab === "overview" && stats && (
-        <section className="admin-stats-grid">
-          <div className="admin-stat-card">
-            <span>Total Orders</span>
-            <strong>{stats.total_orders}</strong>
-          </div>
-
-          <div className="admin-stat-card">
-            <span>Revenue (KES)</span>
-            <strong>{formatKES(stats.total_revenue_kes)}</strong>
-          </div>
-
-          <div className="admin-stat-card">
-            <span>Cost (KES)</span>
-            <strong>{formatKES(stats.total_cost_kes)}</strong>
-          </div>
-
-          <div className="admin-stat-card highlight">
-            <span>Profit (KES)</span>
-            <strong>{formatKES(stats.total_profit_kes)}</strong>
-          </div>
-
-          <div className="admin-stat-card">
-            <span>Pending</span>
-            <strong>{stats.pending}</strong>
-          </div>
-
-          <div className="admin-stat-card">
-            <span>Processing</span>
-            <strong>{stats.processing}</strong>
-          </div>
-
-          <div className="admin-stat-card">
-            <span>Completed</span>
-            <strong>{stats.completed}</strong>
-          </div>
-
-          <div className="admin-stat-card">
-            <span>Failed</span>
-            <strong>{stats.failed}</strong>
-          </div>
-
-          <div className="admin-stat-card wide">
-            <span>Today</span>
-            <strong>
-              {stats.today_orders} orders · {formatKES(stats.today_revenue_kes)} revenue ·{" "}
-              {formatKES(stats.today_profit_kes)} profit
-            </strong>
-          </div>
-        </section>
-      )}
-    </div>
-);
-}
-/* =========================================================
    ORDER ROW
 ========================================================= */
 
 function OrderRow({ order, expanded, onToggle, onRetry }) {
-  const isExpanded = expanded;
-
   return (
     <div className="admin-order-row">
       <div
@@ -419,7 +93,7 @@ function OrderRow({ order, expanded, onToggle, onRetry }) {
         </div>
       </div>
 
-      {isExpanded && (
+      {expanded && (
         <div className="admin-order-detail">
           <div className="admin-detail-grid">
             <div>
@@ -550,9 +224,7 @@ function OrdersList({
               expanded={expandedId === order.tracking_id}
               onToggle={() =>
                 setExpandedId(
-                  expandedId === order.tracking_id
-                    ? null
-                    : order.tracking_id
+                  expandedId === order.tracking_id ? null : order.tracking_id
                 )
               }
               onRetry={onRetry}
@@ -590,11 +262,7 @@ function LiveFeed({ events }) {
 
               <div className="admin-live-body">
                 <div className="admin-live-title">
-                  <span
-                    className={`admin-pill ${statusColor(
-                      e.order_status
-                    )}`}
-                  >
+                  <span className={`admin-pill ${statusColor(e.order_status)}`}>
                     {e.order_status || "—"}
                   </span>
 
@@ -616,10 +284,302 @@ function LiveFeed({ events }) {
       )}
     </section>
   );
-}
-
-/* =========================================================
-   MOUNT — RE-EXPORT FOR MAIN.JSX
+}/* =========================================================
+   MAIN ADMIN COMPONENT
 ========================================================= */
 
-export { OrdersList, LiveFeed };
+export default function AdminDashboard() {
+  const [secret, setSecret] = useState(readSecretFromUrl());
+  const [secretInput, setSecretInput] = useState("");
+  const [tab, setTab] = useState("overview");
+
+  const [stats, setStats] = useState(null);
+  const [orders, setOrders] = useState([]);
+  const [events, setEvents] = useState([]);
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [search, setSearch] = useState("");
+  const [expandedId, setExpandedId] = useState(null);
+
+  const [lastLiveTime, setLastLiveTime] = useState(Date.now());
+
+  async function loadStats() {
+    try {
+      const r = await fetch(
+        `/api/admin-stats?secret=${encodeURIComponent(secret)}`,
+        { cache: "no-store" }
+      );
+      const data = await r.json();
+
+      if (!data.success) throw new Error(data.error || "Failed to load stats");
+
+      setStats(data.stats);
+    } catch (err) {
+      setError(err?.message || "Failed to load stats");
+    }
+  }
+
+  async function loadOrders() {
+    try {
+      setLoading(true);
+
+      const params = new URLSearchParams();
+      params.set("secret", secret);
+      params.set("limit", "200");
+      if (statusFilter && statusFilter !== "all") {
+        params.set("status", statusFilter);
+      }
+      if (search.trim()) {
+        params.set("search", search.trim());
+      }
+
+      const r = await fetch(
+        `/api/admin-orders-list?${params.toString()}`,
+        { cache: "no-store" }
+      );
+      const data = await r.json();
+
+      if (!data.success) throw new Error(data.error || "Failed to load orders");
+
+      setOrders(data.orders || []);
+      setError("");
+    } catch (err) {
+      setError(err?.message || "Failed to load orders");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadLive(sinceMs) {
+    try {
+      const params = new URLSearchParams();
+      params.set("secret", secret);
+      if (sinceMs) params.set("since", String(sinceMs));
+
+      const r = await fetch(
+        `/api/admin-live?${params.toString()}`,
+        { cache: "no-store" }
+      );
+      const data = await r.json();
+
+      if (!data.success) throw new Error(data.error || "Failed to load feed");
+
+      const incoming = data.events || [];
+      setLastLiveTime(data.server_time_ms || Date.now());
+
+      if (sinceMs) {
+        setEvents((prev) => [...prev, ...incoming].slice(-200));
+      } else {
+        setEvents(incoming);
+      }
+    } catch (err) {
+      setError(err?.message || "Failed to load live feed");
+    }
+  }
+
+  async function retryOrder(trackingId) {
+    if (!window.confirm(`Retry order ${trackingId}?`)) return;
+
+    try {
+      const r = await fetch(
+        `/api/admin-retry?secret=${encodeURIComponent(secret)}&tracking_id=${encodeURIComponent(trackingId)}`,
+        { cache: "no-store" }
+      );
+      const data = await r.json();
+
+      if (!data.success) {
+        alert(`Retry failed: ${data.error || "Unknown error"}`);
+        return;
+      }
+
+      alert("Retry submitted. Refreshing...");
+      await loadStats();
+      await loadOrders();
+    } catch (err) {
+      alert(`Retry error: ${err?.message || err}`);
+    }
+  }
+
+  useEffect(() => {
+    if (!secret) return;
+    loadStats();
+    loadOrders();
+    loadLive(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secret]);
+
+  useEffect(() => {
+    if (!secret) return;
+    loadOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, search]);
+
+  useEffect(() => {
+    if (!secret) return;
+
+    const t = setInterval(() => {
+      loadStats();
+      loadOrders();
+    }, REFRESH_MS);
+
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secret, statusFilter, search]);
+
+  useEffect(() => {
+    if (!secret) return;
+    if (tab !== "live") return;
+
+    const t = setInterval(() => {
+      loadLive(lastLiveTime);
+    }, LIVE_REFRESH_MS);
+
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secret, tab, lastLiveTime]);
+
+  if (!secret) {
+    return (
+      <div className="admin-shell">
+        <div className="admin-login">
+          <h1>HUPPY CUBE ADMIN</h1>
+          <p>Enter your admin secret to continue.</p>
+
+          <input
+            type="password"
+            value={secretInput}
+            onChange={(e) => setSecretInput(e.target.value)}
+            placeholder="Admin secret"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && secretInput.trim()) {
+                setSecret(secretInput.trim());
+              }
+            }}
+          />
+
+          <button
+            type="button"
+            disabled={!secretInput.trim()}
+            onClick={() => setSecret(secretInput.trim())}
+          >
+            Enter
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="admin-shell">
+      <header className="admin-topbar">
+        <div>
+          <h1>HUPPY CUBE ADMIN</h1>
+          <small>
+            {stats?.server_time_nairobi
+              ? `Server time: ${nairobiTime(stats.server_time_nairobi)}`
+              : "Loading..."}
+          </small>
+        </div>
+
+        <div className="admin-topbar-actions">
+          <button
+            type="button"
+            className={tab === "overview" ? "active" : ""}
+            onClick={() => setTab("overview")}
+          >
+            Overview
+          </button>
+          <button
+            type="button"
+            className={tab === "live" ? "active" : ""}
+            onClick={() => setTab("live")}
+          >
+            Live
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSecret("");
+              window.history.replaceState({}, "", "/");
+            }}
+          >
+            Logout
+          </button>
+        </div>
+      </header>
+
+      {error && <div className="admin-error">{error}</div>}
+
+      {tab === "overview" && stats && (
+        <section className="admin-stats-grid">
+          <div className="admin-stat-card">
+            <span>Total Orders</span>
+            <strong>{stats.total_orders}</strong>
+          </div>
+
+          <div className="admin-stat-card">
+            <span>Revenue (KES)</span>
+            <strong>{formatKES(stats.total_revenue_kes)}</strong>
+          </div>
+
+          <div className="admin-stat-card">
+            <span>Cost (KES)</span>
+            <strong>{formatKES(stats.total_cost_kes)}</strong>
+          </div>
+
+          <div className="admin-stat-card highlight">
+            <span>Profit (KES)</span>
+            <strong>{formatKES(stats.total_profit_kes)}</strong>
+          </div>
+
+          <div className="admin-stat-card">
+            <span>Pending</span>
+            <strong>{stats.pending}</strong>
+          </div>
+
+          <div className="admin-stat-card">
+            <span>Processing</span>
+            <strong>{stats.processing}</strong>
+          </div>
+
+          <div className="admin-stat-card">
+            <span>Completed</span>
+            <strong>{stats.completed}</strong>
+          </div>
+
+          <div className="admin-stat-card">
+            <span>Failed</span>
+            <strong>{stats.failed}</strong>
+          </div>
+
+          <div className="admin-stat-card wide">
+            <span>Today</span>
+            <strong>
+              {stats.today_orders} orders · {formatKES(stats.today_revenue_kes)}{" "}
+              revenue · {formatKES(stats.today_profit_kes)} profit
+            </strong>
+          </div>
+        </section>
+      )}
+
+      {tab === "overview" && (
+        <OrdersList
+          orders={orders}
+          loading={loading}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          search={search}
+          setSearch={setSearch}
+          expandedId={expandedId}
+          setExpandedId={setExpandedId}
+          onRetry={retryOrder}
+        />
+      )}
+
+      {tab === "live" && <LiveFeed events={events} />}
+    </div>
+  );
+         }
