@@ -1,13 +1,10 @@
 // ============================================================
 // HUPPY CUBE - COMPLETE CLOUDFLARE WORKER
-// React + Cloudflare Pages + D1 + PesaPal + DenzGains
 // ============================================================
 
 const PESAPAL_LIVE_BASE = "https://pay.pesapal.com/v3";
 const PESAPAL_SANDBOX_BASE = "https://cybqa.pesapal.com/pesapalv3";
-
 const DENZGAINS_BASE = "https://denzgains.com/api/v2";
-
 const WHATSAPP_NUMBER = "254796681162";
 
 // ------------------------------------------------------------
@@ -114,6 +111,43 @@ function getEnvOrigin(env, request) {
     text(env.PUBLIC_BASE_URL).replace(/\/$/, "") ||
     getOrigin(request)
   );
+}
+
+// ------------------------------------------------------------
+// ADMIN AUTH
+// ------------------------------------------------------------
+
+function isAdminAuthorized(env, request) {
+  const url = new URL(request.url);
+  const provided = text(url.searchParams.get("secret"));
+  const expected = text(env.TEST_ORDER_SECRET);
+
+  if (!expected) return false;
+  if (!provided) return false;
+
+  return provided === expected;
+}
+
+function adminUnauthorized() {
+  return json({ success: false, error: "Unauthorized." }, 401);
+}
+
+// ------------------------------------------------------------
+// NAIROBI TIME HELPER (UTC+3)
+// ------------------------------------------------------------
+
+function toNairobiISO(utcString) {
+  if (!utcString) return "";
+
+  const raw = String(utcString);
+  const iso = raw.includes("T") ? raw : raw.replace(" ", "T") + "Z";
+  const ms = Date.parse(iso);
+
+  if (!Number.isFinite(ms)) return raw;
+
+  return new Date(ms + 3 * 60 * 60 * 1000)
+    .toISOString()
+    .replace("Z", "+03:00");
 }
 
 // ------------------------------------------------------------
@@ -242,9 +276,7 @@ async function ensureOrdersTable(env) {
   }
 
   ORDERS_TABLE_READY = true;
-}
-
-// ------------------------------------------------------------
+}// ------------------------------------------------------------
 // D1 ORDER HELPERS
 // ------------------------------------------------------------
 
@@ -474,9 +506,7 @@ function extractSupplierOrderId(response) {
   }
 
   return "";
-}
-
-// ------------------------------------------------------------
+}// ------------------------------------------------------------
 // PESAPAL
 // ------------------------------------------------------------
 
@@ -569,11 +599,8 @@ async function pesapalRequest(env, path, options = {}) {
     throw new Error(`PesaPal HTTP ${response.status}: ${raw.slice(0, 1500)}`);
   }
 
-  // IMPORTANT FIX:
-  // PesaPal often returns `error: { error_type: null, code: null, message: null }`
-  // on SUCCESSFUL requests. The old check `if (data?.error)` saw that object as
-  // truthy and threw, which broke order creation even when the payment was made.
-  // We now only throw when error actually carries a real message.
+  // PesaPal returns `error: { error_type: null, code: null, message: null }`
+  // on SUCCESS. Only throw when error actually carries a real message.
   const errMsg =
     data?.error?.message ||
     data?.error_description ||
@@ -829,9 +856,7 @@ async function verifyPesapalPayment(env, order) {
   }
 
   return status;
-}
-
-// ------------------------------------------------------------
+}// ------------------------------------------------------------
 // PROCESS A PAID ORDER
 // ------------------------------------------------------------
 
@@ -891,41 +916,36 @@ async function processPaidOrder(env, originalOrder) {
     const paidAmount = number(payment?.amount, 0);
     const expectedAmount = number(order.customer_amount, 0);
 
-// PesaPal rounds up small amounts (M-Pesa minimum ~KES 4).
-// Accept anything from the exact amount up to +KES 5 over.
-// Only flag it as a mismatch if the customer UNDERPAID by more
-// than 1 KES, or overpaid by more than 5 KES.
-const difference = paidAmount - expectedAmount;
+    const difference = paidAmount - expectedAmount;
 
-const realMismatch =
-  paidAmount > 0 &&
-  expectedAmount > 0 &&
-  (difference < -1.0 || difference > 5.0);
+    const realMismatch =
+      paidAmount > 0 &&
+      expectedAmount > 0 &&
+      (difference < -1.0 || difference > 5.0);
 
-if (realMismatch) {
-  const message =
-    `Payment amount mismatch. Expected KES ${expectedAmount}, ` +
-    `received KES ${paidAmount}.`;
+    if (realMismatch) {
+      const message =
+        `Payment amount mismatch. Expected KES ${expectedAmount}, ` +
+        `received KES ${paidAmount}.`;
 
-  await updateOrder(env, order.tracking_id, {
-    payment_status: "PAYMENT_MISMATCH",
-    order_status: "Payment Error",
-    error_message: message,
-    supplier_response: JSON.stringify(payment),
-  });
+      await updateOrder(env, order.tracking_id, {
+        payment_status: "PAYMENT_MISMATCH",
+        order_status: "Payment Error",
+        error_message: message,
+        supplier_response: JSON.stringify(payment),
+      });
 
-  throw new Error(message);
-}
+      throw new Error(message);
+    }
 
-// Record what was actually paid (may differ from computed
-// by up to PesaPal's rounding).
-if (paidAmount > 0 && Math.abs(difference) > 0.01) {
-  await updateOrder(env, order.tracking_id, {
-    customer_amount: paidAmount,
-  });
+    if (paidAmount > 0 && Math.abs(difference) > 0.01) {
+      await updateOrder(env, order.tracking_id, {
+        customer_amount: paidAmount,
+      });
 
-  order = await getOrderByTrackingId(env, order.tracking_id);
-}
+      order = await getOrderByTrackingId(env, order.tracking_id);
+    }
+
     const claimed = await claimSupplierSubmission(env, order.tracking_id);
 
     if (!claimed) {
@@ -1291,10 +1311,6 @@ async function handleOrderPayment(env, request) {
     );
   }
 
-  // IMPORTANT FIX:
-  // PesaPal's submit-order response can nest its fields, or use alternate
-  // key names depending on environment. Extract defensively from every
-  // shape we know about.
   const pesapalTrackingId = text(
     pesapal?.order_tracking_id ||
       pesapal?.orderTrackingId ||
@@ -1304,7 +1320,7 @@ async function handleOrderPayment(env, request) {
       pesapal?.data?.orderTrackingId
   );
 
-    const redirectUrl = text(
+  const redirectUrl = text(
     pesapal?.redirect_url ||
       pesapal?.redirectUrl ||
       pesapal?.data?.redirect_url ||
@@ -1639,6 +1655,284 @@ async function handlePesapalIpn(env, request) {
 }
 
 // ------------------------------------------------------------
+// ADMIN — STATS
+// ------------------------------------------------------------
+
+async function handleAdminStats(env, request) {
+  if (!isAdminAuthorized(env, request)) {
+    return adminUnauthorized();
+  }
+
+  try {
+    const totals = await env.DB.prepare(`
+      SELECT
+        COUNT(*) AS total_orders,
+        SUM(CASE WHEN LOWER(order_status) LIKE '%completed%' THEN 1 ELSE 0 END) AS completed,
+        SUM(CASE WHEN LOWER(order_status) LIKE '%processing%' THEN 1 ELSE 0 END) AS processing,
+        SUM(CASE WHEN LOWER(order_status) LIKE '%pending%' THEN 1 ELSE 0 END) AS pending,
+        SUM(CASE WHEN LOWER(order_status) LIKE '%payment%' THEN 1 ELSE 0 END) AS payment_issues,
+        SUM(CASE WHEN LOWER(order_status) LIKE '%supplier error%' THEN 1 ELSE 0 END) AS supplier_errors,
+        SUM(CASE WHEN LOWER(order_status) LIKE '%fail%' THEN 1 ELSE 0 END) AS failed,
+        SUM(CASE WHEN LOWER(order_status) LIKE '%cancel%' THEN 1 ELSE 0 END) AS cancelled,
+        SUM(CASE WHEN LOWER(payment_status) = 'completed' THEN customer_amount ELSE 0 END) AS total_revenue,
+        SUM(CASE WHEN LOWER(payment_status) = 'completed' THEN supplier_amount ELSE 0 END) AS total_cost
+      FROM orders
+    `).first();
+
+    const today = await env.DB.prepare(`
+      SELECT
+        COUNT(*) AS today_orders,
+        SUM(CASE WHEN LOWER(payment_status) = 'completed' THEN customer_amount ELSE 0 END) AS today_revenue,
+        SUM(CASE WHEN LOWER(payment_status) = 'completed' THEN supplier_amount ELSE 0 END) AS today_cost
+      FROM orders
+      WHERE date(created_at) = date('now')
+    `).first();
+
+    const revenue = Number(totals?.total_revenue || 0);
+    const cost = Number(totals?.total_cost || 0);
+    const todayRevenue = Number(today?.today_revenue || 0);
+    const todayCost = Number(today?.today_cost || 0);
+
+    return json({
+      success: true,
+      stats: {
+        total_orders: Number(totals?.total_orders || 0),
+        completed: Number(totals?.completed || 0),
+        processing: Number(totals?.processing || 0),
+        pending: Number(totals?.pending || 0),
+        payment_issues: Number(totals?.payment_issues || 0),
+        supplier_errors: Number(totals?.supplier_errors || 0),
+        failed: Number(totals?.failed || 0),
+        cancelled: Number(totals?.cancelled || 0),
+
+        total_revenue_kes: roundMoney(revenue),
+        total_cost_kes: roundMoney(cost),
+        total_profit_kes: roundMoney(revenue - cost),
+
+        today_orders: Number(today?.today_orders || 0),
+        today_revenue_kes: roundMoney(todayRevenue),
+        today_cost_kes: roundMoney(todayCost),
+        today_profit_kes: roundMoney(todayRevenue - todayCost),
+
+        server_time_nairobi: toNairobiISO(new Date().toISOString()),
+      },
+    });
+  } catch (error) {
+    console.error("Admin stats error:", error);
+    return json({ success: false, error: errorMessage(error) }, 500);
+  }
+}
+
+// ------------------------------------------------------------
+// ADMIN — ORDERS LIST
+// ------------------------------------------------------------
+
+async function handleAdminOrdersList(env, request) {
+  if (!isAdminAuthorized(env, request)) {
+    return adminUnauthorized();
+  }
+
+  try {
+    const url = new URL(request.url);
+    const statusFilter = text(url.searchParams.get("status")).toLowerCase();
+    const search = text(url.searchParams.get("search"));
+    const limit = Math.min(
+      Math.max(number(url.searchParams.get("limit"), 100), 1),
+      500
+    );
+
+    let sql = `SELECT * FROM orders`;
+    const wheres = [];
+    const binds = [];
+
+    if (statusFilter && statusFilter !== "all") {
+      wheres.push(`LOWER(order_status) LIKE ?`);
+      binds.push(`%${statusFilter}%`);
+    }
+
+    if (search) {
+      wheres.push(
+        `(tracking_id LIKE ? OR phone LIKE ? OR supplier_order_id LIKE ? OR link LIKE ?)`
+      );
+      const like = `%${search}%`;
+      binds.push(like, like, like, like);
+    }
+
+    if (wheres.length) {
+      sql += ` WHERE ` + wheres.join(" AND ");
+    }
+
+    sql += ` ORDER BY id DESC LIMIT ?`;
+    binds.push(limit);
+
+    const result = await env.DB.prepare(sql).bind(...binds).all();
+    const rows = result.results || [];
+
+    return json({
+      success: true,
+      count: rows.length,
+      orders: rows.map((o) => ({
+        tracking_id: o.tracking_id,
+        service_id: o.service_id,
+        service_name: o.service_name,
+        link: o.link,
+        quantity: o.quantity,
+        phone: o.phone,
+
+        supplier_rate: o.supplier_rate,
+        customer_rate: o.customer_rate,
+        supplier_amount: o.supplier_amount,
+        customer_amount: o.customer_amount,
+        profit: roundMoney(
+          Number(o.customer_amount || 0) - Number(o.supplier_amount || 0)
+        ),
+
+        payment_status: o.payment_status,
+        order_status: o.order_status,
+
+        pesapal_order_tracking_id: o.pesapal_order_tracking_id,
+        supplier_order_id: o.supplier_order_id,
+        error_message: o.error_message,
+
+        created_at: o.created_at,
+        updated_at: o.updated_at,
+        created_at_nairobi: toNairobiISO(o.created_at),
+        updated_at_nairobi: toNairobiISO(o.updated_at),
+      })),
+    });
+  } catch (error) {
+    console.error("Admin orders list error:", error);
+    return json({ success: false, error: errorMessage(error) }, 500);
+  }
+}
+
+// ------------------------------------------------------------
+// ADMIN — LIVE FEED
+// ------------------------------------------------------------
+
+async function handleAdminLive(env, request) {
+  if (!isAdminAuthorized(env, request)) {
+    return adminUnauthorized();
+  }
+
+  try {
+    const url = new URL(request.url);
+    const sinceMs = number(url.searchParams.get("since"), 0);
+
+    let sql;
+    let binds;
+
+    if (sinceMs > 0) {
+      const sinceIso = new Date(sinceMs)
+        .toISOString()
+        .replace("T", " ")
+        .slice(0, 19);
+
+      sql = `
+        SELECT * FROM orders
+        WHERE updated_at > ?
+        ORDER BY updated_at ASC
+        LIMIT 200
+      `;
+      binds = [sinceIso];
+    } else {
+      sql = `
+        SELECT * FROM orders
+        ORDER BY updated_at DESC
+        LIMIT 50
+      `;
+      binds = [];
+    }
+
+    const result = await env.DB.prepare(sql).bind(...binds).all();
+    const rows = result.results || [];
+
+    return json({
+      success: true,
+      server_time_ms: Date.now(),
+      events: rows.map((o) => ({
+        tracking_id: o.tracking_id,
+        service_name: o.service_name,
+        quantity: o.quantity,
+        phone: o.phone,
+        link: o.link,
+        customer_amount: o.customer_amount,
+        payment_status: o.payment_status,
+        order_status: o.order_status,
+        supplier_order_id: o.supplier_order_id,
+        error_message: o.error_message,
+        updated_at: o.updated_at,
+        updated_at_nairobi: toNairobiISO(o.updated_at),
+      })),
+    });
+  } catch (error) {
+    console.error("Admin live error:", error);
+    return json({ success: false, error: errorMessage(error) }, 500);
+  }
+}
+
+// ------------------------------------------------------------
+// ADMIN — MANUAL RETRY
+// ------------------------------------------------------------
+
+async function handleAdminRetry(env, request) {
+  if (!isAdminAuthorized(env, request)) {
+    return adminUnauthorized();
+  }
+
+  try {
+    const url = new URL(request.url);
+    const trackingId = text(url.searchParams.get("tracking_id"));
+
+    if (!trackingId) {
+      return json(
+        { success: false, error: "tracking_id is required." },
+        400
+      );
+    }
+
+    const order = await getOrderByTrackingId(env, trackingId);
+
+    if (!order) {
+      return json({ success: false, error: "Order not found." }, 404);
+    }
+
+    if (order.supplier_order_id) {
+      return json({
+        success: true,
+        message: "Supplier order already exists.",
+        supplier_order_id: order.supplier_order_id,
+      });
+    }
+
+    if (String(order.order_status || "").toLowerCase() === "submitting") {
+      return json({
+        success: false,
+        error: "Order is currently submitting. Try again in a few seconds.",
+      });
+    }
+
+    await updateOrder(env, trackingId, {
+      order_status: "Payment Pending",
+      error_message: null,
+    });
+
+    const refreshed = await getOrderByTrackingId(env, trackingId);
+
+    const result = await processPaidOrder(env, refreshed);
+
+    return json({
+      success: true,
+      result,
+      order: await getOrderByTrackingId(env, trackingId),
+    });
+  } catch (error) {
+    console.error("Admin retry error:", error);
+    return json({ success: false, error: errorMessage(error) }, 500);
+  }
+}
+
+// ------------------------------------------------------------
 // HEALTH CHECK
 // ------------------------------------------------------------
 
@@ -1673,7 +1967,7 @@ async function handleApiInfo() {
   return json({
     success: true,
     name: "HUPPY CUBE API",
-    version: "1.1.0",
+    version: "1.2.0",
     currency: "KES",
     routes: {
       health: "/api/health",
@@ -1682,6 +1976,10 @@ async function handleApiInfo() {
       order_status: "/api/order-status?tracking_id=HUPPY-...",
       pesapal_callback: "/api/payment-callback",
       pesapal_ipn: "/api/pesapal-ipn",
+      admin_stats: "/api/admin-stats?secret=...",
+      admin_orders: "/api/admin-orders-list?secret=...&status=&search=&limit=",
+      admin_live: "/api/admin-live?secret=...&since=<unix_ms>",
+      admin_retry: "/api/admin-retry?secret=...&tracking_id=...",
     },
   });
 }
@@ -1728,6 +2026,22 @@ export default {
 
       if (url.pathname === "/api/pesapal-ipn") {
         return await handlePesapalIpn(env, request);
+      }
+
+      if (url.pathname === "/api/admin-stats" && method === "GET") {
+        return await handleAdminStats(env, request);
+      }
+
+      if (url.pathname === "/api/admin-orders-list" && method === "GET") {
+        return await handleAdminOrdersList(env, request);
+      }
+
+      if (url.pathname === "/api/admin-live" && method === "GET") {
+        return await handleAdminLive(env, request);
+      }
+
+      if (url.pathname === "/api/admin-retry" && method === "GET") {
+        return await handleAdminRetry(env, request);
       }
 
       if (url.pathname === "/api" && method === "GET") {
