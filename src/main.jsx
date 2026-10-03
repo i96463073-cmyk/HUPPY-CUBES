@@ -296,7 +296,6 @@ function getWhatsAppUrl(trackingId = "") {
 
 /* =========================================================
    RECENT ORDERS TICKER
-   Fake-but-plausible social proof feed.
 ========================================================= */
 
 const TICKER_SERVICES = [
@@ -448,6 +447,93 @@ function TrackOrderCard({ hasTrackingId, onTrack }) {
 }
 
 /* =========================================================
+   HOW IT WORKS
+========================================================= */
+
+const HOW_STEPS = [
+  {
+    number: "1",
+    title: "Choose a service",
+    description: "Pick your platform, then the service you need — likes, views, followers.",
+    emoji: "🎯"
+  },
+  {
+    number: "2",
+    title: "Enter details",
+    description: "Paste the link to your post, profile, or video. Add your quantity.",
+    emoji: "🔗"
+  },
+  {
+    number: "3",
+    title: "Pay & relax",
+    description: "Pay with M-Pesa in seconds. Delivery starts automatically. Track live.",
+    emoji: "💳"
+  }
+];
+
+function HowItWorks() {
+  const [activeStep, setActiveStep] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveStep((prev) => (prev + 1) % HOW_STEPS.length);
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <section className="how-it-works">
+      <div className="how-it-works-head">
+        <span className="section-kicker">SIMPLE & FAST</span>
+        <h2>How it works</h2>
+        <p>Order in under 30 seconds — no signup required.</p>
+      </div>
+
+      <div className="how-it-works-steps">
+        {HOW_STEPS.map((step, index) => (
+          <div
+            className={`how-step ${
+              index === activeStep ? "how-step-active" : ""
+            }`}
+            key={step.number}
+          >
+            <div className="how-step-top">
+              <div className="how-step-number">{step.number}</div>
+              <div className="how-step-emoji">{step.emoji}</div>
+            </div>
+
+            <h3>{step.title}</h3>
+            <p>{step.description}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="how-it-works-dots">
+        {HOW_STEPS.map((step, index) => (
+          <button
+            key={step.number}
+            type="button"
+            className={`how-dot ${
+              index === activeStep ? "how-dot-active" : ""
+            }`}
+            onClick={() => setActiveStep(index)}
+            aria-label={`Show step ${step.number}`}
+          />
+        ))}
+      </div>
+
+      <div className="how-it-works-footer">
+        <Sparkles size={16} />
+        <span>
+          Your order starts automatically. Track it live from your phone. 🚀
+        </span>
+      </div>
+    </section>
+  );
+}
+
+/* =========================================================
    STATUS LABEL
 ========================================================= */
 
@@ -519,7 +605,7 @@ function deriveTracking(order) {
     progress: match.progress,
     status_label: statusLabel(order?.order_status)
   };
-  }/* =========================================================
+}/* =========================================================
    TRACKING PROGRESS
 ========================================================= */
 
@@ -1197,6 +1283,8 @@ function App() {
             </div>
 
             <RecentOrdersTicker />
+
+            <HowItWorks />
           </section>
         </main>
 
