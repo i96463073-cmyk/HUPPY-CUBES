@@ -56,7 +56,7 @@ const PLATFORM_ORDER = [
 ];
 
 /* =========================================================
-   WHATSAPP ICON (real phone-in-speech-bubble)
+   WHATSAPP ICON
 ========================================================= */
 
 function WhatsAppIcon({ size = 18 }) {
@@ -295,7 +295,7 @@ function getWhatsAppUrl(trackingId = "") {
 }
 
 /* =========================================================
-   RECENT ORDERS TICKER
+   ORDER POPUP — single notification that slides up from bottom
 ========================================================= */
 
 const TICKER_SERVICES = [
@@ -334,6 +334,17 @@ const TICKER_LOCATIONS = [
   "Wote", "Marsabit", "Wajir"
 ];
 
+const TICKER_NAMES = [
+  "Brian", "Kevin", "Dennis", "Collins", "Felix", "Peter", "Eric", "Victor",
+  "Samuel", "Anthony", "George", "James", "Daniel", "Alex", "Martin", "Simon",
+  "Elvis", "Wycliffe", "Vincent", "Duncan", "Nicholas", "Alfred", "Boniface",
+  "Steve", "Fred", "Joseph", "Patrick", "Michael", "John", "David",
+  "Faith", "Mercy", "Grace", "Joy", "Mary", "Esther", "Sharon", "Winnie",
+  "Anne", "Diana", "Cynthia", "Purity", "Ruth", "Sarah", "Naomi", "Caroline",
+  "Elizabeth", "Hannah", "Irene", "Millicent", "Nancy", "Lucy", "Christine",
+  "Beatrice", "Gloria", "Jemimah", "Wanjiku", "Akinyi", "Chebet", "Mueni"
+];
+
 function pickRandom(list) {
   return list[Math.floor(Math.random() * list.length)];
 }
@@ -347,11 +358,13 @@ function pickRandomQty(min, max) {
 function buildRandomOrder() {
   const service = pickRandom(TICKER_SERVICES);
   const location = pickRandom(TICKER_LOCATIONS);
+  const name = pickRandom(TICKER_NAMES);
   const qty = pickRandomQty(service.minQty, service.maxQty);
 
   return {
     emoji: service.emoji,
     qty,
+    name,
     platform: service.platform,
     type: service.type,
     location
@@ -362,53 +375,57 @@ function formatQty(n) {
   return Number(n).toLocaleString("en-KE");
 }
 
-function RecentOrdersTicker() {
-  const [orders, setOrders] = useState(() => [
-    buildRandomOrder(),
-    buildRandomOrder(),
-    buildRandomOrder(),
-    buildRandomOrder()
-  ]);
+function OrderPopup() {
+  const [current, setCurrent] = useState(() => buildRandomOrder());
+  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setOrders((prev) => {
-        const fresh = buildRandomOrder();
-        return [fresh, ...prev].slice(0, 4);
-      });
-    }, 6000);
+    // First popup appears after 3 seconds
+    const startTimer = setTimeout(() => {
+      setVisible(true);
+    }, 3000);
 
-    return () => clearInterval(interval);
+    // Hide after 6 seconds of showing
+    const hideTimer = setTimeout(() => {
+      setVisible(false);
+    }, 9000);
+
+    // Then loop: show new popup every 12 seconds (6s visible + 6s hidden)
+    const loopTimer = setInterval(() => {
+      setCurrent(buildRandomOrder());
+      setVisible(true);
+
+      setTimeout(() => {
+        setVisible(false);
+      }, 6000);
+    }, 12000);
+
+    return () => {
+      clearTimeout(startTimer);
+      clearTimeout(hideTimer);
+      clearInterval(loopTimer);
+    };
   }, []);
 
   return (
-    <div className="recent-ticker">
-      <div className="recent-ticker-head">
-        <span className="recent-ticker-dot" />
-        <span>Live orders</span>
-        <span className="recent-ticker-sub">across Kenya</span>
-      </div>
+    <div className={`order-popup ${visible ? "visible" : "hidden"}`}>
+      <div className="order-popup-inner">
+        <div className="order-popup-emoji">{current.emoji}</div>
 
-      <div className="recent-ticker-list">
-        {orders.map((order, index) => (
-          <div
-            key={`${order.platform}-${order.type}-${order.qty}-${index}-${order.location}`}
-            className={`recent-ticker-row ${index === 0 ? "fresh" : ""}`}
-          >
-            <span className="recent-ticker-emoji">{order.emoji}</span>
-
-            <span className="recent-ticker-text">
-              <strong>{formatQty(order.qty)}</strong>{" "}
-              <span className="recent-ticker-service">
-                {order.platform} {order.type}
-              </span>
-            </span>
-
-            <span className="recent-ticker-location">
-              {order.location}
-            </span>
+        <div className="order-popup-body">
+          <div className="order-popup-title">
+            <strong>{current.name}</strong> from{" "}
+            <strong>{current.location}</strong>
           </div>
-        ))}
+
+          <div className="order-popup-detail">
+            Just ordered{" "}
+            <strong>{formatQty(current.qty)}</strong>{" "}
+            {current.platform} {current.type}
+          </div>
+
+          <div className="order-popup-time">Just now</div>
+        </div>
       </div>
     </div>
   );
@@ -447,88 +464,44 @@ function TrackOrderCard({ hasTrackingId, onTrack }) {
 }
 
 /* =========================================================
-   HOW IT WORKS
+   TRUST BADGES
 ========================================================= */
 
-const HOW_STEPS = [
+const TRUST_BADGES = [
   {
-    number: "1",
-    title: "Choose a service",
-    description: "Pick your platform, then the service you need — likes, views, followers.",
-    emoji: "🎯"
+    icon: "🛡️",
+    title: "Secure Payments",
+    description: "Powered by PesaPal"
   },
   {
-    number: "2",
-    title: "Enter details",
-    description: "Paste the link to your post, profile, or video. Add your quantity.",
-    emoji: "🔗"
+    icon: "⚡",
+    title: "Fast Delivery",
+    description: "Orders start instantly"
   },
   {
-    number: "3",
-    title: "Pay & relax",
-    description: "Pay with M-Pesa in seconds. Delivery starts automatically. Track live.",
-    emoji: "💳"
+    icon: "💳",
+    title: "M-Pesa Accepted",
+    description: "Pay in 30 seconds"
+  },
+  {
+    icon: "🎧",
+    title: "24/7 Support",
+    description: "We're on WhatsApp"
   }
 ];
 
-function HowItWorks() {
-  const [activeStep, setActiveStep] = useState(0);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setActiveStep((prev) => (prev + 1) % HOW_STEPS.length);
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, []);
-
+function TrustBadges() {
   return (
-    <section className="how-it-works">
-      <div className="how-it-works-head">
-        <span className="section-kicker">SIMPLE & FAST</span>
-        <h2>How it works</h2>
-        <p>Order in under 30 seconds — no signup required.</p>
-      </div>
-
-      <div className="how-it-works-steps">
-        {HOW_STEPS.map((step, index) => (
-          <div
-            className={`how-step ${
-              index === activeStep ? "how-step-active" : ""
-            }`}
-            key={step.number}
-          >
-            <div className="how-step-top">
-              <div className="how-step-number">{step.number}</div>
-              <div className="how-step-emoji">{step.emoji}</div>
-            </div>
-
-            <h3>{step.title}</h3>
-            <p>{step.description}</p>
+    <section className="trust-badges">
+      {TRUST_BADGES.map((badge) => (
+        <div className="trust-badge" key={badge.title}>
+          <div className="trust-badge-icon">{badge.icon}</div>
+          <div className="trust-badge-text">
+            <strong>{badge.title}</strong>
+            <span>{badge.description}</span>
           </div>
-        ))}
-      </div>
-
-      <div className="how-it-works-dots">
-        {HOW_STEPS.map((step, index) => (
-          <button
-            key={step.number}
-            type="button"
-            className={`how-dot ${
-              index === activeStep ? "how-dot-active" : ""
-            }`}
-            onClick={() => setActiveStep(index)}
-            aria-label={`Show step ${step.number}`}
-          />
-        ))}
-      </div>
-
-      <div className="how-it-works-footer">
-        <Sparkles size={16} />
-        <span>
-          Your order starts automatically. Track it live from your phone. 🚀
-        </span>
-      </div>
+        </div>
+      ))}
     </section>
   );
 }
@@ -605,7 +578,7 @@ function deriveTracking(order) {
     progress: match.progress,
     status_label: statusLabel(order?.order_status)
   };
-  }/* =========================================================
+}/* =========================================================
    TRACKING PROGRESS
 ========================================================= */
 
@@ -1284,10 +1257,10 @@ function App() {
               })}
             </div>
 
-            <RecentOrdersTicker />
-
-            <HowItWorks />
+            <TrustBadges />
           </section>
+
+          <OrderPopup />
         </main>
 
         <footer className="footer">
