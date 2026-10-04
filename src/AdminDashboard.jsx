@@ -2,12 +2,18 @@ import React, { useEffect, useState } from "react";
 
 /* =========================================================
    ADMIN DASHBOARD
-   Access: /admin?secret=YOUR_TEST_ORDER_SECRET
 ========================================================= */
 
 const REFRESH_MS = 15000;
 const LIVE_REFRESH_MS = 3000;
 const BALANCE_REFRESH_MS = 60000;
+
+const DATE_RANGES = [
+  { key: "today", label: "Today" },
+  { key: "7d", label: "7 Days" },
+  { key: "30d", label: "30 Days" },
+  { key: "all", label: "All Time" }
+];
 
 function readSecretFromUrl() {
   try {
@@ -50,6 +56,31 @@ function statusColor(status) {
   if (s.includes("fail") || s.includes("error") || s.includes("cancel"))
     return "red";
   return "gray";
+}
+
+// Returns { from, to } in YYYY-MM-DD format based on Nairobi time (UTC+3)
+function getDateBounds(rangeKey) {
+  if (rangeKey === "all") return { from: "", to: "" };
+
+  const now = new Date();
+  // Shift to Nairobi time
+  const nairobi = new Date(now.getTime() + 3 * 60 * 60 * 1000);
+
+  // Date string in Nairobi time (YYYY-MM-DD)
+  const toStr = nairobi.toISOString().slice(0, 10);
+
+  let fromDate = new Date(nairobi);
+  if (rangeKey === "today") {
+    // same day
+  } else if (rangeKey === "7d") {
+    fromDate.setUTCDate(fromDate.getUTCDate() - 6);
+  } else if (rangeKey === "30d") {
+    fromDate.setUTCDate(fromDate.getUTCDate() - 29);
+  }
+
+  const fromStr = fromDate.toISOString().slice(0, 10);
+
+  return { from: fromStr, to: toStr };
 }
 
 /* =========================================================
@@ -101,27 +132,22 @@ function OrderRow({ order, expanded, onToggle, onRetry }) {
               <span>Tracking ID</span>
               <strong>{order.tracking_id}</strong>
             </div>
-
             <div>
               <span>Phone</span>
               <strong>{order.phone || "—"}</strong>
             </div>
-
             <div>
               <span>Payment</span>
               <strong>{order.payment_status || "—"}</strong>
             </div>
-
             <div>
               <span>Supplier Order</span>
               <strong>{order.supplier_order_id || "—"}</strong>
             </div>
-
             <div>
               <span>PesaPal ID</span>
               <strong>{order.pesapal_order_tracking_id || "—"}</strong>
             </div>
-
             <div>
               <span>Last Update</span>
               <strong>
@@ -304,7 +330,6 @@ function LiveFeed({ events }) {
                   <span className={`admin-pill ${statusColor(e.order_status)}`}>
                     {e.order_status || "—"}
                   </span>
-
                   <strong>{e.service_name || "Service"}</strong>
                 </div>
 
@@ -323,7 +348,7 @@ function LiveFeed({ events }) {
       )}
     </section>
   );
-}/* =========================================================
+      }/* =========================================================
    MAIN ADMIN COMPONENT
 ========================================================= */
 
@@ -331,6 +356,7 @@ export default function AdminDashboard() {
   const [secret, setSecret] = useState(readSecretFromUrl());
   const [secretInput, setSecretInput] = useState("");
   const [tab, setTab] = useState("overview");
+  const [dateRange, setDateRange] = useState("all");
 
   const [stats, setStats] = useState(null);
   const [balance, setBalance] = useState(null);
@@ -347,16 +373,23 @@ export default function AdminDashboard() {
 
   const [lastLiveTime, setLastLiveTime] = useState(Date.now());
 
+  function buildDateQuery() {
+    const { from, to } = getDateBounds(dateRange);
+    const parts = [];
+    if (from) parts.push(`from=${encodeURIComponent(from)}`);
+    if (to) parts.push(`to=${encodeURIComponent(to)}`);
+    return parts.join("&");
+  }
+
   async function loadStats() {
     try {
       const r = await fetch(
-        `/api/admin-stats?secret=${encodeURIComponent(secret)}`,
+        `/api/admin-stats?secret=${encodeURIComponent(secret)}&${buildDateQuery()}`,
         { cache: "no-store" }
       );
       const data = await r.json();
 
       if (!data.success) throw new Error(data.error || "Failed to load stats");
-
       setStats(data.stats);
     } catch (err) {
       setError(err?.message || "Failed to load stats");
@@ -370,31 +403,24 @@ export default function AdminDashboard() {
         { cache: "no-store" }
       );
       const data = await r.json();
-
       if (!data.success) return;
-
-      setBalance({
-        value: data.balance,
-        currency: data.currency
-      });
+      setBalance({ value: data.balance, currency: data.currency });
     } catch (err) {
-      // Balance is non-critical, silently ignore errors
+      // non-critical
     }
   }
 
   async function loadTopServices() {
     try {
       const r = await fetch(
-        `/api/admin-top-services?secret=${encodeURIComponent(secret)}`,
+        `/api/admin-top-services?secret=${encodeURIComponent(secret)}&${buildDateQuery()}`,
         { cache: "no-store" }
       );
       const data = await r.json();
-
       if (!data.success) return;
-
       setTopServices(data.services || []);
     } catch (err) {
-      // Non-critical, silently ignore
+      // non-critical
     }
   }
 
@@ -405,6 +431,11 @@ export default function AdminDashboard() {
       const params = new URLSearchParams();
       params.set("secret", secret);
       params.set("limit", "200");
+
+      const { from, to } = getDateBounds(dateRange);
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+
       if (statusFilter && statusFilter !== "all") {
         params.set("status", statusFilter);
       }
@@ -419,7 +450,6 @@ export default function AdminDashboard() {
       const data = await r.json();
 
       if (!data.success) throw new Error(data.error || "Failed to load orders");
-
       setOrders(data.orders || []);
       setError("");
     } catch (err) {
@@ -442,7 +472,6 @@ export default function AdminDashboard() {
       const data = await r.json();
 
       if (!data.success) throw new Error(data.error || "Failed to load feed");
-
       const incoming = data.events || [];
       setLastLiveTime(data.server_time_ms || Date.now());
 
@@ -474,11 +503,13 @@ export default function AdminDashboard() {
       alert("Retry submitted. Refreshing...");
       await loadStats();
       await loadOrders();
+      await loadTopServices();
     } catch (err) {
       alert(`Retry error: ${err?.message || err}`);
     }
   }
 
+  // Initial load
   useEffect(() => {
     if (!secret) return;
     loadStats();
@@ -489,36 +520,44 @@ export default function AdminDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secret]);
 
+  // Reload when filters or date range change
   useEffect(() => {
     if (!secret) return;
     loadOrders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, search]);
+  }, [statusFilter, search, dateRange]);
 
+  // Reload stats + top services when date range changes
   useEffect(() => {
     if (!secret) return;
+    loadStats();
+    loadTopServices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateRange]);
 
+  // Auto refresh stats + orders
+  useEffect(() => {
+    if (!secret) return;
     const t = setInterval(() => {
       loadStats();
       loadOrders();
     }, REFRESH_MS);
-
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secret, statusFilter, search]);
+  }, [secret, statusFilter, search, dateRange]);
 
+  // Balance refresh
   useEffect(() => {
     if (!secret) return;
-
     const t = setInterval(() => {
       loadBalance();
       loadTopServices();
     }, BALANCE_REFRESH_MS);
-
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secret]);
+  }, [secret, dateRange]);
 
+  // Live feed poll
   useEffect(() => {
     if (!secret) return;
     if (tab !== "live") return;
@@ -526,7 +565,6 @@ export default function AdminDashboard() {
     const t = setInterval(() => {
       loadLive(lastLiveTime);
     }, LIVE_REFRESH_MS);
-
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secret, tab, lastLiveTime]);
@@ -591,9 +629,7 @@ export default function AdminDashboard() {
               <strong>
                 {balance.currency} {Number(balance.value).toFixed(2)}
               </strong>
-              {lowBalance && (
-                <span className="admin-balance-warn">⚠️</span>
-              )}
+              {lowBalance && <span className="admin-balance-warn">⚠️</span>}
             </div>
           )}
 
@@ -624,6 +660,23 @@ export default function AdminDashboard() {
       </header>
 
       {error && <div className="admin-error">{error}</div>}
+
+      {/* DATE RANGE PICKER — visible on overview tab */}
+      {tab === "overview" && (
+        <div className="admin-date-picker">
+          <span className="admin-date-picker-label">Period:</span>
+          {DATE_RANGES.map((range) => (
+            <button
+              key={range.key}
+              type="button"
+              className={dateRange === range.key ? "active" : ""}
+              onClick={() => setDateRange(range.key)}
+            >
+              {range.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {tab === "overview" && stats && (
         <section className="admin-stats-grid">
@@ -677,9 +730,7 @@ export default function AdminDashboard() {
         </section>
       )}
 
-      {tab === "overview" && (
-        <TopServices services={topServices} />
-      )}
+      {tab === "overview" && <TopServices services={topServices} />}
 
       {tab === "overview" && (
         <OrdersList
@@ -698,4 +749,4 @@ export default function AdminDashboard() {
       {tab === "live" && <LiveFeed events={events} />}
     </div>
   );
-                             }
+          }
