@@ -276,7 +276,9 @@ async function ensureOrdersTable(env) {
   }
 
   ORDERS_TABLE_READY = true;
-}// ------------------------------------------------------------
+}
+
+// ------------------------------------------------------------
 // D1 ORDER HELPERS
 // ------------------------------------------------------------
 
@@ -488,6 +490,12 @@ async function getDenzGainsOrderStatus(env, supplierOrderId) {
   });
 }
 
+async function getDenzGainsBalance(env) {
+  return await denzGainsRequest(env, {
+    action: "balance",
+  });
+}
+
 function extractSupplierOrderId(response) {
   if (!response) return "";
 
@@ -506,7 +514,7 @@ function extractSupplierOrderId(response) {
   }
 
   return "";
-}// ------------------------------------------------------------
+    }// ------------------------------------------------------------
 // PESAPAL
 // ------------------------------------------------------------
 
@@ -856,7 +864,9 @@ async function verifyPesapalPayment(env, order) {
   }
 
   return status;
-}// ------------------------------------------------------------
+}
+
+// ------------------------------------------------------------
 // PROCESS A PAID ORDER
 // ------------------------------------------------------------
 
@@ -1655,6 +1665,36 @@ async function handlePesapalIpn(env, request) {
 }
 
 // ------------------------------------------------------------
+// ADMIN — DENZGAINS BALANCE
+// ------------------------------------------------------------
+
+async function handleAdminBalance(env, request) {
+  if (!isAdminAuthorized(env, request)) {
+    return adminUnauthorized();
+  }
+
+  try {
+    const result = await getDenzGainsBalance(env);
+
+    const balance = Number(result?.balance ?? 0);
+    const currency = text(result?.currency) || "KES";
+
+    return json({
+      success: true,
+      balance,
+      currency,
+      fetched_at: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Admin balance error:", error);
+    return json(
+      { success: false, error: errorMessage(error) },
+      500
+    );
+  }
+}
+
+// ------------------------------------------------------------
 // ADMIN — STATS
 // ------------------------------------------------------------
 
@@ -1685,7 +1725,7 @@ async function handleAdminStats(env, request) {
         SUM(CASE WHEN LOWER(payment_status) = 'completed' THEN customer_amount ELSE 0 END) AS today_revenue,
         SUM(CASE WHEN LOWER(payment_status) = 'completed' THEN supplier_amount ELSE 0 END) AS today_cost
       FROM orders
-      WHERE date(created_at) = date('now')
+      WHERE date(created_at, '+3 hours') = date('now', '+3 hours')
     `).first();
 
     const revenue = Number(totals?.total_revenue || 0);
@@ -1967,7 +2007,7 @@ async function handleApiInfo() {
   return json({
     success: true,
     name: "HUPPY CUBE API",
-    version: "1.2.0",
+    version: "1.3.0",
     currency: "KES",
     routes: {
       health: "/api/health",
@@ -1977,6 +2017,7 @@ async function handleApiInfo() {
       pesapal_callback: "/api/payment-callback",
       pesapal_ipn: "/api/pesapal-ipn",
       admin_stats: "/api/admin-stats?secret=...",
+      admin_balance: "/api/admin-balance?secret=...",
       admin_orders: "/api/admin-orders-list?secret=...&status=&search=&limit=",
       admin_live: "/api/admin-live?secret=...&since=<unix_ms>",
       admin_retry: "/api/admin-retry?secret=...&tracking_id=...",
@@ -2026,6 +2067,10 @@ export default {
 
       if (url.pathname === "/api/pesapal-ipn") {
         return await handlePesapalIpn(env, request);
+      }
+
+      if (url.pathname === "/api/admin-balance" && method === "GET") {
+        return await handleAdminBalance(env, request);
       }
 
       if (url.pathname === "/api/admin-stats" && method === "GET") {
