@@ -7,6 +7,7 @@ import React, { useEffect, useState } from "react";
 
 const REFRESH_MS = 15000;
 const LIVE_REFRESH_MS = 3000;
+const BALANCE_REFRESH_MS = 60000;
 
 function readSecretFromUrl() {
   try {
@@ -237,6 +238,44 @@ function OrdersList({
 }
 
 /* =========================================================
+   TOP SERVICES CARD
+========================================================= */
+
+function TopServices({ services }) {
+  if (!services || services.length === 0) {
+    return null;
+  }
+
+  const medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"];
+
+  return (
+    <section className="admin-top-services">
+      <div className="admin-top-services-head">
+        <span className="admin-live-dot" />
+        <span>Top Selling Services</span>
+      </div>
+
+      <div className="admin-top-services-list">
+        {services.map((s, i) => (
+          <div className="admin-top-service" key={`${s.service_name}-${i}`}>
+            <span className="admin-top-medal">{medals[i] || "•"}</span>
+
+            <div className="admin-top-info">
+              <div className="admin-top-name">{s.service_name}</div>
+              <div className="admin-top-meta">
+                {s.order_count} order{s.order_count !== 1 ? "s" : ""} ·{" "}
+                {formatKES(s.revenue)} revenue ·{" "}
+                {formatKES(s.profit)} profit
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* =========================================================
    LIVE FEED
 ========================================================= */
 
@@ -294,6 +333,8 @@ export default function AdminDashboard() {
   const [tab, setTab] = useState("overview");
 
   const [stats, setStats] = useState(null);
+  const [balance, setBalance] = useState(null);
+  const [topServices, setTopServices] = useState([]);
   const [orders, setOrders] = useState([]);
   const [events, setEvents] = useState([]);
 
@@ -319,6 +360,41 @@ export default function AdminDashboard() {
       setStats(data.stats);
     } catch (err) {
       setError(err?.message || "Failed to load stats");
+    }
+  }
+
+  async function loadBalance() {
+    try {
+      const r = await fetch(
+        `/api/admin-balance?secret=${encodeURIComponent(secret)}`,
+        { cache: "no-store" }
+      );
+      const data = await r.json();
+
+      if (!data.success) return;
+
+      setBalance({
+        value: data.balance,
+        currency: data.currency
+      });
+    } catch (err) {
+      // Balance is non-critical, silently ignore errors
+    }
+  }
+
+  async function loadTopServices() {
+    try {
+      const r = await fetch(
+        `/api/admin-top-services?secret=${encodeURIComponent(secret)}`,
+        { cache: "no-store" }
+      );
+      const data = await r.json();
+
+      if (!data.success) return;
+
+      setTopServices(data.services || []);
+    } catch (err) {
+      // Non-critical, silently ignore
     }
   }
 
@@ -406,6 +482,8 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (!secret) return;
     loadStats();
+    loadBalance();
+    loadTopServices();
     loadOrders();
     loadLive(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -428,6 +506,18 @@ export default function AdminDashboard() {
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secret, statusFilter, search]);
+
+  useEffect(() => {
+    if (!secret) return;
+
+    const t = setInterval(() => {
+      loadBalance();
+      loadTopServices();
+    }, BALANCE_REFRESH_MS);
+
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secret]);
 
   useEffect(() => {
     if (!secret) return;
@@ -472,6 +562,9 @@ export default function AdminDashboard() {
     );
   }
 
+  const lowBalance =
+    balance && typeof balance.value === "number" && balance.value < 50;
+
   return (
     <div className="admin-shell">
       <header className="admin-topbar">
@@ -485,6 +578,25 @@ export default function AdminDashboard() {
         </div>
 
         <div className="admin-topbar-actions">
+          {balance && (
+            <div
+              className={`admin-balance-badge ${lowBalance ? "low" : ""}`}
+              title={
+                lowBalance
+                  ? "Low balance — top up DenzGains soon"
+                  : "DenzGains account balance"
+              }
+            >
+              <span className="admin-balance-label">DenzGains</span>
+              <strong>
+                {balance.currency} {Number(balance.value).toFixed(2)}
+              </strong>
+              {lowBalance && (
+                <span className="admin-balance-warn">⚠️</span>
+              )}
+            </div>
+          )}
+
           <button
             type="button"
             className={tab === "overview" ? "active" : ""}
@@ -566,6 +678,10 @@ export default function AdminDashboard() {
       )}
 
       {tab === "overview" && (
+        <TopServices services={topServices} />
+      )}
+
+      {tab === "overview" && (
         <OrdersList
           orders={orders}
           loading={loading}
@@ -582,4 +698,4 @@ export default function AdminDashboard() {
       {tab === "live" && <LiveFeed events={events} />}
     </div>
   );
-        }
+                             }
