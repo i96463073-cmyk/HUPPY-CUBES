@@ -1,9 +1,5 @@
 import React, { useEffect, useState } from "react";
 
-/* =========================================================
-   ADMIN DASHBOARD
-========================================================= */
-
 const REFRESH_MS = 15000;
 const LIVE_REFRESH_MS = 3000;
 const BALANCE_REFRESH_MS = 60000;
@@ -58,28 +54,21 @@ function statusColor(status) {
   return "gray";
 }
 
-// Returns { from, to } in YYYY-MM-DD format based on Nairobi time (UTC+3)
 function getDateBounds(rangeKey) {
-  if (rangeKey === "all") return { from: "", to: "" };
+  if (!rangeKey || rangeKey === "all") return { from: "", to: "" };
 
   const now = new Date();
-  // Shift to Nairobi time
   const nairobi = new Date(now.getTime() + 3 * 60 * 60 * 1000);
-
-  // Date string in Nairobi time (YYYY-MM-DD)
   const toStr = nairobi.toISOString().slice(0, 10);
 
   let fromDate = new Date(nairobi);
-  if (rangeKey === "today") {
-    // same day
-  } else if (rangeKey === "7d") {
+  if (rangeKey === "7d") {
     fromDate.setUTCDate(fromDate.getUTCDate() - 6);
   } else if (rangeKey === "30d") {
     fromDate.setUTCDate(fromDate.getUTCDate() - 29);
   }
 
   const fromStr = fromDate.toISOString().slice(0, 10);
-
   return { from: fromStr, to: toStr };
 }
 
@@ -264,13 +253,11 @@ function OrdersList({
 }
 
 /* =========================================================
-   TOP SERVICES CARD
+   TOP SERVICES
 ========================================================= */
 
 function TopServices({ services }) {
-  if (!services || services.length === 0) {
-    return null;
-  }
+  if (!services || services.length === 0) return null;
 
   const medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"];
 
@@ -285,13 +272,11 @@ function TopServices({ services }) {
         {services.map((s, i) => (
           <div className="admin-top-service" key={`${s.service_name}-${i}`}>
             <span className="admin-top-medal">{medals[i] || "•"}</span>
-
             <div className="admin-top-info">
               <div className="admin-top-name">{s.service_name}</div>
               <div className="admin-top-meta">
                 {s.order_count} order{s.order_count !== 1 ? "s" : ""} ·{" "}
-                {formatKES(s.revenue)} revenue ·{" "}
-                {formatKES(s.profit)} profit
+                {formatKES(s.revenue)} revenue · {formatKES(s.profit)} profit
               </div>
             </div>
           </div>
@@ -348,7 +333,7 @@ function LiveFeed({ events }) {
       )}
     </section>
   );
-      }/* =========================================================
+     }/* =========================================================
    MAIN ADMIN COMPONENT
 ========================================================= */
 
@@ -373,7 +358,7 @@ export default function AdminDashboard() {
 
   const [lastLiveTime, setLastLiveTime] = useState(Date.now());
 
-  function buildDateQuery() {
+  function dateQueryString() {
     const { from, to } = getDateBounds(dateRange);
     const parts = [];
     if (from) parts.push(`from=${encodeURIComponent(from)}`);
@@ -381,46 +366,55 @@ export default function AdminDashboard() {
     return parts.join("&");
   }
 
+  async function fetchJson(url) {
+    console.log("Admin fetch:", url.replace(/secret=[^&]+/, "secret=***"));
+    const r = await fetch(url, { cache: "no-store" });
+    const txt = await r.text();
+    let data;
+    try {
+      data = txt ? JSON.parse(txt) : null;
+    } catch {
+      console.error("Bad JSON from:", url, txt.slice(0, 200));
+      throw new Error("Invalid JSON response");
+    }
+    console.log("Admin response:", data);
+    return data;
+  }
+
   async function loadStats() {
     try {
-      const r = await fetch(
-        `/api/admin-stats?secret=${encodeURIComponent(secret)}&${buildDateQuery()}`,
-        { cache: "no-store" }
+      const data = await fetchJson(
+        `/api/admin-stats?secret=${encodeURIComponent(secret)}&${dateQueryString()}`
       );
-      const data = await r.json();
-
-      if (!data.success) throw new Error(data.error || "Failed to load stats");
+      if (!data?.success) throw new Error(data?.error || "Failed to load stats");
       setStats(data.stats);
     } catch (err) {
+      console.error("loadStats:", err);
       setError(err?.message || "Failed to load stats");
     }
   }
 
   async function loadBalance() {
     try {
-      const r = await fetch(
-        `/api/admin-balance?secret=${encodeURIComponent(secret)}`,
-        { cache: "no-store" }
+      const data = await fetchJson(
+        `/api/admin-balance?secret=${encodeURIComponent(secret)}`
       );
-      const data = await r.json();
-      if (!data.success) return;
+      if (!data?.success) return;
       setBalance({ value: data.balance, currency: data.currency });
     } catch (err) {
-      // non-critical
+      console.error("loadBalance:", err);
     }
   }
 
   async function loadTopServices() {
     try {
-      const r = await fetch(
-        `/api/admin-top-services?secret=${encodeURIComponent(secret)}&${buildDateQuery()}`,
-        { cache: "no-store" }
+      const data = await fetchJson(
+        `/api/admin-top-services?secret=${encodeURIComponent(secret)}&${dateQueryString()}`
       );
-      const data = await r.json();
-      if (!data.success) return;
+      if (!data?.success) return;
       setTopServices(data.services || []);
     } catch (err) {
-      // non-critical
+      console.error("loadTopServices:", err);
     }
   }
 
@@ -443,16 +437,18 @@ export default function AdminDashboard() {
         params.set("search", search.trim());
       }
 
-      const r = await fetch(
-        `/api/admin-orders-list?${params.toString()}`,
-        { cache: "no-store" }
+      const data = await fetchJson(
+        `/api/admin-orders-list?${params.toString()}`
       );
-      const data = await r.json();
 
-      if (!data.success) throw new Error(data.error || "Failed to load orders");
+      if (!data?.success) {
+        throw new Error(data?.error || "Failed to load orders");
+      }
+
       setOrders(data.orders || []);
       setError("");
     } catch (err) {
+      console.error("loadOrders:", err);
       setError(err?.message || "Failed to load orders");
     } finally {
       setLoading(false);
@@ -465,13 +461,9 @@ export default function AdminDashboard() {
       params.set("secret", secret);
       if (sinceMs) params.set("since", String(sinceMs));
 
-      const r = await fetch(
-        `/api/admin-live?${params.toString()}`,
-        { cache: "no-store" }
-      );
-      const data = await r.json();
+      const data = await fetchJson(`/api/admin-live?${params.toString()}`);
+      if (!data?.success) throw new Error(data?.error || "Failed to load feed");
 
-      if (!data.success) throw new Error(data.error || "Failed to load feed");
       const incoming = data.events || [];
       setLastLiveTime(data.server_time_ms || Date.now());
 
@@ -481,7 +473,7 @@ export default function AdminDashboard() {
         setEvents(incoming);
       }
     } catch (err) {
-      setError(err?.message || "Failed to load live feed");
+      console.error("loadLive:", err);
     }
   }
 
@@ -489,14 +481,12 @@ export default function AdminDashboard() {
     if (!window.confirm(`Retry order ${trackingId}?`)) return;
 
     try {
-      const r = await fetch(
-        `/api/admin-retry?secret=${encodeURIComponent(secret)}&tracking_id=${encodeURIComponent(trackingId)}`,
-        { cache: "no-store" }
+      const data = await fetchJson(
+        `/api/admin-retry?secret=${encodeURIComponent(secret)}&tracking_id=${encodeURIComponent(trackingId)}`
       );
-      const data = await r.json();
 
-      if (!data.success) {
-        alert(`Retry failed: ${data.error || "Unknown error"}`);
+      if (!data?.success) {
+        alert(`Retry failed: ${data?.error || "Unknown error"}`);
         return;
       }
 
@@ -509,7 +499,7 @@ export default function AdminDashboard() {
     }
   }
 
-  // Initial load
+  // Initial load — once
   useEffect(() => {
     if (!secret) return;
     loadStats();
@@ -520,48 +510,41 @@ export default function AdminDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secret]);
 
-  // Reload when filters or date range change
+  // Reload everything when filter or date range changes
   useEffect(() => {
     if (!secret) return;
     loadOrders();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, search, dateRange]);
-
-  // Reload stats + top services when date range changes
-  useEffect(() => {
-    if (!secret) return;
     loadStats();
     loadTopServices();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange]);
+  }, [statusFilter, search, dateRange]);
 
-  // Auto refresh stats + orders
+  // Auto-refresh stats + orders + top services
   useEffect(() => {
     if (!secret) return;
     const t = setInterval(() => {
       loadStats();
       loadOrders();
+      loadTopServices();
     }, REFRESH_MS);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secret, statusFilter, search, dateRange]);
 
-  // Balance refresh
+  // Balance refresh (slower)
   useEffect(() => {
     if (!secret) return;
     const t = setInterval(() => {
       loadBalance();
-      loadTopServices();
     }, BALANCE_REFRESH_MS);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [secret, dateRange]);
+  }, [secret]);
 
-  // Live feed poll
+  // Live feed polling
   useEffect(() => {
     if (!secret) return;
     if (tab !== "live") return;
-
     const t = setInterval(() => {
       loadLive(lastLiveTime);
     }, LIVE_REFRESH_MS);
@@ -619,11 +602,6 @@ export default function AdminDashboard() {
           {balance && (
             <div
               className={`admin-balance-badge ${lowBalance ? "low" : ""}`}
-              title={
-                lowBalance
-                  ? "Low balance — top up DenzGains soon"
-                  : "DenzGains account balance"
-              }
             >
               <span className="admin-balance-label">DenzGains</span>
               <strong>
@@ -661,7 +639,6 @@ export default function AdminDashboard() {
 
       {error && <div className="admin-error">{error}</div>}
 
-      {/* DATE RANGE PICKER — visible on overview tab */}
       {tab === "overview" && (
         <div className="admin-date-picker">
           <span className="admin-date-picker-label">Period:</span>
@@ -749,4 +726,4 @@ export default function AdminDashboard() {
       {tab === "live" && <LiveFeed events={events} />}
     </div>
   );
-          }
+                   }
