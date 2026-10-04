@@ -607,8 +607,6 @@ async function pesapalRequest(env, path, options = {}) {
     throw new Error(`PesaPal HTTP ${response.status}: ${raw.slice(0, 1500)}`);
   }
 
-  // PesaPal returns `error: { error_type: null, code: null, message: null }`
-  // on SUCCESS. Only throw when error actually carries a real message.
   const errMsg =
     data?.error?.message ||
     data?.error_description ||
@@ -1764,6 +1762,50 @@ async function handleAdminStats(env, request) {
 }
 
 // ------------------------------------------------------------
+// ADMIN — TOP SERVICES
+// ------------------------------------------------------------
+
+async function handleAdminTopServices(env, request) {
+  if (!isAdminAuthorized(env, request)) {
+    return adminUnauthorized();
+  }
+
+  try {
+    const result = await env.DB.prepare(`
+      SELECT
+        service_id,
+        service_name,
+        COUNT(*) AS order_count,
+        SUM(CASE WHEN LOWER(payment_status) = 'completed' THEN customer_amount ELSE 0 END) AS revenue,
+        SUM(CASE WHEN LOWER(payment_status) = 'completed' THEN supplier_amount ELSE 0 END) AS cost
+      FROM orders
+      WHERE service_name IS NOT NULL
+        AND service_name != ''
+      GROUP BY service_name
+      ORDER BY order_count DESC
+      LIMIT 5
+    `).all();
+
+    const rows = (result.results || []).map((r) => ({
+      service_id: r.service_id,
+      service_name: r.service_name,
+      order_count: Number(r.order_count || 0),
+      revenue: roundMoney(Number(r.revenue || 0)),
+      cost: roundMoney(Number(r.cost || 0)),
+      profit: roundMoney(Number(r.revenue || 0) - Number(r.cost || 0)),
+    }));
+
+    return json({
+      success: true,
+      services: rows,
+    });
+  } catch (error) {
+    console.error("Admin top services error:", error);
+    return json({ success: false, error: errorMessage(error) }, 500);
+  }
+}
+
+// ------------------------------------------------------------
 // ADMIN — ORDERS LIST
 // ------------------------------------------------------------
 
@@ -2007,7 +2049,7 @@ async function handleApiInfo() {
   return json({
     success: true,
     name: "HUPPY CUBE API",
-    version: "1.3.0",
+    version: "1.4.0",
     currency: "KES",
     routes: {
       health: "/api/health",
@@ -2018,6 +2060,7 @@ async function handleApiInfo() {
       pesapal_ipn: "/api/pesapal-ipn",
       admin_stats: "/api/admin-stats?secret=...",
       admin_balance: "/api/admin-balance?secret=...",
+      admin_top_services: "/api/admin-top-services?secret=...",
       admin_orders: "/api/admin-orders-list?secret=...&status=&search=&limit=",
       admin_live: "/api/admin-live?secret=...&since=<unix_ms>",
       admin_retry: "/api/admin-retry?secret=...&tracking_id=...",
@@ -2075,6 +2118,10 @@ export default {
 
       if (url.pathname === "/api/admin-stats" && method === "GET") {
         return await handleAdminStats(env, request);
+      }
+
+      if (url.pathname === "/api/admin-top-services" && method === "GET") {
+        return await handleAdminTopServices(env, request);
       }
 
       if (url.pathname === "/api/admin-orders-list" && method === "GET") {
