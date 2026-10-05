@@ -2,7 +2,57 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import AdminDashboard from "./AdminDashboard.jsx";
+/* =========================================================
+   ADMIN PWA — dynamic manifest injection
+   Only activates on /admin route so customers never see it.
+========================================================= */
 
+if (typeof document !== "undefined" && window.location.pathname === "/admin") {
+  // Manifest
+  let manifestLink = document.querySelector('link[rel="manifest"]');
+  if (!manifestLink) {
+    manifestLink = document.createElement("link");
+    manifestLink.rel = "manifest";
+    document.head.appendChild(manifestLink);
+  }
+  manifestLink.href = "/admin-manifest.json";
+
+  // Theme color for browser chrome
+  let themeMeta = document.querySelector('meta[name="theme-color"]');
+  if (!themeMeta) {
+    themeMeta = document.createElement("meta");
+    themeMeta.name = "theme-color";
+    document.head.appendChild(themeMeta);
+  }
+  themeMeta.content = "#05030d";
+
+  // iOS-specific metas
+  const iosMetas = [
+    { name: "apple-mobile-web-app-capable", content: "yes" },
+    { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+    { name: "apple-mobile-web-app-title", content: "HUPPY ADMIN" },
+    { name: "mobile-web-app-capable", content: "yes" }
+  ];
+
+  for (const meta of iosMetas) {
+    let m = document.querySelector(`meta[name="${meta.name}"]`);
+    if (!m) {
+      m = document.createElement("meta");
+      m.name = meta.name;
+      document.head.appendChild(m);
+    }
+    m.content = meta.content;
+  }
+
+  // Apple touch icon
+  let appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
+  if (!appleIcon) {
+    appleIcon = document.createElement("link");
+    appleIcon.rel = "apple-touch-icon";
+    document.head.appendChild(appleIcon);
+  }
+  appleIcon.href = "/android-chrome-192x192.png";
+}
 import {
   Search,
   ShoppingCart,
