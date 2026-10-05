@@ -1,0 +1,25 @@
+{
+  "name": "HUPPY CUBE ADMIN",
+  "short_name": "HUPPY ADMIN",
+  "description": "HUPPY CUBE admin dashboard",
+  "start_url": "/admin",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#05030d",
+  "theme_color": "#05030d",
+  "icons": [
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
