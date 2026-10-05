@@ -1,8 +1,13 @@
 import React, { useEffect, useState } from "react";
 
+/* =========================================================
+   ADMIN DASHBOARD
+========================================================= */
+
 const REFRESH_MS = 15000;
 const LIVE_REFRESH_MS = 3000;
 const BALANCE_REFRESH_MS = 60000;
+const ADMIN_SECRET_KEY = "huppy_admin_secret";
 
 const DATE_RANGES = [
   { key: "today", label: "Today" },
@@ -14,10 +19,32 @@ const DATE_RANGES = [
 function readSecretFromUrl() {
   try {
     const params = new URLSearchParams(window.location.search);
-    return (params.get("secret") || "").trim();
+    const fromUrl = (params.get("secret") || "").trim();
+    if (fromUrl) {
+      try {
+        localStorage.setItem(ADMIN_SECRET_KEY, fromUrl);
+      } catch {}
+      return fromUrl;
+    }
+  } catch {}
+
+  try {
+    return (localStorage.getItem(ADMIN_SECRET_KEY) || "").trim();
   } catch {
     return "";
   }
+}
+
+function saveAdminSecret(secret) {
+  try {
+    localStorage.setItem(ADMIN_SECRET_KEY, secret);
+  } catch {}
+}
+
+function clearAdminSecret() {
+  try {
+    localStorage.removeItem(ADMIN_SECRET_KEY);
+  } catch {}
 }
 
 function formatKES(value) {
@@ -333,7 +360,7 @@ function LiveFeed({ events }) {
       )}
     </section>
   );
-     }/* =========================================================
+                 }/* =========================================================
    MAIN ADMIN COMPONENT
 ========================================================= */
 
@@ -499,7 +526,7 @@ export default function AdminDashboard() {
     }
   }
 
-  // Initial load — once
+  // Initial load
   useEffect(() => {
     if (!secret) return;
     loadStats();
@@ -519,7 +546,7 @@ export default function AdminDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, search, dateRange]);
 
-  // Auto-refresh stats + orders + top services
+  // Auto-refresh
   useEffect(() => {
     if (!secret) return;
     const t = setInterval(() => {
@@ -531,7 +558,7 @@ export default function AdminDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secret, statusFilter, search, dateRange]);
 
-  // Balance refresh (slower)
+  // Balance refresh
   useEffect(() => {
     if (!secret) return;
     const t = setInterval(() => {
@@ -566,7 +593,9 @@ export default function AdminDashboard() {
             placeholder="Admin secret"
             onKeyDown={(e) => {
               if (e.key === "Enter" && secretInput.trim()) {
-                setSecret(secretInput.trim());
+                const val = secretInput.trim();
+                saveAdminSecret(val);
+                setSecret(val);
               }
             }}
           />
@@ -574,7 +603,11 @@ export default function AdminDashboard() {
           <button
             type="button"
             disabled={!secretInput.trim()}
-            onClick={() => setSecret(secretInput.trim())}
+            onClick={() => {
+              const val = secretInput.trim();
+              saveAdminSecret(val);
+              setSecret(val);
+            }}
           >
             Enter
           </button>
@@ -600,9 +633,7 @@ export default function AdminDashboard() {
 
         <div className="admin-topbar-actions">
           {balance && (
-            <div
-              className={`admin-balance-badge ${lowBalance ? "low" : ""}`}
-            >
+            <div className={`admin-balance-badge ${lowBalance ? "low" : ""}`}>
               <span className="admin-balance-label">DenzGains</span>
               <strong>
                 {balance.currency} {Number(balance.value).toFixed(2)}
@@ -628,6 +659,7 @@ export default function AdminDashboard() {
           <button
             type="button"
             onClick={() => {
+              clearAdminSecret();
               setSecret("");
               window.history.replaceState({}, "", "/");
             }}
@@ -726,4 +758,4 @@ export default function AdminDashboard() {
       {tab === "live" && <LiveFeed events={events} />}
     </div>
   );
-                   }
+        }
