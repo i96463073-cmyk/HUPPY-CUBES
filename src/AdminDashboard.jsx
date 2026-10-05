@@ -1,9 +1,5 @@
 import React, { useEffect, useState } from "react";
 
-/* =========================================================
-   ADMIN DASHBOARD
-========================================================= */
-
 const REFRESH_MS = 15000;
 const LIVE_REFRESH_MS = 3000;
 const BALANCE_REFRESH_MS = 60000;
@@ -21,36 +17,25 @@ function readSecretFromUrl() {
     const params = new URLSearchParams(window.location.search);
     const fromUrl = (params.get("secret") || "").trim();
     if (fromUrl) {
-      try {
-        localStorage.setItem(ADMIN_SECRET_KEY, fromUrl);
-      } catch {}
+      try { localStorage.setItem(ADMIN_SECRET_KEY, fromUrl); } catch {}
       return fromUrl;
     }
   } catch {}
-
-  try {
-    return (localStorage.getItem(ADMIN_SECRET_KEY) || "").trim();
-  } catch {
-    return "";
-  }
+  try { return (localStorage.getItem(ADMIN_SECRET_KEY) || "").trim(); }
+  catch { return ""; }
 }
 
 function saveAdminSecret(secret) {
-  try {
-    localStorage.setItem(ADMIN_SECRET_KEY, secret);
-  } catch {}
+  try { localStorage.setItem(ADMIN_SECRET_KEY, secret); } catch {}
 }
 
 function clearAdminSecret() {
-  try {
-    localStorage.removeItem(ADMIN_SECRET_KEY);
-  } catch {}
+  try { localStorage.removeItem(ADMIN_SECRET_KEY); } catch {}
 }
 
 function formatKES(value) {
   return `KSh ${Number(value || 0).toLocaleString("en-KE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
+    minimumFractionDigits: 2, maximumFractionDigits: 2
   })}`;
 }
 
@@ -60,14 +45,9 @@ function nairobiTime(raw) {
   const iso = s.includes("T") ? s : s.replace(" ", "T") + "Z";
   const d = new Date(iso);
   if (!Number.isFinite(d.getTime())) return s;
-
   return d.toLocaleString("en-KE", {
-    timeZone: "Africa/Nairobi",
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit"
+    timeZone: "Africa/Nairobi", year: "numeric", month: "short",
+    day: "2-digit", hour: "2-digit", minute: "2-digit"
   });
 }
 
@@ -76,27 +56,208 @@ function statusColor(status) {
   if (s.includes("completed")) return "green";
   if (s.includes("processing")) return "blue";
   if (s.includes("pending")) return "amber";
-  if (s.includes("fail") || s.includes("error") || s.includes("cancel"))
-    return "red";
+  if (s.includes("fail") || s.includes("error") || s.includes("cancel")) return "red";
   return "gray";
 }
 
 function getDateBounds(rangeKey) {
   if (!rangeKey || rangeKey === "all") return { from: "", to: "" };
-
   const now = new Date();
   const nairobi = new Date(now.getTime() + 3 * 60 * 60 * 1000);
   const toStr = nairobi.toISOString().slice(0, 10);
-
   let fromDate = new Date(nairobi);
-  if (rangeKey === "7d") {
-    fromDate.setUTCDate(fromDate.getUTCDate() - 6);
-  } else if (rangeKey === "30d") {
-    fromDate.setUTCDate(fromDate.getUTCDate() - 29);
-  }
-
+  if (rangeKey === "7d") fromDate.setUTCDate(fromDate.getUTCDate() - 6);
+  else if (rangeKey === "30d") fromDate.setUTCDate(fromDate.getUTCDate() - 29);
   const fromStr = fromDate.toISOString().slice(0, 10);
   return { from: fromStr, to: toStr };
+}
+
+/* =========================================================
+   SETTINGS / MARKUP PANEL
+========================================================= */
+
+function SettingsPanel({ secret }) {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [settings, setSettings] = useState(null);
+  const [markupInput, setMarkupInput] = useState("");
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  async function loadSettings() {
+    try {
+      setLoading(true);
+      setError("");
+      const r = await fetch(
+        `/api/admin-settings?secret=${encodeURIComponent(secret)}`,
+        { cache: "no-store" }
+      );
+      const data = await r.json();
+      if (!data?.success) throw new Error(data?.error || "Failed to load settings");
+      setSettings(data);
+      setMarkupInput(String(data.settings.markup_multiplier));
+    } catch (err) {
+      setError(err?.message || "Failed to load settings");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function saveMarkup() {
+    const raw = Number(markupInput);
+    if (!Number.isFinite(raw)) {
+      setError("Markup must be a number");
+      return;
+    }
+    if (raw < 1.0) {
+      setError("Markup must be at least 1.0");
+      return;
+    }
+    if (raw > 10.0) {
+      setError("Markup cannot exceed 10.0");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const r = await fetch(
+        `/api/admin-settings?secret=${encodeURIComponent(secret)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ markup_multiplier: raw }),
+        }
+      );
+      const data = await r.json();
+      if (!data?.success) throw new Error(data?.error || "Failed to save");
+
+      setSettings(data);
+      setMessage(`Markup updated to × ${data.settings.markup_multiplier}. New orders will use this rate.`);
+    } catch (err) {
+      setError(err?.message || "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  useEffect(() => {
+    loadSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [secret]);
+
+  if (loading) {
+    return <div className="admin-empty">Loading settings...</div>;
+  }
+
+  const preview = settings?.preview;
+  const current = settings?.settings?.markup_multiplier;
+
+  const presetMarkups = [1.5, 2, 2.5, 3, 4];
+
+  return (
+    <section className="admin-settings">
+      <div className="admin-settings-head">
+        <span className="admin-live-dot" />
+        <span>Profit Controls</span>
+      </div>
+
+      <div className="admin-settings-body">
+        <div className="admin-settings-current">
+          <span>Current markup</span>
+          <strong>× {current}</strong>
+          <small>
+            Customer price = Supplier price × {current}
+          </small>
+        </div>
+
+        <div className="admin-settings-field">
+          <label>Change markup multiplier</label>
+          <div className="admin-markup-input-row">
+            <span className="admin-markup-prefix">×</span>
+            <input
+              type="number"
+              step="0.05"
+              min="1"
+              max="10"
+              value={markupInput}
+              onChange={(e) => setMarkupInput(e.target.value)}
+              disabled={saving}
+            />
+            <button
+              type="button"
+              className="admin-save-btn"
+              onClick={saveMarkup}
+              disabled={saving || String(current) === markupInput}
+            >
+              {saving ? "Saving..." : "Save"}
+            </button>
+          </div>
+          <small>
+            Minimum 1.0 (no profit) · Maximum 10.0 · New orders only
+          </small>
+        </div>
+
+        <div className="admin-preset-row">
+          <span className="admin-preset-label">Quick set:</span>
+          {presetMarkups.map((m) => (
+            <button
+              key={m}
+              type="button"
+              className={Number(current) === m ? "active" : ""}
+              onClick={() => setMarkupInput(String(m))}
+              disabled={saving}
+            >
+              × {m}
+            </button>
+          ))}
+        </div>
+
+        {preview && (
+          <div className="admin-settings-preview">
+            <div className="admin-preview-title">Preview (example service)</div>
+            <div className="admin-preview-name">{preview.name}</div>
+            <div className="admin-preview-grid">
+              <div>
+                <span>Supplier rate /1000</span>
+                <strong>{formatKES(preview.supplier_rate)}</strong>
+              </div>
+              <div>
+                <span>Customer rate /500</span>
+                <strong className="green">
+                  {formatKES(
+                    Number(markupInput || current) *
+                      preview.supplier_rate / 2
+                  )}
+                </strong>
+              </div>
+              <div>
+                <span>Customer rate /1000</span>
+                <strong className="green">
+                  {formatKES(
+                    Number(markupInput || current) * preview.supplier_rate
+                  )}
+                </strong>
+              </div>
+              <div>
+                <span>Your profit /1000</span>
+                <strong className="cyan">
+                  {formatKES(
+                    (Number(markupInput || current) - 1) * preview.supplier_rate
+                  )}
+                </strong>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {message && <div className="admin-success">{message}</div>}
+        {error && <div className="admin-error">{error}</div>}
+      </div>
+    </section>
+  );
 }
 
 /* =========================================================
@@ -106,36 +267,18 @@ function getDateBounds(rangeKey) {
 function OrderRow({ order, expanded, onToggle, onRetry }) {
   return (
     <div className="admin-order-row">
-      <div
-        className="admin-order-summary"
-        onClick={onToggle}
-        role="button"
-        tabIndex={0}
-      >
+      <div className="admin-order-summary" onClick={onToggle} role="button" tabIndex={0}>
         <div className="admin-order-main">
-          <div className="admin-order-service">
-            {order.service_name || "Service"}
-          </div>
-
+          <div className="admin-order-service">{order.service_name || "Service"}</div>
           <div className="admin-order-meta">
             <span className={`admin-pill ${statusColor(order.order_status)}`}>
               {order.order_status || "—"}
             </span>
-
-            <span className="admin-order-qty">
-              Qty {Number(order.quantity || 0).toLocaleString()}
-            </span>
-
-            <span className="admin-order-amount">
-              {formatKES(order.customer_amount)}
-            </span>
-
-            <span className="admin-order-profit">
-              +{formatKES(order.profit)}
-            </span>
+            <span className="admin-order-qty">Qty {Number(order.quantity || 0).toLocaleString()}</span>
+            <span className="admin-order-amount">{formatKES(order.customer_amount)}</span>
+            <span className="admin-order-profit">+{formatKES(order.profit)}</span>
           </div>
         </div>
-
         <div className="admin-order-time">
           {nairobiTime(order.created_at_nairobi || order.created_at)}
         </div>
@@ -144,42 +287,19 @@ function OrderRow({ order, expanded, onToggle, onRetry }) {
       {expanded && (
         <div className="admin-order-detail">
           <div className="admin-detail-grid">
-            <div>
-              <span>Tracking ID</span>
-              <strong>{order.tracking_id}</strong>
-            </div>
-            <div>
-              <span>Phone</span>
-              <strong>{order.phone || "—"}</strong>
-            </div>
-            <div>
-              <span>Payment</span>
-              <strong>{order.payment_status || "—"}</strong>
-            </div>
-            <div>
-              <span>Supplier Order</span>
-              <strong>{order.supplier_order_id || "—"}</strong>
-            </div>
-            <div>
-              <span>PesaPal ID</span>
-              <strong>{order.pesapal_order_tracking_id || "—"}</strong>
-            </div>
-            <div>
-              <span>Last Update</span>
-              <strong>
-                {nairobiTime(order.updated_at_nairobi || order.updated_at)}
-              </strong>
-            </div>
+            <div><span>Tracking ID</span><strong>{order.tracking_id}</strong></div>
+            <div><span>Phone</span><strong>{order.phone || "—"}</strong></div>
+            <div><span>Payment</span><strong>{order.payment_status || "—"}</strong></div>
+            <div><span>Supplier Order</span><strong>{order.supplier_order_id || "—"}</strong></div>
+            <div><span>PesaPal ID</span><strong>{order.pesapal_order_tracking_id || "—"}</strong></div>
+            <div><span>Last Update</span><strong>{nairobiTime(order.updated_at_nairobi || order.updated_at)}</strong></div>
 
             {order.link && (
               <div className="admin-detail-wide">
                 <span>Target Link</span>
-                <a href={order.link} target="_blank" rel="noreferrer">
-                  {order.link}
-                </a>
+                <a href={order.link} target="_blank" rel="noreferrer">{order.link}</a>
               </div>
             )}
-
             {order.error_message && (
               <div className="admin-detail-wide admin-detail-error">
                 <span>Error</span>
@@ -190,11 +310,7 @@ function OrderRow({ order, expanded, onToggle, onRetry }) {
 
           {!order.supplier_order_id && (
             <div className="admin-order-actions">
-              <button
-                type="button"
-                className="admin-retry-btn"
-                onClick={() => onRetry(order.tracking_id)}
-              >
+              <button type="button" className="admin-retry-btn" onClick={() => onRetry(order.tracking_id)}>
                 Retry Submission
               </button>
             </div>
@@ -209,22 +325,10 @@ function OrderRow({ order, expanded, onToggle, onRetry }) {
    ORDERS LIST
 ========================================================= */
 
-function OrdersList({
-  orders,
-  loading,
-  statusFilter,
-  setStatusFilter,
-  search,
-  setSearch,
-  expandedId,
-  setExpandedId,
-  onRetry
-}) {
+function OrdersList({ orders, loading, statusFilter, setStatusFilter, search, setSearch, expandedId, setExpandedId, onRetry }) {
   const filters = [
-    { key: "all", label: "All" },
-    { key: "pending", label: "Pending" },
-    { key: "processing", label: "Processing" },
-    { key: "completed", label: "Completed" },
+    { key: "all", label: "All" }, { key: "pending", label: "Pending" },
+    { key: "processing", label: "Processing" }, { key: "completed", label: "Completed" },
     { key: "failed", label: "Failed" }
   ];
 
@@ -232,46 +336,29 @@ function OrdersList({
     <section className="admin-orders">
       <div className="admin-filter-row">
         {filters.map((f) => (
-          <button
-            key={f.key}
-            type="button"
+          <button key={f.key} type="button"
             className={statusFilter === f.key ? "active" : ""}
-            onClick={() => setStatusFilter(f.key)}
-          >
+            onClick={() => setStatusFilter(f.key)}>
             {f.label}
           </button>
         ))}
       </div>
 
       <div className="admin-search-row">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search tracking ID, phone, or supplier order..."
-        />
+        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search tracking ID, phone, or supplier order..." />
       </div>
 
       {loading && <div className="admin-loading">Loading orders...</div>}
-
-      {!loading && orders.length === 0 && (
-        <div className="admin-empty">No orders found.</div>
-      )}
+      {!loading && orders.length === 0 && <div className="admin-empty">No orders found.</div>}
 
       {!loading && orders.length > 0 && (
         <div className="admin-orders-list">
           {orders.map((order) => (
-            <OrderRow
-              key={order.tracking_id}
-              order={order}
+            <OrderRow key={order.tracking_id} order={order}
               expanded={expandedId === order.tracking_id}
-              onToggle={() =>
-                setExpandedId(
-                  expandedId === order.tracking_id ? null : order.tracking_id
-                )
-              }
-              onRetry={onRetry}
-            />
+              onToggle={() => setExpandedId(expandedId === order.tracking_id ? null : order.tracking_id)}
+              onRetry={onRetry} />
           ))}
         </div>
       )}
@@ -280,21 +367,17 @@ function OrdersList({
 }
 
 /* =========================================================
-   TOP SERVICES
+   TOP SERVICES + LIVE FEED
 ========================================================= */
 
 function TopServices({ services }) {
   if (!services || services.length === 0) return null;
-
   const medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"];
-
   return (
     <section className="admin-top-services">
       <div className="admin-top-services-head">
-        <span className="admin-live-dot" />
-        <span>Top Selling Services</span>
+        <span className="admin-live-dot" /><span>Top Selling Services</span>
       </div>
-
       <div className="admin-top-services-list">
         {services.map((s, i) => (
           <div className="admin-top-service" key={`${s.service_name}-${i}`}>
@@ -313,22 +396,13 @@ function TopServices({ services }) {
   );
 }
 
-/* =========================================================
-   LIVE FEED
-========================================================= */
-
 function LiveFeed({ events }) {
   return (
     <section className="admin-live">
       <div className="admin-live-header">
-        <span className="admin-live-dot" />
-        Live order activity (refreshes every 3s)
+        <span className="admin-live-dot" />Live order activity (refreshes every 3s)
       </div>
-
-      {events.length === 0 && (
-        <div className="admin-empty">No activity yet.</div>
-      )}
-
+      {events.length === 0 && <div className="admin-empty">No activity yet.</div>}
       {events.length > 0 && (
         <div className="admin-live-list">
           {events.map((e, idx) => (
@@ -336,7 +410,6 @@ function LiveFeed({ events }) {
               <div className="admin-live-time">
                 {nairobiTime(e.updated_at_nairobi || e.updated_at)}
               </div>
-
               <div className="admin-live-body">
                 <div className="admin-live-title">
                   <span className={`admin-pill ${statusColor(e.order_status)}`}>
@@ -344,15 +417,10 @@ function LiveFeed({ events }) {
                   </span>
                   <strong>{e.service_name || "Service"}</strong>
                 </div>
-
                 <div className="admin-live-meta">
-                  Qty {Number(e.quantity || 0).toLocaleString()} ·{" "}
-                  {formatKES(e.customer_amount)} · {e.phone || "—"}
+                  Qty {Number(e.quantity || 0).toLocaleString()} · {formatKES(e.customer_amount)} · {e.phone || "—"}
                 </div>
-
-                {e.error_message && (
-                  <div className="admin-live-error">{e.error_message}</div>
-                )}
+                {e.error_message && <div className="admin-live-error">{e.error_message}</div>}
               </div>
             </div>
           ))}
@@ -360,7 +428,7 @@ function LiveFeed({ events }) {
       )}
     </section>
   );
-                 }/* =========================================================
+     }/* =========================================================
    MAIN ADMIN COMPONENT
 ========================================================= */
 
@@ -394,17 +462,14 @@ export default function AdminDashboard() {
   }
 
   async function fetchJson(url) {
-    console.log("Admin fetch:", url.replace(/secret=[^&]+/, "secret=***"));
     const r = await fetch(url, { cache: "no-store" });
     const txt = await r.text();
     let data;
-    try {
-      data = txt ? JSON.parse(txt) : null;
-    } catch {
+    try { data = txt ? JSON.parse(txt) : null; }
+    catch {
       console.error("Bad JSON from:", url, txt.slice(0, 200));
       throw new Error("Invalid JSON response");
     }
-    console.log("Admin response:", data);
     return data;
   }
 
@@ -456,21 +521,11 @@ export default function AdminDashboard() {
       const { from, to } = getDateBounds(dateRange);
       if (from) params.set("from", from);
       if (to) params.set("to", to);
+      if (statusFilter && statusFilter !== "all") params.set("status", statusFilter);
+      if (search.trim()) params.set("search", search.trim());
 
-      if (statusFilter && statusFilter !== "all") {
-        params.set("status", statusFilter);
-      }
-      if (search.trim()) {
-        params.set("search", search.trim());
-      }
-
-      const data = await fetchJson(
-        `/api/admin-orders-list?${params.toString()}`
-      );
-
-      if (!data?.success) {
-        throw new Error(data?.error || "Failed to load orders");
-      }
+      const data = await fetchJson(`/api/admin-orders-list?${params.toString()}`);
+      if (!data?.success) throw new Error(data?.error || "Failed to load orders");
 
       setOrders(data.orders || []);
       setError("");
@@ -494,11 +549,8 @@ export default function AdminDashboard() {
       const incoming = data.events || [];
       setLastLiveTime(data.server_time_ms || Date.now());
 
-      if (sinceMs) {
-        setEvents((prev) => [...prev, ...incoming].slice(-200));
-      } else {
-        setEvents(incoming);
-      }
+      if (sinceMs) setEvents((prev) => [...prev, ...incoming].slice(-200));
+      else setEvents(incoming);
     } catch (err) {
       console.error("loadLive:", err);
     }
@@ -506,17 +558,14 @@ export default function AdminDashboard() {
 
   async function retryOrder(trackingId) {
     if (!window.confirm(`Retry order ${trackingId}?`)) return;
-
     try {
       const data = await fetchJson(
         `/api/admin-retry?secret=${encodeURIComponent(secret)}&tracking_id=${encodeURIComponent(trackingId)}`
       );
-
       if (!data?.success) {
         alert(`Retry failed: ${data?.error || "Unknown error"}`);
         return;
       }
-
       alert("Retry submitted. Refreshing...");
       await loadStats();
       await loadOrders();
@@ -526,7 +575,6 @@ export default function AdminDashboard() {
     }
   }
 
-  // Initial load
   useEffect(() => {
     if (!secret) return;
     loadStats();
@@ -537,7 +585,6 @@ export default function AdminDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secret]);
 
-  // Reload everything when filter or date range changes
   useEffect(() => {
     if (!secret) return;
     loadOrders();
@@ -546,7 +593,6 @@ export default function AdminDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, search, dateRange]);
 
-  // Auto-refresh
   useEffect(() => {
     if (!secret) return;
     const t = setInterval(() => {
@@ -558,23 +604,17 @@ export default function AdminDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secret, statusFilter, search, dateRange]);
 
-  // Balance refresh
   useEffect(() => {
     if (!secret) return;
-    const t = setInterval(() => {
-      loadBalance();
-    }, BALANCE_REFRESH_MS);
+    const t = setInterval(() => { loadBalance(); }, BALANCE_REFRESH_MS);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secret]);
 
-  // Live feed polling
   useEffect(() => {
     if (!secret) return;
     if (tab !== "live") return;
-    const t = setInterval(() => {
-      loadLive(lastLiveTime);
-    }, LIVE_REFRESH_MS);
+    const t = setInterval(() => { loadLive(lastLiveTime); }, LIVE_REFRESH_MS);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [secret, tab, lastLiveTime]);
@@ -585,7 +625,6 @@ export default function AdminDashboard() {
         <div className="admin-login">
           <h1>HUPPY CUBE ADMIN</h1>
           <p>Enter your admin secret to continue.</p>
-
           <input
             type="password"
             value={secretInput}
@@ -599,7 +638,6 @@ export default function AdminDashboard() {
               }
             }}
           />
-
           <button
             type="button"
             disabled={!secretInput.trim()}
@@ -616,8 +654,7 @@ export default function AdminDashboard() {
     );
   }
 
-  const lowBalance =
-    balance && typeof balance.value === "number" && balance.value < 50;
+  const lowBalance = balance && typeof balance.value === "number" && balance.value < 50;
 
   return (
     <div className="admin-shell">
@@ -651,6 +688,13 @@ export default function AdminDashboard() {
           </button>
           <button
             type="button"
+            className={tab === "settings" ? "active" : ""}
+            onClick={() => setTab("settings")}
+          >
+            Profit
+          </button>
+          <button
+            type="button"
             className={tab === "live" ? "active" : ""}
             onClick={() => setTab("live")}
           >
@@ -670,6 +714,8 @@ export default function AdminDashboard() {
       </header>
 
       {error && <div className="admin-error">{error}</div>}
+
+      {tab === "settings" && <SettingsPanel secret={secret} />}
 
       {tab === "overview" && (
         <div className="admin-date-picker">
@@ -693,47 +739,39 @@ export default function AdminDashboard() {
             <span>Total Orders</span>
             <strong>{stats.total_orders}</strong>
           </div>
-
           <div className="admin-stat-card">
             <span>Revenue (KES)</span>
             <strong>{formatKES(stats.total_revenue_kes)}</strong>
           </div>
-
           <div className="admin-stat-card">
             <span>Cost (KES)</span>
             <strong>{formatKES(stats.total_cost_kes)}</strong>
           </div>
-
           <div className="admin-stat-card highlight">
             <span>Profit (KES)</span>
             <strong>{formatKES(stats.total_profit_kes)}</strong>
           </div>
-
           <div className="admin-stat-card">
             <span>Pending</span>
             <strong>{stats.pending}</strong>
           </div>
-
           <div className="admin-stat-card">
             <span>Processing</span>
             <strong>{stats.processing}</strong>
           </div>
-
           <div className="admin-stat-card">
             <span>Completed</span>
             <strong>{stats.completed}</strong>
           </div>
-
           <div className="admin-stat-card">
             <span>Failed</span>
             <strong>{stats.failed}</strong>
           </div>
-
           <div className="admin-stat-card wide">
             <span>Today</span>
             <strong>
-              {stats.today_orders} orders · {formatKES(stats.today_revenue_kes)}{" "}
-              revenue · {formatKES(stats.today_profit_kes)} profit
+              {stats.today_orders} orders · {formatKES(stats.today_revenue_kes)} revenue ·{" "}
+              {formatKES(stats.today_profit_kes)} profit
             </strong>
           </div>
         </section>
@@ -758,4 +796,4 @@ export default function AdminDashboard() {
       {tab === "live" && <LiveFeed events={events} />}
     </div>
   );
-        }
+}
