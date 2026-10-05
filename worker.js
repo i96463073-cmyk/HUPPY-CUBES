@@ -7,6 +7,9 @@ const PESAPAL_SANDBOX_BASE = "https://cybqa.pesapal.com/pesapalv3";
 const DENZGAINS_BASE = "https://denzgains.com/api/v2";
 const WHATSAPP_NUMBER = "254796681162";
 
+// Default markup: 2x supplier rate
+const DEFAULT_MARKUP = 2.0;
+
 function json(data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
     status,
@@ -22,8 +25,7 @@ function corsHeaders(origin = "*") {
   return {
     "Access-Control-Allow-Origin": origin || "*",
     "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers":
-      "Content-Type, Authorization, X-Requested-With",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
     "Access-Control-Max-Age": "86400",
   };
 }
@@ -46,33 +48,21 @@ function roundMoney(value) {
 }
 
 function safeJsonParse(value, fallback = null) {
-  try {
-    return JSON.parse(value);
-  } catch {
-    return fallback;
-  }
+  try { return JSON.parse(value); } catch { return fallback; }
 }
 
 function randomId(prefix = "HUPPY") {
-  const random =
-    typeof crypto !== "undefined" && crypto.randomUUID
-      ? crypto.randomUUID().replace(/-/g, "").slice(0, 20).toUpperCase()
-      : Math.random().toString(36).slice(2, 14).toUpperCase();
-
+  const random = typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID().replace(/-/g, "").slice(0, 20).toUpperCase()
+    : Math.random().toString(36).slice(2, 14).toUpperCase();
   return `${prefix}-${Date.now()}-${random}`;
 }
 
 function normalizePhone(phone) {
   let p = text(phone).replace(/[^\d+]/g, "");
-
-  if (p.startsWith("+254")) {
-    p = "254" + p.slice(4);
-  } else if (p.startsWith("254")) {
-    // ok
-  } else if (p.startsWith("0")) {
-    p = "254" + p.slice(1);
-  }
-
+  if (p.startsWith("+254")) p = "254" + p.slice(4);
+  else if (p.startsWith("254")) { /* ok */ }
+  else if (p.startsWith("0")) p = "254" + p.slice(1);
   return p;
 }
 
@@ -90,33 +80,21 @@ function maskSecret(value) {
 function errorMessage(error) {
   if (!error) return "Unknown error";
   if (typeof error === "string") return error;
-  return (
-    error.message ||
-    error.error?.message ||
-    error.error_description ||
-    JSON.stringify(error)
-  );
+  return error.message || error.error?.message || error.error_description || JSON.stringify(error);
 }
 
-function getOrigin(request) {
-  return new URL(request.url).origin;
-}
+function getOrigin(request) { return new URL(request.url).origin; }
 
 function getEnvOrigin(env, request) {
-  return (
-    text(env.PUBLIC_BASE_URL).replace(/\/$/, "") ||
-    getOrigin(request)
-  );
+  return text(env.PUBLIC_BASE_URL).replace(/\/$/, "") || getOrigin(request);
 }
 
 function isAdminAuthorized(env, request) {
   const url = new URL(request.url);
   const provided = text(url.searchParams.get("secret"));
   const expected = text(env.TEST_ORDER_SECRET);
-
   if (!expected) return false;
   if (!provided) return false;
-
   return provided === expected;
 }
 
@@ -124,102 +102,61 @@ function adminUnauthorized() {
   return json({ success: false, error: "Unauthorized." }, 401);
 }
 
-// Build date filter from ?from=YYYY-MM-DD&to=YYYY-MM-DD
-// Uses Nairobi time (UTC+3) to match D1 created_at.
 function buildDateFilter(url) {
   const from = text(url.searchParams.get("from"));
   const to = text(url.searchParams.get("to"));
-
   const wheres = [];
   const binds = [];
-
-  if (from) {
-    wheres.push(`date(created_at, '+3 hours') >= ?`);
-    binds.push(from);
-  }
-
-  if (to) {
-    wheres.push(`date(created_at, '+3 hours') <= ?`);
-    binds.push(to);
-  }
-
+  if (from) { wheres.push(`date(created_at, '+3 hours') >= ?`); binds.push(from); }
+  if (to) { wheres.push(`date(created_at, '+3 hours') <= ?`); binds.push(to); }
   return { wheres, binds };
 }
 
 function toNairobiISO(utcString) {
   if (!utcString) return "";
-
   const raw = String(utcString);
   const iso = raw.includes("T") ? raw : raw.replace(" ", "T") + "Z";
   const ms = Date.parse(iso);
-
   if (!Number.isFinite(ms)) return raw;
-
-  return new Date(ms + 3 * 60 * 60 * 1000)
-    .toISOString()
-    .replace("Z", "+03:00");
+  return new Date(ms + 3 * 60 * 60 * 1000).toISOString().replace("Z", "+03:00");
 }
 
 function normalizeSupplierStatus(raw) {
   const s = String(raw ?? "").trim().toLowerCase();
-
   if (!s) return null;
-
   if (s === "completed") return "Completed";
   if (s === "partial") return "Partial";
   if (s === "canceled" || s === "cancelled") return "Cancelled";
   if (s === "fail" || s === "failed") return "Failed";
-  if (s === "in progress" || s === "inprogress" || s === "processing")
-    return "Processing";
+  if (s === "in progress" || s === "inprogress" || s === "processing") return "Processing";
   if (s === "awaiting" || s === "pending") return "Pending";
-
   return null;
 }
 
 function isTerminalStatus(status) {
   const s = String(status || "").toLowerCase();
-  return (
-    s.includes("completed") ||
-    s.includes("partial") ||
-    s.includes("cancel") ||
-    s.includes("failed") ||
-    s.includes("reversed")
-  );
+  return s.includes("completed") || s.includes("partial") || s.includes("cancel")
+    || s.includes("failed") || s.includes("reversed");
 }
 
 function recentlyFailedSubmission(order) {
   if (!order?.error_message) return false;
   if (!order?.updated_at) return false;
-
   const raw = String(order.updated_at);
   const iso = raw.includes("T") ? raw : raw.replace(" ", "T") + "Z";
   const updated = Date.parse(iso);
-
   if (!Number.isFinite(updated)) return false;
-
   return Date.now() - updated < 60_000;
 }
 
 const REQUIRED_ORDER_COLUMNS = {
-  tracking_id: "TEXT",
-  service_id: "TEXT",
-  service_name: "TEXT",
-  link: "TEXT",
-  quantity: "INTEGER",
-  phone: "TEXT",
-  supplier_rate: "REAL",
-  customer_rate: "REAL",
-  supplier_amount: "REAL",
-  customer_amount: "REAL",
-  payment_status: "TEXT",
-  order_status: "TEXT",
-  pesapal_order_tracking_id: "TEXT",
-  pesapal_merchant_reference: "TEXT",
-  supplier_order_id: "TEXT",
-  supplier_response: "TEXT",
-  error_message: "TEXT",
-  created_at: "TEXT",
-  updated_at: "TEXT",
+  tracking_id: "TEXT", service_id: "TEXT", service_name: "TEXT", link: "TEXT",
+  quantity: "INTEGER", phone: "TEXT",
+  supplier_rate: "REAL", customer_rate: "REAL", supplier_amount: "REAL", customer_amount: "REAL",
+  payment_status: "TEXT", order_status: "TEXT",
+  pesapal_order_tracking_id: "TEXT", pesapal_merchant_reference: "TEXT",
+  supplier_order_id: "TEXT", supplier_response: "TEXT",
+  error_message: "TEXT", created_at: "TEXT", updated_at: "TEXT",
 };
 
 let ORDERS_TABLE_READY = false;
@@ -231,24 +168,13 @@ async function ensureOrdersTable(env) {
     CREATE TABLE IF NOT EXISTS orders (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       tracking_id TEXT UNIQUE NOT NULL,
-      service_id TEXT,
-      service_name TEXT,
-      link TEXT,
-      quantity INTEGER,
-      phone TEXT,
-      supplier_rate REAL DEFAULT 0,
-      customer_rate REAL DEFAULT 0,
-      supplier_amount REAL DEFAULT 0,
-      customer_amount REAL DEFAULT 0,
-      payment_status TEXT DEFAULT 'PENDING',
-      order_status TEXT DEFAULT 'Pending',
-      pesapal_order_tracking_id TEXT,
-      pesapal_merchant_reference TEXT,
-      supplier_order_id TEXT,
-      supplier_response TEXT,
-      error_message TEXT,
-      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      service_id TEXT, service_name TEXT, link TEXT, quantity INTEGER, phone TEXT,
+      supplier_rate REAL DEFAULT 0, customer_rate REAL DEFAULT 0,
+      supplier_amount REAL DEFAULT 0, customer_amount REAL DEFAULT 0,
+      payment_status TEXT DEFAULT 'PENDING', order_status TEXT DEFAULT 'Pending',
+      pesapal_order_tracking_id TEXT, pesapal_merchant_reference TEXT,
+      supplier_order_id TEXT, supplier_response TEXT, error_message TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `).run();
 
@@ -257,27 +183,77 @@ async function ensureOrdersTable(env) {
 
   for (const [column, definition] of Object.entries(REQUIRED_ORDER_COLUMNS)) {
     if (existing.has(column)) continue;
-
-    await env.DB.prepare(
-      `ALTER TABLE orders ADD COLUMN ${column} ${definition}`
-    ).run();
+    await env.DB.prepare(`ALTER TABLE orders ADD COLUMN ${column} ${definition}`).run();
   }
 
   ORDERS_TABLE_READY = true;
 }
 
+/* =========================================================
+   SETTINGS TABLE — for adjustable markup and future config
+========================================================= */
+
+let SETTINGS_TABLE_READY = false;
+
+async function ensureSettingsTable(env) {
+  if (SETTINGS_TABLE_READY) return;
+
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+
+  SETTINGS_TABLE_READY = true;
+}
+
+async function getSetting(env, key, fallback = null) {
+  try {
+    const row = await env.DB.prepare(
+      `SELECT value FROM settings WHERE key = ? LIMIT 1`
+    ).bind(key).first();
+    return row?.value ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+async function setSetting(env, key, value) {
+  await env.DB.prepare(`
+    INSERT INTO settings (key, value, updated_at)
+    VALUES (?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(key) DO UPDATE SET
+      value = excluded.value,
+      updated_at = CURRENT_TIMESTAMP
+  `).bind(key, String(value)).run();
+}
+
+async function getMarkupMultiplier(env) {
+  const raw = await getSetting(env, "markup_multiplier", null);
+  if (raw === null || raw === undefined || raw === "") return DEFAULT_MARKUP;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_MARKUP;
+}
+
+async function getDenzGainsServices(env) {
+  const response = await denzGainsRequest(env, { action: "services" });
+  if (Array.isArray(response)) return response;
+  if (Array.isArray(response?.services)) return response.services;
+  throw new Error(`DenzGains services response is not an array`);
+}
+
 async function getOrderByTrackingId(env, trackingId) {
   if (!trackingId) return null;
-  return await env.DB.prepare(
-    `SELECT * FROM orders WHERE tracking_id = ? LIMIT 1`
-  ).bind(trackingId).first();
+  return await env.DB.prepare(`SELECT * FROM orders WHERE tracking_id = ? LIMIT 1`)
+    .bind(trackingId).first();
 }
 
 async function getOrderByPesapalTrackingId(env, pesapalTrackingId) {
   if (!pesapalTrackingId) return null;
-  return await env.DB.prepare(
-    `SELECT * FROM orders WHERE pesapal_order_tracking_id = ? LIMIT 1`
-  ).bind(pesapalTrackingId).first();
+  return await env.DB.prepare(`SELECT * FROM orders WHERE pesapal_order_tracking_id = ? LIMIT 1`)
+    .bind(pesapalTrackingId).first();
 }
 
 async function getOrderByMerchantReference(env, merchantReference) {
@@ -288,15 +264,10 @@ async function getOrderByMerchantReference(env, merchantReference) {
 }
 
 async function updateOrder(env, trackingId, values) {
-  const entries = Object.entries(values || {}).filter(
-    ([, value]) => value !== undefined
-  );
-
+  const entries = Object.entries(values || {}).filter(([, value]) => value !== undefined);
   if (!entries.length) return;
-
   const assignments = entries.map(([key]) => `${key} = ?`).join(", ");
   const params = entries.map(([, value]) => value);
-
   await env.DB.prepare(
     `UPDATE orders SET ${assignments}, updated_at = CURRENT_TIMESTAMP WHERE tracking_id = ?`
   ).bind(...params, trackingId).run();
@@ -305,16 +276,11 @@ async function updateOrder(env, trackingId, values) {
 async function claimSupplierSubmission(env, trackingId) {
   const result = await env.DB.prepare(`
     UPDATE orders
-    SET
-      payment_status = 'COMPLETED',
-      order_status = 'Submitting',
-      error_message = NULL,
-      updated_at = CURRENT_TIMESTAMP
-    WHERE tracking_id = ?
-      AND supplier_order_id IS NULL
+    SET payment_status = 'COMPLETED', order_status = 'Submitting',
+        error_message = NULL, updated_at = CURRENT_TIMESTAMP
+    WHERE tracking_id = ? AND supplier_order_id IS NULL
       AND (order_status IS NULL OR order_status != 'Submitting')
   `).bind(trackingId).run();
-
   return Number(result?.meta?.changes || 0) > 0;
 }
 
@@ -324,7 +290,6 @@ async function denzGainsRequest(env, payload) {
 
   const params = new URLSearchParams();
   params.set("key", apiKey);
-
   for (const [key, value] of Object.entries(payload || {})) {
     if (value !== undefined && value !== null && value !== "") {
       params.set(key, String(value));
@@ -355,13 +320,6 @@ async function denzGainsRequest(env, payload) {
   return data;
 }
 
-async function getDenzGainsServices(env) {
-  const response = await denzGainsRequest(env, { action: "services" });
-  if (Array.isArray(response)) return response;
-  if (Array.isArray(response?.services)) return response.services;
-  throw new Error(`DenzGains services response is not an array`);
-}
-
 function normalizeSupplierService(service) {
   const serviceId = service?.service ?? service?.service_id ?? service?.id;
   const rate = service?.rate ?? service?.price ?? service?.cost ?? 0;
@@ -372,15 +330,10 @@ function normalizeSupplierService(service) {
     service_id: String(serviceId ?? ""),
     name: text(service?.name),
     rate: number(rate),
-    min: number(min, 1),
-    max: number(max, 1000000),
-    min_quantity: number(min, 1),
-    max_quantity: number(max, 1000000),
-    category: text(service?.category),
-    type: text(service?.type),
-    refill: service?.refill,
-    cancel: service?.cancel,
-    raw: service,
+    min: number(min, 1), max: number(max, 1000000),
+    min_quantity: number(min, 1), max_quantity: number(max, 1000000),
+    category: text(service?.category), type: text(service?.type),
+    refill: service?.refill, cancel: service?.cancel, raw: service,
   };
 }
 
@@ -397,17 +350,14 @@ async function findSupplierService(env, serviceId) {
 
 async function addDenzGainsOrder(env, serviceId, link, quantity) {
   return await denzGainsRequest(env, {
-    action: "add",
-    service: String(serviceId),
-    link: String(link),
-    quantity: Number(quantity),
+    action: "add", service: String(serviceId),
+    link: String(link), quantity: Number(quantity),
   });
 }
 
 async function getDenzGainsOrderStatus(env, supplierOrderId) {
   return await denzGainsRequest(env, {
-    action: "status",
-    order: String(supplierOrderId),
+    action: "status", order: String(supplierOrderId),
   });
 }
 
@@ -417,61 +367,43 @@ async function getDenzGainsBalance(env) {
 
 function extractSupplierOrderId(response) {
   if (!response) return "";
-  const candidates = [
-    response.order,
-    response.order_id,
-    response.id,
-    response.orderId,
-    response.supplier_order_id,
-  ];
+  const candidates = [response.order, response.order_id, response.id,
+    response.orderId, response.supplier_order_id];
   for (const value of candidates) {
     if (value !== undefined && value !== null && String(value).trim() !== "") {
       return String(value).trim();
     }
   }
   return "";
-}// ------------------------------------------------------------
+    }// ------------------------------------------------------------
 // PESAPAL
 // ------------------------------------------------------------
 
 function getPesapalBase(env) {
   const mode = text(env.PESAPAL_MODE).toLowerCase();
-  if (mode === "sandbox" || mode === "test" || mode === "demo") {
-    return PESAPAL_SANDBOX_BASE;
-  }
+  if (mode === "sandbox" || mode === "test" || mode === "demo") return PESAPAL_SANDBOX_BASE;
   return PESAPAL_LIVE_BASE;
 }
 
 async function pesapalAuth(env) {
   const consumerKey = text(env.PESAPAL_CONSUMER_KEY);
   const consumerSecret = text(env.PESAPAL_CONSUMER_SECRET);
-
-  if (!consumerKey || !consumerSecret) {
-    throw new Error("PESAPAL_CONSUMER_KEY or PESAPAL_CONSUMER_SECRET is missing.");
-  }
+  if (!consumerKey || !consumerSecret) throw new Error("PESAPAL_CONSUMER_KEY or PESAPAL_CONSUMER_SECRET is missing.");
 
   const base = getPesapalBase(env);
   const response = await fetch(`${base}/api/Auth/RequestToken`, {
     method: "POST",
     headers: { Accept: "application/json", "Content-Type": "application/json" },
-    body: JSON.stringify({
-      consumer_key: consumerKey,
-      consumer_secret: consumerSecret,
-    }),
+    body: JSON.stringify({ consumer_key: consumerKey, consumer_secret: consumerSecret }),
   });
 
   const raw = await response.text();
   let data;
   try { data = JSON.parse(raw); } catch { data = { raw }; }
 
-  if (!response.ok) {
-    throw new Error(`PesaPal authentication HTTP ${response.status}: ${raw.slice(0, 1000)}`);
-  }
-
+  if (!response.ok) throw new Error(`PesaPal authentication HTTP ${response.status}: ${raw.slice(0, 1000)}`);
   const token = data?.token || data?.access_token;
-  if (!token) {
-    throw new Error(`PesaPal authentication failed: ${JSON.stringify(data).slice(0, 1000)}`);
-  }
+  if (!token) throw new Error(`PesaPal authentication failed: ${JSON.stringify(data).slice(0, 1000)}`);
   return token;
 }
 
@@ -494,36 +426,25 @@ async function pesapalRequest(env, path, options = {}) {
   let data;
   try { data = JSON.parse(raw); } catch { data = { raw }; }
 
-  if (!response.ok) {
-    throw new Error(`PesaPal HTTP ${response.status}: ${raw.slice(0, 1500)}`);
-  }
+  if (!response.ok) throw new Error(`PesaPal HTTP ${response.status}: ${raw.slice(0, 1500)}`);
 
-  const errMsg =
-    data?.error?.message ||
-    data?.error_description ||
-    (typeof data?.error === "string" ? data.error : null);
+  const errMsg = data?.error?.message || data?.error_description
+    || (typeof data?.error === "string" ? data.error : null);
   if (errMsg) throw new Error(errMsg);
-
   return data;
 }
 
-async function submitPesapalOrder(env, {
-  merchantReference, amount, description, callbackUrl,
-  cancellationUrl, phone, firstName, lastName,
-}) {
+async function submitPesapalOrder(env, { merchantReference, amount, description, callbackUrl, cancellationUrl, phone, firstName, lastName }) {
   const notificationId = text(env.PESAPAL_IPN_ID);
   if (!notificationId) throw new Error("PESAPAL_IPN_ID is not configured.");
   if (!merchantReference) throw new Error("Missing PesaPal merchant reference.");
   if (!amount || amount <= 0) throw new Error("Invalid PesaPal payment amount.");
 
   const billingPhone = normalizePhone(phone);
-
   const billingAddress = {
     email_address: text(env.PESAPAL_BILLING_EMAIL) || "customer@huppycube.com",
-    phone_number: billingPhone,
-    country_code: "KE",
-    first_name: text(firstName) || "HUPPY",
-    middle_name: "",
+    phone_number: billingPhone, country_code: "KE",
+    first_name: text(firstName) || "HUPPY", middle_name: "",
     last_name: text(lastName) || "Customer",
     line_1: "HUPPY CUBE", line_2: "", city: "Nairobi",
     state: "", postal_code: "", zip_code: "",
@@ -532,8 +453,7 @@ async function submitPesapalOrder(env, {
   return await pesapalRequest(env, "/api/Transactions/SubmitOrderRequest", {
     method: "POST",
     body: {
-      id: merchantReference,
-      currency: "KES",
+      id: merchantReference, currency: "KES",
       amount: roundMoney(amount),
       description: String(description).slice(0, 100),
       callback_url: callbackUrl,
@@ -547,11 +467,9 @@ async function submitPesapalOrder(env, {
 
 async function getPesapalTransactionStatus(env, pesapalTrackingId) {
   if (!pesapalTrackingId) throw new Error("Missing PesaPal OrderTrackingId.");
-  return await pesapalRequest(
-    env,
+  return await pesapalRequest(env,
     `/api/Transactions/GetTransactionStatus?orderTrackingId=${encodeURIComponent(pesapalTrackingId)}`,
-    { method: "GET" }
-  );
+    { method: "GET" });
 }
 
 async function readPesapalNotification(request) {
@@ -608,10 +526,8 @@ function pesapalStatusCode(data) {
 }
 
 function pesapalStatusDescription(data) {
-  return text(
-    data?.payment_status_description || data?.paymentStatusDescription ||
-    data?.description || data?.status_description
-  ).toUpperCase();
+  return text(data?.payment_status_description || data?.paymentStatusDescription
+    || data?.description || data?.status_description).toUpperCase();
 }
 
 function isPesapalCompleted(data) {
@@ -636,15 +552,12 @@ async function verifyPesapalPayment(env, order) {
   if (!order?.pesapal_order_tracking_id) {
     throw new Error("This order does not have a PesaPal tracking ID yet.");
   }
-
   const status = await getPesapalTransactionStatus(env, order.pesapal_order_tracking_id);
   const returnedMerchantReference = text(status?.merchant_reference);
-
   if (returnedMerchantReference && order.pesapal_merchant_reference &&
       returnedMerchantReference !== order.pesapal_merchant_reference) {
     throw new Error("PesaPal merchant reference does not match this order.");
   }
-
   const returnedCurrency = text(status?.currency).toUpperCase();
   if (returnedCurrency && returnedCurrency !== "KES") {
     throw new Error(`Unexpected PesaPal currency: ${returnedCurrency}`);
@@ -686,17 +599,14 @@ async function processPaidOrder(env, originalOrder) {
     const paidAmount = number(payment?.amount, 0);
     const expectedAmount = number(order.customer_amount, 0);
     const difference = paidAmount - expectedAmount;
-
     const realMismatch = paidAmount > 0 && expectedAmount > 0 &&
       (difference < -1.0 || difference > 5.0);
 
     if (realMismatch) {
       const message = `Payment amount mismatch. Expected KES ${expectedAmount}, received KES ${paidAmount}.`;
       await updateOrder(env, order.tracking_id, {
-        payment_status: "PAYMENT_MISMATCH",
-        order_status: "Payment Error",
-        error_message: message,
-        supplier_response: JSON.stringify(payment),
+        payment_status: "PAYMENT_MISMATCH", order_status: "Payment Error",
+        error_message: message, supplier_response: JSON.stringify(payment),
       });
       throw new Error(message);
     }
@@ -727,33 +637,26 @@ async function processPaidOrder(env, originalOrder) {
       const message = errorMessage(error);
       console.error("DenzGains order submission failed:", message);
       await updateOrder(env, order.tracking_id, {
-        payment_status: "COMPLETED",
-        order_status: "Supplier Error",
-        error_message: message,
-        supplier_response: JSON.stringify({ error: message }),
+        payment_status: "COMPLETED", order_status: "Supplier Error",
+        error_message: message, supplier_response: JSON.stringify({ error: message }),
       });
       throw error;
     }
 
     const supplierOrderId = extractSupplierOrderId(supplierResponse);
-
     if (!supplierOrderId) {
       const message = "DenzGains accepted the request but did not return a supplier order ID.";
       await updateOrder(env, order.tracking_id, {
-        payment_status: "COMPLETED",
-        order_status: "Supplier Error",
-        error_message: message,
-        supplier_response: JSON.stringify(supplierResponse),
+        payment_status: "COMPLETED", order_status: "Supplier Error",
+        error_message: message, supplier_response: JSON.stringify(supplierResponse),
       });
       throw new Error(message);
     }
 
     await updateOrder(env, order.tracking_id, {
-      payment_status: "COMPLETED",
-      order_status: "Processing",
+      payment_status: "COMPLETED", order_status: "Processing",
       supplier_order_id: supplierOrderId,
-      supplier_response: JSON.stringify(supplierResponse),
-      error_message: null,
+      supplier_response: JSON.stringify(supplierResponse), error_message: null,
     });
 
     return { success: true, paid: true, submitted: true,
@@ -762,8 +665,7 @@ async function processPaidOrder(env, originalOrder) {
 
   if (isPesapalFailed(payment)) {
     await updateOrder(env, order.tracking_id, {
-      payment_status: "FAILED",
-      order_status: "Payment Failed",
+      payment_status: "FAILED", order_status: "Payment Failed",
       supplier_response: JSON.stringify(payment),
       error_message: text(payment?.description) || "PesaPal payment failed.",
     });
@@ -773,8 +675,7 @@ async function processPaidOrder(env, originalOrder) {
 
   if (isPesapalReversed(payment)) {
     await updateOrder(env, order.tracking_id, {
-      payment_status: "REVERSED",
-      order_status: "Payment Reversed",
+      payment_status: "REVERSED", order_status: "Payment Reversed",
       supplier_response: JSON.stringify(payment),
       error_message: text(payment?.description) || "PesaPal payment was reversed.",
     });
@@ -783,29 +684,33 @@ async function processPaidOrder(env, originalOrder) {
   }
 
   await updateOrder(env, order.tracking_id, {
-    payment_status: "PENDING",
-    order_status: "Payment Pending",
+    payment_status: "PENDING", order_status: "Payment Pending",
     supplier_response: JSON.stringify(payment),
   });
-
   return { success: true, paid: false, pending: true,
     order_status: "Payment Pending", payment_status: "PENDING" };
 }
 
+/* =========================================================
+   SERVICES — uses live markup multiplier
+========================================================= */
+
 async function handleServices(env, request) {
   try {
     const services = await getDenzGainsServices(env);
+    const markup = await getMarkupMultiplier(env);
     const normalized = services.map(normalizeSupplierService)
       .filter((s) => s.service_id && s.name);
 
     return corsJson({
       success: true,
+      markup,
       services: normalized.map((service) => ({
         service_id: service.service_id,
         name: service.name,
         category: service.category,
         type: service.type,
-        rate: roundMoney(service.rate * 2),
+        rate: roundMoney(service.rate * markup),
         min: service.min, max: service.max,
         min_quantity: service.min_quantity, max_quantity: service.max_quantity,
         refill: service.refill, cancel: service.cancel,
@@ -817,6 +722,10 @@ async function handleServices(env, request) {
       500, request.headers.get("Origin") || "*");
   }
 }
+
+/* =========================================================
+   ORDER PAYMENT — uses live markup multiplier
+========================================================= */
 
 async function handleOrderPayment(env, request) {
   let body;
@@ -854,7 +763,10 @@ async function handleOrderPayment(env, request) {
     return corsJson({ success: false, error: "Supplier returned an invalid service rate." }, 400);
   }
 
-  const customerRate = supplierRate * 2;
+  // Fetch live markup
+  const markup = await getMarkupMultiplier(env);
+  const customerRate = supplierRate * markup;
+
   const supplierAmount = roundMoney((supplierRate * quantity) / 1000);
   const customerAmount = roundMoney((customerRate * quantity) / 1000);
 
@@ -889,8 +801,7 @@ async function handleOrderPayment(env, request) {
   let pesapal;
   try {
     pesapal = await submitPesapalOrder(env, {
-      merchantReference,
-      amount: customerAmount,
+      merchantReference, amount: customerAmount,
       description: `HUPPY CUBE - ${(serviceName || supplierService.name).slice(0, 70)}`,
       callbackUrl, cancellationUrl, phone,
       firstName: "HUPPY", lastName: "Customer",
@@ -905,8 +816,7 @@ async function handleOrderPayment(env, request) {
     });
     return corsJson({
       success: false, tracking_id: trackingId,
-      error: "Could not create the PesaPal payment.",
-      details: message,
+      error: "Could not create the PesaPal payment.", details: message,
     }, 500);
   }
 
@@ -915,12 +825,10 @@ async function handleOrderPayment(env, request) {
     pesapal?.tracking_id || pesapal?.TrackingId ||
     pesapal?.data?.order_tracking_id || pesapal?.data?.orderTrackingId
   );
-
   const redirectUrl = text(
     pesapal?.redirect_url || pesapal?.redirectUrl ||
     pesapal?.data?.redirect_url || pesapal?.data?.redirectUrl
   );
-
   const returnedMerchantReference = text(
     pesapal?.merchant_reference || pesapal?.merchantReference
   );
@@ -930,21 +838,18 @@ async function handleOrderPayment(env, request) {
     await updateOrder(env, trackingId, {
       payment_status: "PAYMENT_SETUP_FAILED",
       order_status: "Payment Setup Error",
-      error_message: message,
-      supplier_response: JSON.stringify(pesapal),
+      error_message: message, supplier_response: JSON.stringify(pesapal),
     });
     return corsJson({
       success: false, tracking_id: trackingId,
-      error: "PesaPal did not return a tracking ID.",
-      details: message,
+      error: "PesaPal did not return a tracking ID.", details: message,
     }, 500);
   }
 
   await updateOrder(env, trackingId, {
     pesapal_order_tracking_id: pesapalTrackingId,
     pesapal_merchant_reference: returnedMerchantReference || merchantReference,
-    payment_status: "PENDING",
-    order_status: "Payment Pending",
+    payment_status: "PENDING", order_status: "Payment Pending",
     error_message: null,
   });
 
@@ -963,7 +868,6 @@ async function handleOrderPayment(env, request) {
 async function handleOrderStatus(env, request) {
   const url = new URL(request.url);
   const trackingId = text(url.searchParams.get("tracking_id"));
-
   if (!trackingId) return corsJson({ success: false, error: "tracking_id is required." }, 400);
 
   let order = await getOrderByTrackingId(env, trackingId);
@@ -1009,21 +913,15 @@ async function handleOrderStatus(env, request) {
   return corsJson({
     success: true,
     order: {
-      tracking_id: latest.tracking_id,
-      service_id: latest.service_id,
-      service_name: latest.service_name,
-      quantity: latest.quantity,
-      link: latest.link,
-      phone: latest.phone,
-      customer_amount: latest.customer_amount,
-      currency: "KES",
-      payment_status: latest.payment_status,
-      order_status: latest.order_status,
+      tracking_id: latest.tracking_id, service_id: latest.service_id,
+      service_name: latest.service_name, quantity: latest.quantity,
+      link: latest.link, phone: latest.phone,
+      customer_amount: latest.customer_amount, currency: "KES",
+      payment_status: latest.payment_status, order_status: latest.order_status,
       pesapal_order_tracking_id: latest.pesapal_order_tracking_id,
       supplier_order_id: latest.supplier_order_id,
       error_message: latest.error_message,
-      created_at: latest.created_at,
-      updated_at: latest.updated_at,
+      created_at: latest.created_at, updated_at: latest.updated_at,
     },
   }, 200, request.headers.get("Origin") || "*");
 }
@@ -1063,8 +961,7 @@ async function handlePesapalIpn(env, request) {
       orderNotificationType: notification.notificationType || "IPNCHANGE",
       orderTrackingId: notification.orderTrackingId || "",
       orderMerchantReference: notification.merchantReference || "",
-      status: 500,
-      message: "Missing PesaPal notification identifiers.",
+      status: 500, message: "Missing PesaPal notification identifiers.",
     }, 400);
   }
 
@@ -1077,8 +974,7 @@ async function handlePesapalIpn(env, request) {
       orderNotificationType: notification.notificationType || "IPNCHANGE",
       orderTrackingId: notification.orderTrackingId,
       orderMerchantReference: notification.merchantReference,
-      status: 200,
-      message: "Notification received; order not found.",
+      status: 200, message: "Notification received; order not found.",
     });
   }
 
@@ -1104,11 +1000,10 @@ async function handlePesapalIpn(env, request) {
       orderNotificationType: notification.notificationType || "IPNCHANGE",
       orderTrackingId: notification.orderTrackingId,
       orderMerchantReference: notification.merchantReference,
-      status: 200,
-      message: "IPN received but order processing failed.",
+      status: 200, message: "IPN received but order processing failed.",
     });
   }
-    }// ------------------------------------------------------------
+                                        }// ------------------------------------------------------------
 // ADMIN — BALANCE
 // ------------------------------------------------------------
 
@@ -1127,8 +1022,118 @@ async function handleAdminBalance(env, request) {
   }
 }
 
+/* =========================================================
+   ADMIN — SETTINGS (markup control)
+========================================================= */
+
+async function handleAdminGetSettings(env, request) {
+  if (!isAdminAuthorized(env, request)) return adminUnauthorized();
+  try {
+    await ensureSettingsTable(env);
+    const markup = await getMarkupMultiplier(env);
+
+    // Sample service preview to help admin see impact
+    let sample = null;
+    try {
+      const services = await getDenzGainsServices(env);
+      const firstValid = services
+        .map(normalizeSupplierService)
+        .find((s) => s.service_id && s.name && s.rate > 0);
+      if (firstValid) {
+        sample = {
+          service_id: firstValid.service_id,
+          name: firstValid.name,
+          supplier_rate: firstValid.rate,
+          customer_rate_per_1000: roundMoney(firstValid.rate * markup),
+          customer_rate_per_500: roundMoney((firstValid.rate * markup) / 2),
+        };
+      }
+    } catch (err) {
+      console.error("Settings preview fetch failed:", err);
+    }
+
+    return json({
+      success: true,
+      settings: {
+        markup_multiplier: markup,
+        default_markup: DEFAULT_MARKUP,
+      },
+      preview: sample,
+    });
+  } catch (error) {
+    return json({ success: false, error: errorMessage(error) }, 500);
+  }
+}
+
+async function handleAdminUpdateSettings(env, request) {
+  if (!isAdminAuthorized(env, request)) return adminUnauthorized();
+
+  try {
+    await ensureSettingsTable(env);
+
+    let body;
+    try { body = await request.json(); }
+    catch { return json({ success: false, error: "Invalid JSON request." }, 400); }
+
+    const rawMarkup = body?.markup_multiplier;
+
+    if (rawMarkup === undefined || rawMarkup === null) {
+      return json({ success: false, error: "markup_multiplier is required." }, 400);
+    }
+
+    const markup = Number(rawMarkup);
+
+    if (!Number.isFinite(markup)) {
+      return json({ success: false, error: "Markup must be a valid number." }, 400);
+    }
+    if (markup < 1.0) {
+      return json({ success: false, error: "Markup must be at least 1.0 (you'd lose money below that)." }, 400);
+    }
+    if (markup > 10.0) {
+      return json({ success: false, error: "Markup cannot exceed 10.0." }, 400);
+    }
+
+    const rounded = Math.round(markup * 100) / 100;
+
+    await setSetting(env, "markup_multiplier", rounded);
+
+    // Build a fresh preview
+    let sample = null;
+    try {
+      const services = await getDenzGainsServices(env);
+      const firstValid = services
+        .map(normalizeSupplierService)
+        .find((s) => s.service_id && s.name && s.rate > 0);
+      if (firstValid) {
+        sample = {
+          service_id: firstValid.service_id,
+          name: firstValid.name,
+          supplier_rate: firstValid.rate,
+          customer_rate_per_1000: roundMoney(firstValid.rate * rounded),
+          customer_rate_per_500: roundMoney((firstValid.rate * rounded) / 2),
+        };
+      }
+    } catch (err) {
+      // Ignore
+    }
+
+    return json({
+      success: true,
+      message: "Markup updated. New orders will use this rate.",
+      settings: {
+        markup_multiplier: rounded,
+        default_markup: DEFAULT_MARKUP,
+      },
+      preview: sample,
+    });
+  } catch (error) {
+    console.error("Admin update settings error:", error);
+    return json({ success: false, error: errorMessage(error) }, 500);
+  }
+}
+
 // ------------------------------------------------------------
-// ADMIN — STATS (with date filter)
+// ADMIN — STATS
 // ------------------------------------------------------------
 
 async function handleAdminStats(env, request) {
@@ -1137,7 +1142,6 @@ async function handleAdminStats(env, request) {
   try {
     const url = new URL(request.url);
     const { wheres, binds } = buildDateFilter(url);
-
     const whereClause = wheres.length ? `WHERE ${wheres.join(" AND ")}` : "";
 
     const totals = await env.DB.prepare(`
@@ -1198,7 +1202,7 @@ async function handleAdminStats(env, request) {
 }
 
 // ------------------------------------------------------------
-// ADMIN — TOP SERVICES (with date filter)
+// ADMIN — TOP SERVICES
 // ------------------------------------------------------------
 
 async function handleAdminTopServices(env, request) {
@@ -1207,14 +1211,11 @@ async function handleAdminTopServices(env, request) {
   try {
     const url = new URL(request.url);
     const { wheres, binds } = buildDateFilter(url);
-
     wheres.push(`service_name IS NOT NULL`);
     wheres.push(`service_name != ''`);
 
     const result = await env.DB.prepare(`
-      SELECT
-        service_id,
-        service_name,
+      SELECT service_id, service_name,
         COUNT(*) AS order_count,
         SUM(CASE WHEN LOWER(payment_status) = 'completed' THEN customer_amount ELSE 0 END) AS revenue,
         SUM(CASE WHEN LOWER(payment_status) = 'completed' THEN supplier_amount ELSE 0 END) AS cost
@@ -1242,7 +1243,7 @@ async function handleAdminTopServices(env, request) {
 }
 
 // ------------------------------------------------------------
-// ADMIN — ORDERS LIST (with date filter)
+// ADMIN — ORDERS LIST
 // ------------------------------------------------------------
 
 async function handleAdminOrdersList(env, request) {
@@ -1260,7 +1261,6 @@ async function handleAdminOrdersList(env, request) {
       wheres.push(`LOWER(order_status) LIKE ?`);
       binds.push(`%${statusFilter}%`);
     }
-
     if (search) {
       wheres.push(`(tracking_id LIKE ? OR phone LIKE ? OR supplier_order_id LIKE ? OR link LIKE ?)`);
       const like = `%${search}%`;
@@ -1279,24 +1279,17 @@ async function handleAdminOrdersList(env, request) {
       success: true,
       count: rows.length,
       orders: rows.map((o) => ({
-        tracking_id: o.tracking_id,
-        service_id: o.service_id,
-        service_name: o.service_name,
-        link: o.link,
-        quantity: o.quantity,
-        phone: o.phone,
-        supplier_rate: o.supplier_rate,
-        customer_rate: o.customer_rate,
-        supplier_amount: o.supplier_amount,
-        customer_amount: o.customer_amount,
+        tracking_id: o.tracking_id, service_id: o.service_id,
+        service_name: o.service_name, link: o.link,
+        quantity: o.quantity, phone: o.phone,
+        supplier_rate: o.supplier_rate, customer_rate: o.customer_rate,
+        supplier_amount: o.supplier_amount, customer_amount: o.customer_amount,
         profit: roundMoney(Number(o.customer_amount || 0) - Number(o.supplier_amount || 0)),
-        payment_status: o.payment_status,
-        order_status: o.order_status,
+        payment_status: o.payment_status, order_status: o.order_status,
         pesapal_order_tracking_id: o.pesapal_order_tracking_id,
         supplier_order_id: o.supplier_order_id,
         error_message: o.error_message,
-        created_at: o.created_at,
-        updated_at: o.updated_at,
+        created_at: o.created_at, updated_at: o.updated_at,
         created_at_nairobi: toNairobiISO(o.created_at),
         updated_at_nairobi: toNairobiISO(o.updated_at),
       })),
@@ -1335,14 +1328,10 @@ async function handleAdminLive(env, request) {
       success: true,
       server_time_ms: Date.now(),
       events: rows.map((o) => ({
-        tracking_id: o.tracking_id,
-        service_name: o.service_name,
-        quantity: o.quantity,
-        phone: o.phone,
-        link: o.link,
+        tracking_id: o.tracking_id, service_name: o.service_name,
+        quantity: o.quantity, phone: o.phone, link: o.link,
         customer_amount: o.customer_amount,
-        payment_status: o.payment_status,
-        order_status: o.order_status,
+        payment_status: o.payment_status, order_status: o.order_status,
         supplier_order_id: o.supplier_order_id,
         error_message: o.error_message,
         updated_at: o.updated_at,
@@ -1374,21 +1363,20 @@ async function handleAdminRetry(env, request) {
       return json({ success: true, message: "Supplier order already exists.",
         supplier_order_id: order.supplier_order_id });
     }
-
     if (String(order.order_status || "").toLowerCase() === "submitting") {
       return json({ success: false,
         error: "Order is currently submitting. Try again in a few seconds." });
     }
 
     await updateOrder(env, trackingId, {
-      order_status: "Payment Pending",
-      error_message: null,
+      order_status: "Payment Pending", error_message: null,
     });
 
     const refreshed = await getOrderByTrackingId(env, trackingId);
     const result = await processPaidOrder(env, refreshed);
 
-    return json({ success: true, result, order: await getOrderByTrackingId(env, trackingId) });
+    return json({ success: true, result,
+      order: await getOrderByTrackingId(env, trackingId) });
   } catch (error) {
     console.error("Admin retry error:", error);
     return json({ success: false, error: errorMessage(error) }, 500);
@@ -1407,7 +1395,6 @@ async function handleHealth(env, request) {
   } catch (error) {
     console.error("Health D1 error:", error);
   }
-
   return corsJson({
     success: true, online: true, service: "HUPPY CUBE",
     database, timestamp: new Date().toISOString(),
@@ -1416,10 +1403,7 @@ async function handleHealth(env, request) {
 
 async function handleApiInfo() {
   return json({
-    success: true,
-    name: "HUPPY CUBE API",
-    version: "1.5.0",
-    currency: "KES",
+    success: true, name: "HUPPY CUBE API", version: "1.6.0", currency: "KES",
     routes: {
       health: "/api/health",
       services: "/api/services",
@@ -1427,12 +1411,14 @@ async function handleApiInfo() {
       order_status: "/api/order-status?tracking_id=...",
       pesapal_callback: "/api/payment-callback",
       pesapal_ipn: "/api/pesapal-ipn",
-      admin_stats: "/api/admin-stats?secret=...&from=YYYY-MM-DD&to=YYYY-MM-DD",
+      admin_stats: "/api/admin-stats?secret=...&from=&to=",
       admin_balance: "/api/admin-balance?secret=...",
       admin_top_services: "/api/admin-top-services?secret=...&from=&to=",
       admin_orders: "/api/admin-orders-list?secret=...&status=&search=&from=&to=&limit=",
       admin_live: "/api/admin-live?secret=...&since=<unix_ms>",
       admin_retry: "/api/admin-retry?secret=...&tracking_id=...",
+      admin_settings_get: "/api/admin-settings?secret=...",
+      admin_settings_update: "POST /api/admin-settings?secret=... { markup_multiplier: 2.5 }",
     },
   });
 }
@@ -1453,6 +1439,7 @@ export default {
 
     try {
       await ensureOrdersTable(env);
+      await ensureSettingsTable(env);
 
       if (url.pathname === "/api/health" && method === "GET") return await handleHealth(env, request);
       if (url.pathname === "/api/services" && method === "GET") return await handleServices(env, request);
@@ -1462,6 +1449,8 @@ export default {
       if (url.pathname === "/api/pesapal-ipn") return await handlePesapalIpn(env, request);
 
       if (url.pathname === "/api/admin-balance" && method === "GET") return await handleAdminBalance(env, request);
+      if (url.pathname === "/api/admin-settings" && method === "GET") return await handleAdminGetSettings(env, request);
+      if (url.pathname === "/api/admin-settings" && method === "POST") return await handleAdminUpdateSettings(env, request);
       if (url.pathname === "/api/admin-stats" && method === "GET") return await handleAdminStats(env, request);
       if (url.pathname === "/api/admin-top-services" && method === "GET") return await handleAdminTopServices(env, request);
       if (url.pathname === "/api/admin-orders-list" && method === "GET") return await handleAdminOrdersList(env, request);
@@ -1479,11 +1468,9 @@ export default {
       if (url.pathname.startsWith("/api/")) {
         return corsJson({ success: false, error: errorMessage(error) }, 500, origin);
       }
-
       if (env.ASSETS) {
         try { return await env.ASSETS.fetch(request); } catch {}
       }
-
       return new Response("HUPPY CUBE server error.", {
         status: 500,
         headers: { "Content-Type": "text/plain; charset=utf-8" },
