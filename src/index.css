@@ -439,4 +439,4 @@
 @media (max-width: 390px) {
   .admin-stats-grid { grid-template-columns: 1fr; }
   .admin-stat-card.wide strong { font-size: 11px; }
-                   }
+   }
