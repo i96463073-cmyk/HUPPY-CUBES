@@ -2033,3 +2033,85 @@
     border-radius: 10px !important;
   }
 }
+/* =========================================================
+   TOPBAR — FIXED FLEX LAYOUT
+========================================================= */
+
+.topbar {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  padding: 12px 4% !important;
+  overflow: hidden !important;
+}
+
+/* Brand takes available space, but can shrink */
+.topbar > .brand {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.topbar > .brand > div:last-child {
+  min-width: 0 !important;
+  overflow: hidden !important;
+}
+
+.topbar .brand-name {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.topbar .brand-subtitle {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* Button never shrinks below its natural size */
+.topbar > .support-button-wa,
+.topbar > .header-actions {
+  flex: 0 0 auto !important;
+  min-width: 0 !important;
+  max-width: 50% !important;
+}
+
+.topbar > .support-button-wa span {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* Mobile tweaks */
+@media (max-width: 700px) {
+  .topbar {
+    padding: 10px 10px !important;
+    gap: 6px !important;
+  }
+
+  .topbar .brand-icon {
+    width: 34px !important;
+    height: 34px !important;
+    border-radius: 10px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .topbar .brand-name {
+    font-size: 13px !important;
+  }
+
+  .topbar .brand-subtitle {
+    font-size: 7px !important;
+  }
+
+  .topbar > .support-button-wa {
+    max-width: 42% !important;
+    padding: 7px 10px !important;
+  }
+
+  .topbar > .support-button-wa span {
+    font-size: 11px !important;
+  }
+}
