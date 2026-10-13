@@ -1141,3 +1141,97 @@
   ) !important;
   border-top: 1px solid rgba(180, 160, 255, 0.15) !important;
    }
+/* =========================================================
+   ADMIN — FULL EDGE-TO-EDGE (remove all side gaps)
+========================================================= */
+
+/* Shell has zero horizontal padding */
+.admin-shell {
+  padding: 0 0 30px !important;
+  margin: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  border-radius: 0 !important;
+}
+
+/* Remove horizontal padding from all section wrappers */
+.admin-stats-grid {
+  padding: 0 !important;
+  gap: 6px !important;
+}
+
+.admin-orders {
+  padding: 0 !important;
+}
+
+.admin-search-row,
+.admin-filter-row {
+  padding: 0 8px !important;
+}
+
+/* Cards reach the screen edges */
+.admin-stat-card,
+.admin-stat-card.wide,
+.admin-order-row,
+.admin-top-services,
+.admin-settings,
+.admin-date-picker {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  border-radius: 12px !important;
+}
+
+/* Card corners still rounded but flush to edge */
+.admin-stat-card:first-child,
+.admin-stats-grid .admin-stat-card:nth-child(odd) {
+  border-top-left-radius: 12px !important;
+}
+
+.admin-stat-card:nth-child(even) {
+  border-top-right-radius: 12px !important;
+}
+
+/* Stats grid — no outer gap */
+.admin-stats-grid {
+  margin: 0 6px 10px !important;
+}
+
+/* Top services + settings card */
+.admin-top-services,
+.admin-settings {
+  margin: 10px 6px !important;
+}
+
+/* Date picker */
+.admin-date-picker {
+  margin: 10px 6px !important;
+}
+
+/* Order rows — no side gaps */
+.admin-orders-list {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.admin-order-row {
+  margin: 0 !important;
+}
+
+/* Top bar — full width */
+.admin-topbar {
+  padding: 16px 14px !important;
+  margin: 0 0 10px 0 !important;
+  border-radius: 0 !important;
+}
+
+/* Search input — full width minus small side pad */
+.admin-search-row input {
+  border-radius: 10px !important;
+  margin: 0 !important;
+}
+
+/* Filter buttons row */
+.admin-filter-row {
+  padding: 0 6px !important;
+  margin-bottom: 10px !important;
+}
