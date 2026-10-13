@@ -462,7 +462,8 @@ function deriveTracking(order) {
   const match = matched?.[1] || { current_step: 1, progress: 15 };
   return { current_step: match.current_step, progress: match.progress,
     status_label: statusLabel(order?.order_status) };
-     }/* =========================================================
+      }
+/* =========================================================
    TRACKING PROGRESS
 ========================================================= */
 
@@ -924,7 +925,7 @@ function App() {
           <a className="support-button support-button-wa"
              href={getWhatsAppUrl(trackingId)} target="_blank" rel="noreferrer">
             <WhatsAppIcon size={18} />
-            <span>WhatsApp Help</span>
+            <span>WhatsApp</span>
           </a>
         </header>
 
@@ -959,7 +960,7 @@ function App() {
           <a className="support-button support-button-wa"
              href={getWhatsAppUrl()} target="_blank" rel="noreferrer">
             <WhatsAppIcon size={18} />
-            <span>WhatsApp Support</span>
+            <span>WhatsApp</span>
           </a>
         </header>
 
@@ -1035,7 +1036,8 @@ function App() {
         </footer>
       </div>
     );
-         }  if (!shouldSkipTypeStage && !selectedType && selectedPlatform !== "All") {
+
+       if (!shouldSkipTypeStage && !selectedType && selectedPlatform !== "All") {
     return (
       <div className="app-shell">
         <div className="ambient ambient-one" />
@@ -1053,7 +1055,7 @@ function App() {
           <a className="support-button support-button-wa"
              href={getWhatsAppUrl()} target="_blank" rel="noreferrer">
             <WhatsAppIcon size={18} />
-            <span>WhatsApp Support</span>
+            <span>WhatsApp</span>
           </a>
         </header>
 
@@ -1120,7 +1122,7 @@ function App() {
           <a className="support-button support-button-wa"
              href={getWhatsAppUrl()} target="_blank" rel="noreferrer">
             <WhatsAppIcon size={18} />
-            <span>WhatsApp Support</span>
+            <span>WhatsApp</span>
           </a>
         </header>
 
@@ -1188,7 +1190,7 @@ function App() {
         <a className="support-button support-button-wa"
            href={getWhatsAppUrl()} target="_blank" rel="noreferrer">
           <WhatsAppIcon size={18} />
-          <span>WhatsApp Support</span>
+          <span>WhatsApp</span>
         </a>
       </header>
 
@@ -1449,3 +1451,5 @@ createRoot(document.getElementById("root")).render(
     <Root />
   </React.StrictMode>
 );
+     }
+   
