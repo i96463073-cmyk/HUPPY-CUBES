@@ -1977,3 +1977,59 @@
   .order-popup-detail { font-size: 10px; }
   .order-popup-time { font-size: 8px; }
                     }
+/* =========================================================
+   FIX — WhatsApp button overflow on mobile
+========================================================= */
+
+/* Top bar: allow flex shrink on both sides */
+.topbar {
+  gap: 8px !important;
+  padding: 12px 12px !important;
+}
+
+.brand {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+/* WhatsApp button: shrink instead of overflow */
+.support-button-wa {
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: 60%;
+  overflow: hidden;
+}
+
+.support-button-wa span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* On mobile, shorten the button */
+@media (max-width: 700px) {
+  .support-button-wa {
+    padding: 8px 10px !important;
+    max-width: 46%;
+  }
+
+  .support-button-wa span {
+    font-size: 11px;
+  }
+
+  .brand-name { font-size: 14px !important; }
+  .brand-subtitle { font-size: 7px !important; }
+  .brand-icon {
+    width: 34px !important;
+    height: 34px !important;
+    border-radius: 10px !important;
+  }
+}
