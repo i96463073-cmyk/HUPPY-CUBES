@@ -462,7 +462,7 @@ function deriveTracking(order) {
   const match = matched?.[1] || { current_step: 1, progress: 15 };
   return { current_step: match.current_step, progress: match.progress,
     status_label: statusLabel(order?.order_status) };
-      }
+     }
 /* =========================================================
    TRACKING PROGRESS
 ========================================================= */
@@ -1036,8 +1036,8 @@ function App() {
         </footer>
       </div>
     );
-
-       if (!shouldSkipTypeStage && !selectedType && selectedPlatform !== "All") {
+                                   }
+     if (!shouldSkipTypeStage && !selectedType && selectedPlatform !== "All") {
     return (
       <div className="app-shell">
         <div className="ambient ambient-one" />
@@ -1451,5 +1451,3 @@ createRoot(document.getElementById("root")).render(
     <Root />
   </React.StrictMode>
 );
-     }
-   
