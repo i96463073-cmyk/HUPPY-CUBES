@@ -2,57 +2,34 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import AdminDashboard from "./AdminDashboard.jsx";
+
 /* =========================================================
-   ADMIN PWA — dynamic manifest injection
-   Only activates on /admin route so customers never see it.
+   GLOBAL PWA SETUP — dark status bar everywhere
 ========================================================= */
 
-if (typeof document !== "undefined" && window.location.pathname === "/admin") {
-  // Manifest
-  let manifestLink = document.querySelector('link[rel="manifest"]');
-  if (!manifestLink) {
-    manifestLink = document.createElement("link");
-    manifestLink.rel = "manifest";
-    document.head.appendChild(manifestLink);
-  }
-  manifestLink.href = "/admin-manifest.json";
-
-  // Theme color for browser chrome
-  let themeMeta = document.querySelector('meta[name="theme-color"]');
-  if (!themeMeta) {
-    themeMeta = document.createElement("meta");
-    themeMeta.name = "theme-color";
-    document.head.appendChild(themeMeta);
-  }
-  themeMeta.content = "#05030d";
-
-  // iOS-specific metas
-  const iosMetas = [
-    { name: "apple-mobile-web-app-capable", content: "yes" },
-    { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
-    { name: "apple-mobile-web-app-title", content: "HUPPY ADMIN" },
-    { name: "mobile-web-app-capable", content: "yes" }
-  ];
-
-  for (const meta of iosMetas) {
-    let m = document.querySelector(`meta[name="${meta.name}"]`);
-    if (!m) {
-      m = document.createElement("meta");
-      m.name = meta.name;
-      document.head.appendChild(m);
+if (typeof document !== "undefined") {
+  const ensureThemeColor = () => {
+    let theme = document.querySelector('meta[name="theme-color"]');
+    if (!theme) {
+      theme = document.createElement("meta");
+      theme.name = "theme-color";
+      document.head.appendChild(theme);
     }
-    m.content = meta.content;
-  }
+    theme.content = "#05030d";
+  };
+  ensureThemeColor();
 
-  // Apple touch icon
-  let appleIcon = document.querySelector('link[rel="apple-touch-icon"]');
-  if (!appleIcon) {
-    appleIcon = document.createElement("link");
-    appleIcon.rel = "apple-touch-icon";
-    document.head.appendChild(appleIcon);
+  if (window.location.pathname === "/admin") {
+    let manifestLink = document.querySelector('link[rel="manifest"]');
+    if (!manifestLink) {
+      manifestLink = document.createElement("link");
+      manifestLink.rel = "manifest";
+      document.head.appendChild(manifestLink);
+    }
+    manifestLink.href = "/admin-manifest.json";
   }
-  appleIcon.href = "/android-chrome-192x192.png";
 }
+
 import {
   Search,
   ShoppingCart,
@@ -128,36 +105,11 @@ const TYPE_META = {
   Other: { emoji: "📦", icon: PackageCheck }
 };
 
-// Which types have sub-categories
 const SUB_TYPE_ORDER = {
-  Likes: [
-    "Post Likes",
-    "Reactions",
-    "Story Reactions",
-    "Live Reactions",
-    "Comment Likes",
-    "Auto Likes",
-    "Premium / Real Likes"
-  ],
-  Followers: [
-    "Standard Followers",
-    "High Quality",
-    "Bot / Cheap",
-    "Group Members",
-    "Subscribers",
-    "Premium Members"
-  ],
-  Views: [
-    "Post Views",
-    "Story Views",
-    "Reel / Shorts Views",
-    "Live Views",
-    "Impressions / Reach"
-  ],
-  Comments: [
-    "Random Comments",
-    "Custom Comments"
-  ]
+  Likes: ["Post Likes", "Reactions", "Story Reactions", "Live Reactions", "Comment Likes", "Auto Likes", "Premium / Real Likes"],
+  Followers: ["Standard Followers", "High Quality", "Bot / Cheap", "Group Members", "Subscribers", "Premium Members"],
+  Views: ["Post Views", "Story Views", "Reel / Shorts Views", "Live Views", "Impressions / Reach"],
+  Comments: ["Random Comments", "Custom Comments"]
 };
 
 const SUB_TYPE_META = {
@@ -185,7 +137,6 @@ const SUB_TYPE_META = {
 
 function detectPlatform(service) {
   const t = `${service?.name || ""} ${service?.category || ""} ${service?.type || ""}`.toLowerCase();
-
   if (t.includes("instagram") || t.includes("ig ") || t.includes(" ig")) return "Instagram";
   if (t.includes("tiktok") || t.includes("tik tok") || t.includes("tt ")) return "TikTok";
   if (t.includes("facebook") || t.includes("fb ") || t.includes("fb post") || t.includes("fb group")) return "Facebook";
@@ -204,69 +155,48 @@ function detectServiceType(service) {
   const type = String(service?.type || "").toLowerCase();
   const combined = `${name} ${category} ${type}`;
 
-  if (
-    type === "package" ||
-    combined.includes("premium accounts") || combined.includes("netflix") ||
-    combined.includes("chat gpt") || combined.includes("chatgpt") ||
-    combined.includes("capcut") || combined.includes("prime video") ||
-    combined.includes("account ") || combined.includes("vpn") ||
-    combined.includes("whatsapp numbers") || combined.includes("telegram numbers") ||
-    combined.includes("safaricom") || combined.includes("data bundles") ||
-    combined.includes("google maps reviews") || combined.includes("verification")
-  ) return "Accounts & Bundles";
+  if (type === "package" || combined.includes("premium accounts") || combined.includes("netflix") ||
+      combined.includes("chat gpt") || combined.includes("chatgpt") || combined.includes("capcut") ||
+      combined.includes("prime video") || combined.includes("account ") || combined.includes("vpn") ||
+      combined.includes("whatsapp numbers") || combined.includes("telegram numbers") ||
+      combined.includes("safaricom") || combined.includes("data bundles") ||
+      combined.includes("google maps reviews") || combined.includes("verification")) {
+    return "Accounts & Bundles";
+  }
 
-  if (
-    combined.includes("live stream") || combined.includes("live video") ||
-    combined.includes("live views") || combined.includes("live likes") ||
-    combined.includes("live reaction") || combined.includes("live pk") ||
-    combined.includes("battle points")
-  ) return "Live Stream";
+  if (combined.includes("live stream") || combined.includes("live video") || combined.includes("live views") ||
+      combined.includes("live likes") || combined.includes("live reaction") || combined.includes("live pk") ||
+      combined.includes("battle points")) return "Live Stream";
 
-  if (
-    combined.includes("watchtime") || combined.includes("watch time") ||
-    combined.includes("watch-time")
-  ) return "Watch Time";
+  if (combined.includes("watchtime") || combined.includes("watch time") || combined.includes("watch-time")) {
+    return "Watch Time";
+  }
 
-  if (
-    combined.includes("like") || combined.includes("reaction") ||
-    combined.includes("react") || combined.includes("heart")
-  ) return "Likes";
+  if (combined.includes("like") || combined.includes("reaction") || combined.includes("react") || combined.includes("heart")) {
+    return "Likes";
+  }
 
-  if (
-    combined.includes("view") || combined.includes("views") ||
-    combined.includes("play") || combined.includes("plays") ||
-    combined.includes("impression") || combined.includes("reach") ||
-    combined.includes("visits") || combined.includes("traffic") ||
-    combined.includes("stream") || combined.includes("listener")
-  ) return "Views";
+  if (combined.includes("view") || combined.includes("views") || combined.includes("play") ||
+      combined.includes("plays") || combined.includes("impression") || combined.includes("reach") ||
+      combined.includes("visits") || combined.includes("traffic") || combined.includes("stream") ||
+      combined.includes("listener")) return "Views";
 
   if (combined.includes("comment") || combined.includes("mention")) return "Comments";
 
-  if (
-    combined.includes("follower") || combined.includes("subscriber") ||
-    combined.includes("member") || combined.includes("subs") ||
-    combined.includes("sub ") || combined.includes("bot start")
-  ) return "Followers";
+  if (combined.includes("follower") || combined.includes("subscriber") || combined.includes("member") ||
+      combined.includes("subs") || combined.includes("sub ") || combined.includes("bot start")) {
+    return "Followers";
+  }
 
   if (combined.includes("save") || combined.includes("bookmark")) return "Saves";
-
-  if (
-    combined.includes("share") || combined.includes("repost") ||
-    combined.includes("retweet")
-  ) return "Shares";
-
+  if (combined.includes("share") || combined.includes("repost") || combined.includes("retweet")) return "Shares";
   return "Other";
 }
 
 function detectServiceSubType(service, type) {
   if (!type) return null;
-
-  // Types without sub-categories
-  if (
-    type === "Saves" || type === "Shares" || type === "Watch Time" ||
-    type === "Accounts & Bundles" || type === "Live Stream" ||
-    type === "Other"
-  ) return null;
+  if (type === "Saves" || type === "Shares" || type === "Watch Time" ||
+      type === "Accounts & Bundles" || type === "Live Stream" || type === "Other") return null;
 
   const name = String(service?.name || "").toLowerCase();
   const category = String(service?.category || "").toLowerCase();
@@ -274,77 +204,37 @@ function detectServiceSubType(service, type) {
 
   if (type === "Likes") {
     if (combined.includes("comment like") || combined.includes("comment likes") ||
-        combined.includes("under comment") || combined.includes("comments likes")) {
-      return "Comment Likes";
-    }
-    if (combined.includes("story") && (combined.includes("react") || combined.includes("like"))) {
-      return "Story Reactions";
-    }
-    if (combined.includes("live") && (combined.includes("react") || combined.includes("like"))) {
-      return "Live Reactions";
-    }
-    if (combined.includes("auto like") || combined.includes("auto likes") ||
-        combined.includes("auto react")) {
-      return "Auto Likes";
-    }
-    if (combined.includes("reaction") || combined.includes("react") ||
-        combined.includes("emoji")) {
-      return "Reactions";
-    }
-    if (
-      combined.includes("real") || combined.includes("supreme") ||
-      combined.includes("premium") || combined.includes("hq") ||
-      combined.includes("high quality") || combined.includes("👑") ||
-      combined.includes("💎") || combined.includes("old account") ||
-      combined.includes("old likes")
-    ) {
+        combined.includes("under comment") || combined.includes("comments likes")) return "Comment Likes";
+    if (combined.includes("story") && (combined.includes("react") || combined.includes("like"))) return "Story Reactions";
+    if (combined.includes("live") && (combined.includes("react") || combined.includes("like"))) return "Live Reactions";
+    if (combined.includes("auto like") || combined.includes("auto likes") || combined.includes("auto react")) return "Auto Likes";
+    if (combined.includes("reaction") || combined.includes("react") || combined.includes("emoji")) return "Reactions";
+    if (combined.includes("real") || combined.includes("supreme") || combined.includes("premium") ||
+        combined.includes("hq") || combined.includes("high quality") || combined.includes("👑") ||
+        combined.includes("💎") || combined.includes("old account") || combined.includes("old likes")) {
       return "Premium / Real Likes";
     }
     return "Post Likes";
   }
 
   if (type === "Followers") {
-    if (combined.includes("premium member") || combined.includes("prem member")) {
-      return "Premium Members";
-    }
-    if (combined.includes("group member") || combined.includes("group members")) {
-      return "Group Members";
-    }
-    if (
-      combined.includes("subscriber") || combined.includes("sub ") ||
-      combined.includes("subs") || combined.includes("sub →") ||
-      combined.includes("yt subs") || combined.includes("yt sub")
-    ) {
-      return "Subscribers";
-    }
-    if (
-      combined.includes("bot") || combined.includes("boost") ||
-      combined.includes("cheap") || combined.includes("budget")
-    ) {
-      return "Bot / Cheap";
-    }
-    if (
-      combined.includes("supreme") || combined.includes("non drop") ||
-      combined.includes("non-drop") || combined.includes("nondrop") ||
-      combined.includes("hq") || combined.includes("high quality") ||
-      combined.includes("stable") || combined.includes("real")
-    ) {
-      return "High Quality";
-    }
+    if (combined.includes("premium member") || combined.includes("prem member")) return "Premium Members";
+    if (combined.includes("group member") || combined.includes("group members")) return "Group Members";
+    if (combined.includes("subscriber") || combined.includes("sub ") || combined.includes("subs") ||
+        combined.includes("sub →") || combined.includes("yt subs") || combined.includes("yt sub")) return "Subscribers";
+    if (combined.includes("bot") || combined.includes("boost") || combined.includes("cheap") || combined.includes("budget")) return "Bot / Cheap";
+    if (combined.includes("supreme") || combined.includes("non drop") || combined.includes("non-drop") ||
+        combined.includes("nondrop") || combined.includes("hq") || combined.includes("high quality") ||
+        combined.includes("stable") || combined.includes("real")) return "High Quality";
     return "Standard Followers";
   }
 
   if (type === "Views") {
     if (combined.includes("story")) return "Story Views";
-    if (
-      combined.includes("reel") || combined.includes("short") ||
-      combined.includes("shorts")
-    ) return "Reel / Shorts Views";
+    if (combined.includes("reel") || combined.includes("short") || combined.includes("shorts")) return "Reel / Shorts Views";
     if (combined.includes("live")) return "Live Views";
-    if (
-      combined.includes("impression") || combined.includes("reach") ||
-      combined.includes("visit") || combined.includes("profile visit")
-    ) return "Impressions / Reach";
+    if (combined.includes("impression") || combined.includes("reach") ||
+        combined.includes("visit") || combined.includes("profile visit")) return "Impressions / Reach";
     return "Post Views";
   }
 
@@ -362,8 +252,7 @@ function getCustomerRate(service) {
 
 function formatKES(value) {
   return `KSh ${Number(value || 0).toLocaleString("en-KE", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
+    minimumFractionDigits: 2, maximumFractionDigits: 2
   })}`;
 }
 
@@ -573,7 +462,7 @@ function deriveTracking(order) {
   const match = matched?.[1] || { current_step: 1, progress: 15 };
   return { current_step: match.current_step, progress: match.progress,
     status_label: statusLabel(order?.order_status) };
-  }/* =========================================================
+     }/* =========================================================
    TRACKING PROGRESS
 ========================================================= */
 
@@ -850,14 +739,12 @@ function App() {
     if (!selectedType) return [];
     const subTypeOrder = SUB_TYPE_ORDER[selectedType];
     if (!subTypeOrder) return [];
-
     const counts = {};
     for (const s of typeServices) {
       const st = s.serviceSubType;
       if (!st) continue;
       counts[st] = (counts[st] || 0) + 1;
     }
-
     return subTypeOrder
       .filter((st) => counts[st] > 0)
       .map((st) => ({ subType: st, count: counts[st], ...(SUB_TYPE_META[st] || {}) }));
@@ -1148,7 +1035,7 @@ function App() {
         </footer>
       </div>
     );
-                     }  if (!shouldSkipTypeStage && !selectedType && selectedPlatform !== "All") {
+         }  if (!shouldSkipTypeStage && !selectedType && selectedPlatform !== "All") {
     return (
       <div className="app-shell">
         <div className="ambient ambient-one" />
@@ -1545,6 +1432,10 @@ function App() {
     </div>
   );
 }
+
+/* =========================================================
+   ROOT — ROUTES /admin TO ADMIN DASHBOARD
+========================================================= */
 
 function Root() {
   if (window.location.pathname === "/admin") {
