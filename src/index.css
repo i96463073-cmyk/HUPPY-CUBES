@@ -828,3 +828,316 @@
   opacity: 0.8;
   transition-duration: 0.06s !important;
 }
+/* =========================================================
+   ADMIN — FINAL v2: Fake glass + edge-to-edge + tap swing
+========================================================= */
+
+/* Edge-to-edge shell */
+.admin-shell {
+  padding: 0 0 30px !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  background:
+    radial-gradient(circle at 20% 5%, rgba(124, 58, 237, 0.22) 0%, transparent 40%),
+    radial-gradient(circle at 85% 95%, rgba(6, 182, 212, 0.15) 0%, transparent 40%),
+    #05030d !important;
+  background-attachment: fixed !important;
+  overflow-x: hidden;
+}
+
+.admin-shell::before,
+.admin-shell::after {
+  display: none !important;
+}
+
+/* Top bar spans full width */
+.admin-topbar {
+  padding: 16px 14px !important;
+  margin-bottom: 12px !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+/* Every section: minimal side padding, tiny gap between cards */
+.admin-stats-grid {
+  padding: 0 6px !important;
+  gap: 6px !important;
+  margin-bottom: 10px !important;
+}
+
+.admin-date-picker {
+  margin: 10px 6px !important;
+  padding: 8px 12px !important;
+}
+
+.admin-orders {
+  padding: 0 6px !important;
+}
+
+.admin-search-row,
+.admin-filter-row {
+  padding: 0 2px !important;
+}
+
+.admin-orders-list {
+  gap: 6px !important;
+}
+
+.admin-top-services,
+.admin-settings {
+  margin: 10px 6px !important;
+  padding: 14px !important;
+}
+
+/* =========================================================
+   FAKE LIQUID GLASS — no backdrop-filter needed
+   Uses gradient + border + inner shine to fake the look
+========================================================= */
+
+.admin-stat-card {
+  background: linear-gradient(
+    145deg,
+    rgba(120, 80, 220, 0.32) 0%,
+    rgba(60, 40, 140, 0.22) 50%,
+    rgba(20, 40, 120, 0.28) 100%
+  ) !important;
+  border: 1px solid rgba(180, 160, 255, 0.28) !important;
+  border-radius: 14px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.35),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.15),
+    0 4px 14px rgba(0, 0, 0, 0.35) !important;
+  position: relative;
+  overflow: hidden;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Top-left specular highlight (the iPhone "shine") */
+.admin-stat-card::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  border-radius: inherit !important;
+  background: radial-gradient(
+    ellipse 90% 70% at 0% 0%,
+    rgba(255, 255, 255, 0.35) 0%,
+    transparent 55%
+  ) !important;
+  pointer-events: none !important;
+  display: block !important;
+}
+
+.admin-stat-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.admin-stat-card.highlight {
+  background: linear-gradient(
+    145deg,
+    rgba(34, 211, 238, 0.35) 0%,
+    rgba(120, 80, 220, 0.22) 50%,
+    rgba(37, 99, 235, 0.28) 100%
+  ) !important;
+  border-color: rgba(103, 232, 249, 0.4) !important;
+}
+
+.admin-stat-card.wide {
+  background: linear-gradient(
+    145deg,
+    rgba(120, 80, 220, 0.22) 0%,
+    rgba(20, 40, 120, 0.18) 100%
+  ) !important;
+  border-color: rgba(180, 160, 255, 0.22) !important;
+}
+
+/* Top services card */
+.admin-top-services {
+  background: linear-gradient(
+    145deg,
+    rgba(120, 80, 220, 0.22) 0%,
+    rgba(20, 40, 120, 0.18) 100%
+  ) !important;
+  border: 1px solid rgba(180, 160, 255, 0.22) !important;
+  border-radius: 14px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 4px 14px rgba(0, 0, 0, 0.35) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Order rows — lighter glass */
+.admin-order-row {
+  background: linear-gradient(
+    145deg,
+    rgba(120, 80, 220, 0.18) 0%,
+    rgba(20, 40, 120, 0.14) 100%
+  ) !important;
+  border: 1px solid rgba(180, 160, 255, 0.18) !important;
+  border-radius: 12px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 3px 10px rgba(0, 0, 0, 0.3) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Filter tabs */
+.admin-filter-row button {
+  background: linear-gradient(
+    145deg,
+    rgba(120, 80, 220, 0.22) 0%,
+    rgba(20, 40, 120, 0.18) 100%
+  ) !important;
+  border: 1px solid rgba(180, 160, 255, 0.22) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 2px 8px rgba(0, 0, 0, 0.25) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.admin-filter-row button.active {
+  background: linear-gradient(
+    145deg,
+    rgba(139, 92, 246, 0.65) 0%,
+    rgba(37, 99, 235, 0.45) 100%
+  ) !important;
+  border-color: rgba(200, 180, 255, 0.5) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 3px 14px rgba(124, 58, 237, 0.5) !important;
+}
+
+/* Date picker */
+.admin-date-picker {
+  background: linear-gradient(
+    145deg,
+    rgba(120, 80, 220, 0.22) 0%,
+    rgba(20, 40, 120, 0.18) 100%
+  ) !important;
+  border: 1px solid rgba(180, 160, 255, 0.22) !important;
+  border-radius: 12px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 3px 10px rgba(0, 0, 0, 0.3) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.admin-date-picker button {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(180, 160, 255, 0.22) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.admin-date-picker button.active {
+  background: linear-gradient(
+    145deg,
+    rgba(139, 92, 246, 0.7) 0%,
+    rgba(37, 99, 235, 0.5) 100%
+  ) !important;
+  border-color: rgba(200, 180, 255, 0.5) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    0 3px 12px rgba(124, 58, 237, 0.45) !important;
+}
+
+/* Search input */
+.admin-search-row input {
+  background: linear-gradient(
+    145deg,
+    rgba(120, 80, 220, 0.18) 0%,
+    rgba(20, 40, 120, 0.14) 100%
+  ) !important;
+  border: 1px solid rgba(180, 160, 255, 0.22) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* Top bar — keep the ONLY backdrop-filter for the scroll blur effect */
+.admin-topbar {
+  background: rgba(5, 3, 13, 0.75) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+}
+
+/* Balance badge */
+.admin-balance-badge {
+  background: linear-gradient(
+    145deg,
+    rgba(34, 197, 94, 0.22) 0%,
+    rgba(34, 197, 94, 0.12) 100%
+  ) !important;
+  border: 1px solid rgba(34, 197, 94, 0.4) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.admin-balance-badge.low {
+  background: linear-gradient(
+    145deg,
+    rgba(244, 63, 94, 0.25) 0%,
+    rgba(244, 63, 94, 0.12) 100%
+  ) !important;
+  border-color: rgba(244, 63, 94, 0.5) !important;
+}
+
+/* =========================================================
+   TAP SWING — keep, works on the light cards now
+========================================================= */
+
+.admin-topbar-actions button,
+.admin-date-picker button,
+.admin-filter-row button,
+.admin-order-row,
+.admin-retry-btn,
+.admin-save-btn,
+.admin-preset-row button,
+.admin-balance-badge {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition:
+    transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.15s ease !important;
+}
+
+.admin-topbar-actions button:active,
+.admin-date-picker button:active,
+.admin-filter-row button:active,
+.admin-retry-btn:active,
+.admin-save-btn:active,
+.admin-preset-row button:active {
+  transform: scale(0.85) !important;
+  opacity: 0.7;
+  transition-duration: 0.06s !important;
+}
+
+.admin-order-row:active {
+  transform: scale(0.965) !important;
+  opacity: 0.85;
+  transition-duration: 0.08s !important;
+}
+
+.admin-balance-badge:active {
+  transform: scale(0.9) !important;
+  opacity: 0.8;
+  transition-duration: 0.06s !important;
+}
+
+/* Detail panel also gets the glass look */
+.admin-order-detail {
+  background: linear-gradient(
+    145deg,
+    rgba(120, 80, 220, 0.12) 0%,
+    rgba(20, 40, 120, 0.08) 100%
+  ) !important;
+  border-top: 1px solid rgba(180, 160, 255, 0.15) !important;
+   }
