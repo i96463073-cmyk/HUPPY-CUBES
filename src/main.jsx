@@ -63,10 +63,13 @@ import {
   Share2,
   Radio,
   Timer,
-  Gift
+  Gift,
+  Copy,
+  Users as UsersIcon
 } from "lucide-react";
 
 const WHATSAPP_NUMBER = "254796681162";
+const REF_DISCOUNT_PCT = 10;
 
 const PLATFORM_ORDER = [
   "All", "Instagram", "TikTok", "Facebook", "YouTube",
@@ -136,11 +139,7 @@ const SUB_TYPE_META = {
 };
 
 /* ---------------------------------------------------------
-   Text normalizer.
-   DenzGains names/categories sometimes use fancy Unicode
-   alphabets (𝐅𝐁, 𝗙𝗕, ＦＢ, 𝔽𝔹) which do NOT lowercase to
-   plain ASCII. NFKD converts them down so `.includes("fb")`
-   and friends actually match.
+   Text normalizer — collapses fancy Unicode to ASCII
 --------------------------------------------------------- */
 function normalizeText(value) {
   return String(value || "").normalize("NFKD").toLowerCase();
@@ -152,7 +151,7 @@ function detectPlatform(service) {
   );
   if (t.includes("instagram") || t.includes("ig ") || t.includes(" ig") || t.includes("ig post") || t.includes("ig story") || t.includes("ig reel")) return "Instagram";
   if (t.includes("tiktok") || t.includes("tik tok") || t.includes("tt ") || t.includes(" tt")) return "TikTok";
-  if (t.includes("facebook") || t.includes("fb ") || t.includes("fb post") || t.includes("fb group") || t.includes("fb ") || t.includes(" fb")) return "Facebook";
+  if (t.includes("facebook") || t.includes("fb ") || t.includes("fb post") || t.includes("fb group") || t.includes(" fb")) return "Facebook";
   if (t.includes("youtube") || t.includes("yt ") || t.includes("yt-") || t.includes(" yt")) return "YouTube";
   if (t.includes("telegram") || t.includes("tg ")) return "Telegram";
   if (t.includes("twitter") || t.includes(" x ") || t.startsWith("x ") || t.includes(" x/") || t.includes("x (") || t.includes(" x.")) return "Twitter / X";
@@ -222,7 +221,6 @@ function detectServiceSubType(service, type) {
     if (combined.includes("live") && (combined.includes("react") || combined.includes("like"))) return "Live Reactions";
     if (combined.includes("auto like") || combined.includes("auto likes") || combined.includes("auto react")) return "Auto Likes";
 
-    /* Explicit "Post Likes" / "Photo Likes" phrase wins. */
     if (combined.includes("post like") || combined.includes("post/photo like") ||
         combined.includes("post / photo like") || combined.includes("photo like") ||
         combined.includes("post/photo likes") || combined.includes("photo likes")) {
@@ -230,8 +228,6 @@ function detectServiceSubType(service, type) {
     }
 
     if (combined.includes("reaction") || combined.includes("react") || combined.includes("emoji")) return "Reactions";
-    /* Everything else falls into Post Likes — HQ / Real / Premium /
-       Old Accounts / Supreme all share this bucket now. */
     return "Post Likes";
   }
 
@@ -262,7 +258,53 @@ function detectServiceSubType(service, type) {
   }
 
   return null;
-   }
+}
+
+/* ---------------------------------------------------------
+   REFERRAL HELPERS
+--------------------------------------------------------- */
+
+function formatDuration(ms) {
+  if (!ms || ms <= 0) return "0m";
+  const total = Math.floor(ms / 60000);
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+function applyDiscount(amount, pct) {
+  if (!pct) return Number(amount || 0);
+  return Number(amount || 0) * (100 - pct) / 100;
+}
+
+function readRefCodeFromUrl() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("ref");
+    if (code) {
+      const upper = String(code).toUpperCase().slice(0, 12);
+      localStorage.setItem("huppy_cube_ref_code", upper);
+      return upper;
+    }
+  } catch {}
+  try {
+    return localStorage.getItem("huppy_cube_ref_code") || "";
+  } catch {
+    return "";
+  }
+}
+
+function readStoredPhone() {
+  try { return localStorage.getItem("huppy_cube_phone") || ""; } catch { return ""; }
+}
+
+function saveStoredPhone(phone) {
+  try {
+    if (phone) localStorage.setItem("huppy_cube_phone", phone);
+  } catch {}
+}
+
 function getCustomerRate(service) {
   return Number(service?.customer_rate ?? service?.price ?? service?.rate ?? 0);
 }
@@ -284,8 +326,7 @@ function getWhatsAppUrl(trackingId = "") {
     ? `Hello HUPPY CUBE, I need help with my order. Tracking ID: ${trackingId}`
     : "Hello HUPPY CUBE, I need help with my order.";
   return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
-}
-
+     }
 const TICKER_SERVICES = [
   { platform: "Instagram", type: "Likes", emoji: "❤️", minQty: 500, maxQty: 5000 },
   { platform: "Instagram", type: "Followers", emoji: "👥", minQty: 200, maxQty: 2000 },
@@ -432,6 +473,117 @@ function TrustBadges() {
   );
 }
 
+/* =========================================================
+   REFERRAL — banner + my referrals card
+========================================================= */
+
+function ReferralBanner({ discount, onTimer, expiresAt }) {
+  const [remaining, setRemaining] = useState(expiresAt ? expiresAt - Date.now() : 0);
+
+  useEffect(() => {
+    if (!expiresAt) return;
+    const tick = () => setRemaining(expiresAt - Date.now());
+    tick();
+    const t = setInterval(tick, 60000);
+    return () => clearInterval(t);
+  }, [expiresAt]);
+
+  if (!discount?.active) return null;
+
+  return (
+    <div className="referral-banner">
+      <div className="referral-banner-icon">🎉</div>
+      <div className="referral-banner-body">
+        <strong>{REF_DISCOUNT_PCT}% referral discount active</strong>
+        <span>
+          {remaining > 0
+            ? `Expires in ${formatDuration(remaining)} — prices below already show your discount.`
+            : "Prices below already show your discount."}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function MyReferralsCard({ phone, onPhoneSubmit, referralInfo, loading }) {
+  const [input, setInput] = useState(phone || "");
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    if (!referralInfo?.share_url) return;
+    try {
+      await navigator.clipboard?.writeText(referralInfo.share_url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {}
+  }
+
+  return (
+    <div className="referral-card">
+      <div className="referral-card-header">
+        <div className="referral-card-icon">🎁</div>
+        <div className="referral-card-title">
+          <strong>Refer friends, earn {REF_DISCOUNT_PCT}% off</strong>
+          <span>Each friend who orders gives you 24 hours of discount</span>
+        </div>
+      </div>
+
+      {!referralInfo ? (
+        <div className="referral-card-form">
+          <label className="field">
+            <span>Your phone number</span>
+            <input type="tel" value={input}
+                   onChange={(e) => setInput(e.target.value)}
+                   placeholder="07XXXXXXXX" />
+          </label>
+          <button type="button"
+                  className="referral-btn"
+                  disabled={loading || !input.trim()}
+                  onClick={() => onPhoneSubmit(input.trim())}>
+            {loading ? <Loader2 className="spin" size={17} /> : "Get my referral link"}
+          </button>
+        </div>
+      ) : (
+        <div className="referral-card-body">
+          <div className="referral-link-box">
+            <span className="referral-link-label">Your share link</span>
+            <div className="referral-link-row">
+              <input type="text" readOnly value={referralInfo.share_url} />
+              <button type="button" className="referral-copy-btn" onClick={handleCopy}>
+                {copied ? <CheckCircle2 size={17} /> : <Copy size={17} />}
+              </button>
+            </div>
+          </div>
+
+          <div className="referral-stats">
+            <div className="referral-stat">
+              <strong>{referralInfo.referrals?.confirmed ?? 0}</strong>
+              <span>Confirmed</span>
+            </div>
+            <div className="referral-stat">
+              <strong>{referralInfo.referrals?.total ?? 0}</strong>
+              <span>Total invites</span>
+            </div>
+            <div className="referral-stat">
+              <strong>{referralInfo.code}</strong>
+              <span>Your code</span>
+            </div>
+          </div>
+
+          <p className="referral-hint">
+            Share this link. When a new customer places their first order through it,
+            you get 24 hours of {REF_DISCOUNT_PCT}% off — up to 7 days at a time.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* =========================================================
+   STATUS LABELS + TRACKING PROGRESS
+========================================================= */
+
 function statusLabel(status) {
   if (!status) return "Awaiting Payment";
   const v = String(status).toLowerCase().trim();
@@ -480,9 +632,6 @@ function deriveTracking(order) {
   return { current_step: match.current_step, progress: match.progress,
     status_label: statusLabel(order?.order_status) };
 }
-/* =========================================================
-   TRACKING PROGRESS
-========================================================= */
 
 function TrackingProgress({ tracking }) {
   const currentStep = Number(tracking?.current_step || 1);
@@ -573,6 +722,9 @@ function OrderTracking({ trackingId, initialData, onClose }) {
     );
   }
 
+  const discountPct = Number(order?.discount_pct || 0);
+  const originalAmount = Number(order?.original_amount || 0);
+
   return (
     <div className="tracking-screen">
       <div className="tracking-header">
@@ -631,7 +783,17 @@ function OrderTracking({ trackingId, initialData, onClose }) {
             </div>
             <div className="tracking-detail">
               <span>Payment</span>
-              <strong>{order.payment_status || "Pending"}</strong>
+              <strong>
+                {discountPct > 0 && originalAmount > 0 ? (
+                  <>
+                    <s className="price-strike">{formatKES(originalAmount)}</s>
+                    {" "}{formatKES(order.customer_amount)}
+                    <span className="discount-pill">-{discountPct}%</span>
+                  </>
+                ) : (
+                  order.payment_status || "Pending"
+                )}
+              </strong>
             </div>
             <div className="tracking-detail">
               <span>Supplier Order</span>
@@ -665,7 +827,7 @@ function OrderTracking({ trackingId, initialData, onClose }) {
       )}
     </div>
   );
-  }
+   }
 /* =========================================================
    MAIN APP
 ========================================================= */
@@ -687,8 +849,25 @@ function App() {
   const [error, setError] = useState("");
   const [showTracking, setShowTracking] = useState(false);
 
+  // Referral state
+  const [refCode, setRefCode] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
+  const [referralInfo, setReferralInfo] = useState(null);
+  const [referralLoading, setReferralLoading] = useState(false);
+
   useEffect(() => {
     loadServices();
+
+    const code = readRefCodeFromUrl();
+    if (code) setRefCode(code);
+
+    const storedPhone = readStoredPhone();
+    if (storedPhone) {
+      setCustomerPhone(storedPhone);
+      setPhone(storedPhone);
+      loadReferralInfo(storedPhone);
+    }
+
     const params = new URLSearchParams(window.location.search);
     const returnedTrackingId = params.get("tracking_id");
     if (returnedTrackingId) {
@@ -697,6 +876,25 @@ function App() {
       setShowTracking(true);
     }
   }, []);
+
+  async function loadReferralInfo(phoneValue) {
+    if (!phoneValue) return;
+    setReferralLoading(true);
+    try {
+      const res = await fetch(
+        `/api/referral-info?phone=${encodeURIComponent(phoneValue)}`,
+        { credentials: "same-origin", cache: "no-store" }
+      );
+      const data = await res.json();
+      if (res.ok && data?.success) {
+        setReferralInfo(data);
+      }
+    } catch (err) {
+      console.error("Referral info load failed:", err);
+    } finally {
+      setReferralLoading(false);
+    }
+  }
 
   async function loadServices() {
     try {
@@ -809,11 +1007,16 @@ function App() {
     setSearch("");
   }, [selectedPlatform]);
 
+  const activeDiscountPct = referralInfo?.discount?.active
+    ? Number(referralInfo.discount.percent || REF_DISCOUNT_PCT)
+    : 0;
+  const discountExpiresAt = referralInfo?.discount?.expires_at || 0;
+
   function openOrder(service) {
     setSelectedService(service);
     setQuantity(String(service.min_quantity ?? service.min ?? ""));
     setLink("");
-    setPhone("");
+    setPhone(customerPhone || phone || "");
     setError("");
     setOrderResult(null);
   }
@@ -835,6 +1038,15 @@ function App() {
     setSelectedService(null);
     setOrderResult(null);
     setError("");
+  }
+
+  function handleReferralPhoneSubmit(phoneValue) {
+    const clean = phoneValue.replace(/\s+/g, "");
+    if (!clean) return;
+    setCustomerPhone(clean);
+    saveStoredPhone(clean);
+    setPhone(clean);
+    loadReferralInfo(clean);
   }
 
   async function submitOrder(event) {
@@ -875,7 +1087,8 @@ function App() {
           service_name: selectedService.name,
           quantity: qty,
           link: link.trim(),
-          phone: phone.trim()
+          phone: phone.trim(),
+          ref_code: refCode || undefined
         })
       });
 
@@ -897,6 +1110,13 @@ function App() {
         throw new Error(
           "Payment was created without a tracking ID. Please contact support before trying again."
         );
+      }
+
+      // Remember this phone as the customer's phone
+      const cleanPhone = phone.trim();
+      if (cleanPhone && !customerPhone) {
+        setCustomerPhone(cleanPhone);
+        saveStoredPhone(cleanPhone);
       }
 
       setTrackingId(data.tracking_id);
@@ -981,6 +1201,11 @@ function App() {
         </header>
 
         <main className="main-content">
+          <ReferralBanner
+            discount={referralInfo?.discount}
+            expiresAt={discountExpiresAt}
+          />
+
           <section className="hero-section">
             <div className="hero-glow">
               <Sparkles size={18} />
@@ -1010,6 +1235,13 @@ function App() {
           <TrackOrderCard
             hasTrackingId={Boolean(trackingId)}
             onTrack={() => openTracking()}
+          />
+
+          <MyReferralsCard
+            phone={customerPhone}
+            onPhoneSubmit={handleReferralPhoneSubmit}
+            referralInfo={referralInfo}
+            loading={referralLoading}
           />
 
           <section className="services-section">
@@ -1077,6 +1309,7 @@ function App() {
         </header>
 
         <main className="main-content">
+          <ReferralBanner discount={referralInfo?.discount} expiresAt={discountExpiresAt} />
           <section className="services-section">
             <div className="section-heading">
               <div>
@@ -1212,6 +1445,7 @@ function App() {
       </header>
 
       <main className="main-content">
+        <ReferralBanner discount={referralInfo?.discount} expiresAt={discountExpiresAt} />
         <section className="services-section">
           <div className="section-heading">
             <div>
@@ -1287,6 +1521,11 @@ function App() {
               {filteredServices.map((service) => {
                 const Icon = PLATFORM_ICONS[service.platform] || Globe;
                 const customerRate = getCustomerRate(service);
+                const unitPrice = customerRate / 2;
+                const discounted = activeDiscountPct > 0
+                  ? applyDiscount(unitPrice, activeDiscountPct)
+                  : unitPrice;
+
                 return (
                   <article className="service-card" key={service.service_id}>
                     <div className="service-card-top">
@@ -1307,10 +1546,20 @@ function App() {
                     <div className="service-bottom">
                       <div>
                         <small>Starting from</small>
-                        <strong>
-                          {formatKES(customerRate / 2)}
-                          <em>/500</em>
-                        </strong>
+                        {activeDiscountPct > 0 ? (
+                          <>
+                            <s className="price-strike">{formatKES(unitPrice)}</s>{" "}
+                            <strong>
+                              {formatKES(discounted)}
+                              <em>/500</em>
+                            </strong>
+                          </>
+                        ) : (
+                          <strong>
+                            {formatKES(unitPrice)}
+                            <em>/500</em>
+                          </strong>
+                        )}
                       </div>
                       <button type="button" className="order-button" onClick={() => openOrder(service)}>
                         Order <ShoppingCart size={17} />
@@ -1382,13 +1631,29 @@ function App() {
                            placeholder="07XXXXXXXX" />
                   </label>
 
-                  <div className="total-box">
-                    <div>
-                      <span>Total</span>
-                      <small>{Number(quantity || 0).toLocaleString()} units</small>
-                    </div>
-                    <strong>{formatKES(priceFor(selectedService, quantity))}</strong>
-                  </div>
+                  {(() => {
+                    const rawTotal = priceFor(selectedService, quantity);
+                    const shown = activeDiscountPct > 0
+                      ? applyDiscount(rawTotal, activeDiscountPct)
+                      : rawTotal;
+                    return (
+                      <div className="total-box">
+                        <div>
+                          <span>Total</span>
+                          <small>{Number(quantity || 0).toLocaleString()} units</small>
+                        </div>
+                        {activeDiscountPct > 0 ? (
+                          <strong>
+                            <s className="price-strike">{formatKES(rawTotal)}</s>{" "}
+                            {formatKES(shown)}
+                            <span className="discount-pill">-{activeDiscountPct}%</span>
+                          </strong>
+                        ) : (
+                          <strong>{formatKES(rawTotal)}</strong>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {error && <div className="form-error">{error}</div>}
 
@@ -1424,7 +1689,7 @@ function App() {
                   </div>
                   <div>
                     <span>Amount</span>
-                    <strong>{formatKES(priceFor(selectedService, quantity))}</strong>
+                    <strong>{formatKES(orderResult.amount ?? priceFor(selectedService, quantity))}</strong>
                   </div>
                 </div>
 
