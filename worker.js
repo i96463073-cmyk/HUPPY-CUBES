@@ -1171,7 +1171,185 @@ async function handleOrderPayment(env, request) {
   if (!pesapalTrackingId) {
     const message = `PesaPal did not return an order tracking ID`;
     await updateOrder(env, trackingId, {
-      payment_status: "PA
+            payment_status: "PAYMENT_SETUP_FAILED",
+      order_status: "Payment Setup Error",
+      error_message: message, supplier_response: JSON.stringify(pesapal),
+    });
+    if (referralCodeUsed && referralReferrerPhone) {
+      try {
+        await env.DB.prepare(
+          `DELETE FROM referrals WHERE referrer_phone = ? AND referee_phone = ? AND status = 'PENDING'`
+        ).bind(referralReferrerPhone, phone).run();
+      } catch (e) { console.error("Referral cleanup failed:", e); }
+    }
+    return corsJson({
+      success: false, tracking_id: trackingId,
+      error: "PesaPal did not return a tracking ID.", details: message,
+    }, 500);
+  }
+
+  await updateOrder(env, trackingId, {
+    pesapal_order_tracking_id: pesapalTrackingId,
+    pesapal_merchant_reference: returnedMerchantReference || merchantReference,
+    payment_status: "PENDING", order_status: "Payment Pending",
+    error_message: null,
+  });
+
+  return corsJson({
+    success: true, tracking_id: trackingId,
+    pesapal_order_tracking_id: pesapalTrackingId,
+    merchant_reference: returnedMerchantReference || merchantReference,
+    redirect_url: redirectUrl,
+    amount: customerAmount, currency: "KES",
+    original_amount: originalAmount,
+    discount_pct: discountPct,
+    service_id: supplierService.service_id,
+    service_name: supplierService.name,
+    quantity, min_quantity: min, max_quantity: max,
+  }, 200, request.headers.get("Origin") || "*");
+}
+
+async function handleOrderStatus(env, request) {
+  const url = new URL(request.url);
+  const trackingId = text(url.searchParams.get("tracking_id"));
+  if (!trackingId) return corsJson({ success: false, error: "tracking_id is required." }, 400);
+
+  let order = await getOrderByTrackingId(env, trackingId);
+  if (!order) return corsJson({ success: false, error: "Order not found." }, 404);
+
+  if (order.supplier_order_id) {
+    const alreadyTerminal = isTerminalStatus(order.order_status);
+    if (!alreadyTerminal) {
+      try {
+        const supplierStatus = await getDenzGainsOrderStatus(env, order.supplier_order_id);
+        const rawStatus = text(supplierStatus?.status ?? supplierStatus?.order_status);
+        const normalized = normalizeSupplierStatus(rawStatus);
+        const updates = {
+          supplier_response: JSON.stringify(supplierStatus),
+          error_message: null,
+        };
+        if (normalized) updates.order_status = normalized;
+        if (!normalized && rawStatus) updates.error_message = `Unknown supplier status: ${rawStatus}`;
+        await updateOrder(env, trackingId, updates);
+        order = await getOrderByTrackingId(env, trackingId);
+      } catch (error) {
+        const msg = errorMessage(error);
+        console.error("Supplier status sync failed:", msg);
+        if (!isTerminalStatus(order.order_status)) {
+          await updateOrder(env, trackingId, { error_message: `Supplier status check failed: ${msg}` });
+          order = await getOrderByTrackingId(env, trackingId);
+        }
+      }
+    }
+  }
+
+  if (order?.pesapal_order_tracking_id && !order?.supplier_order_id &&
+      String(order?.order_status || "").toLowerCase() !== "submitting" &&
+      !recentlyFailedSubmission(order)) {
+    try { await processPaidOrder(env, order); }
+    catch (error) { console.error("Order status payment processing:", errorMessage(error)); }
+    order = await getOrderByTrackingId(env, trackingId);
+  }
+
+  const latest = order;
+  if (!latest) return corsJson({ success: false, error: "Order not found." }, 404);
+
+  return corsJson({
+    success: true,
+    order: {
+      tracking_id: latest.tracking_id, service_id: latest.service_id,
+      service_name: latest.service_name, quantity: latest.quantity,
+      link: latest.link, phone: latest.phone,
+      customer_amount: latest.customer_amount, currency: "KES",
+      original_amount: latest.original_amount,
+      discount_pct: latest.discount_pct,
+      payment_status: latest.payment_status, order_status: latest.order_status,
+      pesapal_order_tracking_id: latest.pesapal_order_tracking_id,
+      supplier_order_id: latest.supplier_order_id,
+      error_message: latest.error_message,
+      created_at: latest.created_at, updated_at: latest.updated_at,
+    },
+  }, 200, request.headers.get("Origin") || "*");
+}
+
+async function handlePaymentCallback(env, request) {
+  const notification = await readPesapalNotification(request);
+  let order = null;
+
+  if (notification.merchantReference) order = await getOrderByTrackingId(env, notification.merchantReference);
+  if (!order && notification.merchantReference) order = await getOrderByMerchantReference(env, notification.merchantReference);
+  if (!order && notification.orderTrackingId) order = await getOrderByPesapalTrackingId(env, notification.orderTrackingId);
+
+  if (order && notification.orderTrackingId) {
+    await updateOrder(env, order.tracking_id, {
+      pesapal_order_tracking_id: notification.orderTrackingId,
+      pesapal_merchant_reference: notification.merchantReference || order.pesapal_merchant_reference,
+    });
+    order = await getOrderByTrackingId(env, order.tracking_id);
+  }
+
+  if (order) {
+    try { await processPaidOrder(env, order); }
+    catch (error) { console.error("Callback payment processing:", errorMessage(error)); }
+  }
+
+  const redirectTrackingId = order?.tracking_id || notification.merchantReference || "";
+  const origin = getEnvOrigin(env, request);
+  return Response.redirect(`${origin}/?tracking_id=${encodeURIComponent(redirectTrackingId)}`, 302);
+}
+
+async function handlePesapalIpn(env, request) {
+  const notification = await readPesapalNotification(request);
+  console.log("PesaPal IPN:", JSON.stringify({ method: request.method, notification }));
+
+  if (!notification.orderTrackingId && !notification.merchantReference) {
+    return json({
+      orderNotificationType: notification.notificationType || "IPNCHANGE",
+      orderTrackingId: notification.orderTrackingId || "",
+      orderMerchantReference: notification.merchantReference || "",
+      status: 500, message: "Missing PesaPal notification identifiers.",
+    }, 400);
+  }
+
+  let order = null;
+  if (notification.merchantReference) order = await getOrderByMerchantReference(env, notification.merchantReference);
+  if (!order && notification.orderTrackingId) order = await getOrderByPesapalTrackingId(env, notification.orderTrackingId);
+
+  if (!order) {
+    return json({
+      orderNotificationType: notification.notificationType || "IPNCHANGE",
+      orderTrackingId: notification.orderTrackingId,
+      orderMerchantReference: notification.merchantReference,
+      status: 200, message: "Notification received; order not found.",
+    });
+  }
+
+  if (notification.orderTrackingId) {
+    await updateOrder(env, order.tracking_id, {
+      pesapal_order_tracking_id: notification.orderTrackingId,
+      pesapal_merchant_reference: notification.merchantReference || order.pesapal_merchant_reference,
+    });
+  }
+
+  try {
+    const latest = await getOrderByTrackingId(env, order.tracking_id);
+    await processPaidOrder(env, latest);
+    return json({
+      orderNotificationType: notification.notificationType || "IPNCHANGE",
+      orderTrackingId: notification.orderTrackingId,
+      orderMerchantReference: notification.merchantReference,
+      status: 200,
+    });
+  } catch (error) {
+    console.error("PesaPal IPN processing failed:", errorMessage(error));
+    return json({
+      orderNotificationType: notification.notificationType || "IPNCHANGE",
+      orderTrackingId: notification.orderTrackingId,
+      orderMerchantReference: notification.merchantReference,
+      status: 200, message: "IPN received but order processing failed.",
+    });
+  }
+                  }
          // ------------------------------------------------------------
 // ADMIN — BALANCE
 // ------------------------------------------------------------
