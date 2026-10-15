@@ -106,7 +106,7 @@ const TYPE_META = {
 };
 
 const SUB_TYPE_ORDER = {
-  Likes: ["Post Likes", "Reactions", "Story Reactions", "Live Reactions", "Comment Likes", "Auto Likes", "Premium / Real Likes"],
+  Likes: ["Post Likes", "Reactions", "Story Reactions", "Live Reactions", "Comment Likes", "Auto Likes"],
   Followers: ["Standard Followers", "High Quality", "Bot / Cheap", "Group Members", "Subscribers", "Premium Members"],
   Views: ["Post Views", "Story Views", "Reel / Shorts Views", "Live Views", "Impressions / Reach"],
   Comments: ["Random Comments", "Custom Comments"]
@@ -222,11 +222,7 @@ function detectServiceSubType(service, type) {
     if (combined.includes("live") && (combined.includes("react") || combined.includes("like"))) return "Live Reactions";
     if (combined.includes("auto like") || combined.includes("auto likes") || combined.includes("auto react")) return "Auto Likes";
 
-    /* NEW: explicit "Post Likes" / "Photo Likes" phrase wins over
-       the generic "real / HQ / premium" bucket below. Catches:
-         - 𝐅𝐁 𝐏𝐨𝐬𝐭 𝐋𝐢𝐤𝐞𝐬 (fancy Unicode — normalized above)
-         - FB Post Likes, FB Post/Photo Likes, FB Photo Likes,
-           FB Real Post Likes, Post Likes BOOST, ReactFlow, etc. */
+    /* Explicit "Post Likes" / "Photo Likes" phrase wins. */
     if (combined.includes("post like") || combined.includes("post/photo like") ||
         combined.includes("post / photo like") || combined.includes("photo like") ||
         combined.includes("post/photo likes") || combined.includes("photo likes")) {
@@ -234,11 +230,8 @@ function detectServiceSubType(service, type) {
     }
 
     if (combined.includes("reaction") || combined.includes("react") || combined.includes("emoji")) return "Reactions";
-    if (combined.includes("real") || combined.includes("supreme") || combined.includes("premium") ||
-        combined.includes("hq") || combined.includes("high quality") || combined.includes("👑") ||
-        combined.includes("💎") || combined.includes("old account") || combined.includes("old likes")) {
-      return "Premium / Real Likes";
-    }
+    /* Everything else falls into Post Likes — HQ / Real / Premium /
+       Old Accounts / Supreme all share this bucket now. */
     return "Post Likes";
   }
 
@@ -672,7 +665,7 @@ function OrderTracking({ trackingId, initialData, onClose }) {
       )}
     </div>
   );
-}
+  }
 /* =========================================================
    MAIN APP
 ========================================================= */
