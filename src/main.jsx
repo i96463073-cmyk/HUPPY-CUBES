@@ -135,14 +135,27 @@ const SUB_TYPE_META = {
   "Custom Comments": { emoji: "✍️" }
 };
 
+/* ---------------------------------------------------------
+   Text normalizer.
+   DenzGains names/categories sometimes use fancy Unicode
+   alphabets (𝐅𝐁, 𝗙𝗕, ＦＢ, 𝔽𝔹) which do NOT lowercase to
+   plain ASCII. NFKD converts them down so `.includes("fb")`
+   and friends actually match.
+--------------------------------------------------------- */
+function normalizeText(value) {
+  return String(value || "").normalize("NFKD").toLowerCase();
+}
+
 function detectPlatform(service) {
-  const t = `${service?.name || ""} ${service?.category || ""} ${service?.type || ""}`.toLowerCase();
-  if (t.includes("instagram") || t.includes("ig ") || t.includes(" ig")) return "Instagram";
-  if (t.includes("tiktok") || t.includes("tik tok") || t.includes("tt ")) return "TikTok";
-  if (t.includes("facebook") || t.includes("fb ") || t.includes("fb post") || t.includes("fb group")) return "Facebook";
-  if (t.includes("youtube") || t.includes("yt ") || t.includes("yt-")) return "YouTube";
+  const t = normalizeText(
+    `${service?.name || ""} ${service?.category || ""} ${service?.type || ""}`
+  );
+  if (t.includes("instagram") || t.includes("ig ") || t.includes(" ig") || t.includes("ig post") || t.includes("ig story") || t.includes("ig reel")) return "Instagram";
+  if (t.includes("tiktok") || t.includes("tik tok") || t.includes("tt ") || t.includes(" tt")) return "TikTok";
+  if (t.includes("facebook") || t.includes("fb ") || t.includes("fb post") || t.includes("fb group") || t.includes("fb ") || t.includes(" fb")) return "Facebook";
+  if (t.includes("youtube") || t.includes("yt ") || t.includes("yt-") || t.includes(" yt")) return "YouTube";
   if (t.includes("telegram") || t.includes("tg ")) return "Telegram";
-  if (t.includes("twitter") || t.includes(" x ") || t.startsWith("x ") || t.includes(" x/") || t.includes("x (") || t.includes(" x.com")) return "Twitter / X";
+  if (t.includes("twitter") || t.includes(" x ") || t.startsWith("x ") || t.includes(" x/") || t.includes("x (") || t.includes(" x.")) return "Twitter / X";
   if (t.includes("whatsapp") || t.includes("wa chan") || t.includes("wa poll")) return "WhatsApp";
   if (t.includes("spotify")) return "Spotify";
   if (t.includes("boomplay") || t.includes("gaming") || t.includes("game ") || t.includes("twitch")) return "Gaming";
@@ -150,9 +163,9 @@ function detectPlatform(service) {
 }
 
 function detectServiceType(service) {
-  const name = String(service?.name || "").toLowerCase();
-  const category = String(service?.category || "").toLowerCase();
-  const type = String(service?.type || "").toLowerCase();
+  const name = normalizeText(service?.name);
+  const category = normalizeText(service?.category);
+  const type = normalizeText(service?.type);
   const combined = `${name} ${category} ${type}`;
 
   if (type === "package" || combined.includes("premium accounts") || combined.includes("netflix") ||
@@ -198,8 +211,8 @@ function detectServiceSubType(service, type) {
   if (type === "Saves" || type === "Shares" || type === "Watch Time" ||
       type === "Accounts & Bundles" || type === "Live Stream" || type === "Other") return null;
 
-  const name = String(service?.name || "").toLowerCase();
-  const category = String(service?.category || "").toLowerCase();
+  const name = normalizeText(service?.name);
+  const category = normalizeText(service?.category);
   const combined = `${name} ${category}`;
 
   if (type === "Likes") {
@@ -208,6 +221,18 @@ function detectServiceSubType(service, type) {
     if (combined.includes("story") && (combined.includes("react") || combined.includes("like"))) return "Story Reactions";
     if (combined.includes("live") && (combined.includes("react") || combined.includes("like"))) return "Live Reactions";
     if (combined.includes("auto like") || combined.includes("auto likes") || combined.includes("auto react")) return "Auto Likes";
+
+    /* NEW: explicit "Post Likes" / "Photo Likes" phrase wins over
+       the generic "real / HQ / premium" bucket below. Catches:
+         - 𝐅𝐁 𝐏𝐨𝐬𝐭 𝐋𝐢𝐤𝐞𝐬 (fancy Unicode — normalized above)
+         - FB Post Likes, FB Post/Photo Likes, FB Photo Likes,
+           FB Real Post Likes, Post Likes BOOST, ReactFlow, etc. */
+    if (combined.includes("post like") || combined.includes("post/photo like") ||
+        combined.includes("post / photo like") || combined.includes("photo like") ||
+        combined.includes("post/photo likes") || combined.includes("photo likes")) {
+      return "Post Likes";
+    }
+
     if (combined.includes("reaction") || combined.includes("react") || combined.includes("emoji")) return "Reactions";
     if (combined.includes("real") || combined.includes("supreme") || combined.includes("premium") ||
         combined.includes("hq") || combined.includes("high quality") || combined.includes("👑") ||
@@ -244,8 +269,7 @@ function detectServiceSubType(service, type) {
   }
 
   return null;
-}
-
+   }
 function getCustomerRate(service) {
   return Number(service?.customer_rate ?? service?.price ?? service?.rate ?? 0);
 }
@@ -462,7 +486,7 @@ function deriveTracking(order) {
   const match = matched?.[1] || { current_step: 1, progress: 15 };
   return { current_step: match.current_step, progress: match.progress,
     status_label: statusLabel(order?.order_status) };
-     }
+}
 /* =========================================================
    TRACKING PROGRESS
 ========================================================= */
@@ -649,7 +673,6 @@ function OrderTracking({ trackingId, initialData, onClose }) {
     </div>
   );
 }
-
 /* =========================================================
    MAIN APP
 ========================================================= */
@@ -1036,8 +1059,9 @@ function App() {
         </footer>
       </div>
     );
-                                   }
-     if (!shouldSkipTypeStage && !selectedType && selectedPlatform !== "All") {
+  }
+
+  if (!shouldSkipTypeStage && !selectedType && selectedPlatform !== "All") {
     return (
       <div className="app-shell">
         <div className="ambient ambient-one" />
