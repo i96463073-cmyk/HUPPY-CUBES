@@ -10,6 +10,16 @@ const WHATSAPP_NUMBER = "254796681162";
 // Default markup: 2x supplier rate
 const DEFAULT_MARKUP = 2.0;
 
+/* =========================================================
+   REFERRAL CONFIG
+========================================================= */
+
+const REFERRAL_CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+const REFERRAL_CODE_LENGTH = 6;
+const REFERRAL_WINDOW_HOURS = 24;
+const REFERRAL_MAX_WINDOW_HOURS = 24 * 7; // 7-day rolling cap
+const REFERRAL_DISCOUNT_PCT = 10;
+
 function json(data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
     status,
@@ -157,6 +167,8 @@ const REQUIRED_ORDER_COLUMNS = {
   pesapal_order_tracking_id: "TEXT", pesapal_merchant_reference: "TEXT",
   supplier_order_id: "TEXT", supplier_response: "TEXT",
   error_message: "TEXT", created_at: "TEXT", updated_at: "TEXT",
+  referral_code: "TEXT", discount_pct: "INTEGER DEFAULT 0",
+  original_amount: "REAL", referral_referrer_phone: "TEXT",
 };
 
 let ORDERS_TABLE_READY = false;
@@ -375,322 +387,397 @@ function extractSupplierOrderId(response) {
     }
   }
   return "";
-    }// ------------------------------------------------------------
-// PESAPAL
-// ------------------------------------------------------------
-
-function getPesapalBase(env) {
-  const mode = text(env.PESAPAL_MODE).toLowerCase();
-  if (mode === "sandbox" || mode === "test" || mode === "demo") return PESAPAL_SANDBOX_BASE;
-  return PESAPAL_LIVE_BASE;
 }
+// ============================================================
+// HUPPY CUBE - COMPLETE CLOUDFLARE WORKER
+// ============================================================
 
-async function pesapalAuth(env) {
-  const consumerKey = text(env.PESAPAL_CONSUMER_KEY);
-  const consumerSecret = text(env.PESAPAL_CONSUMER_SECRET);
-  if (!consumerKey || !consumerSecret) throw new Error("PESAPAL_CONSUMER_KEY or PESAPAL_CONSUMER_SECRET is missing.");
+const PESAPAL_LIVE_BASE = "https://pay.pesapal.com/v3";
+const PESAPAL_SANDBOX_BASE = "https://cybqa.pesapal.com/pesapalv3";
+const DENZGAINS_BASE = "https://denzgains.com/api/v2";
+const WHATSAPP_NUMBER = "254796681162";
 
-  const base = getPesapalBase(env);
-  const response = await fetch(`${base}/api/Auth/RequestToken`, {
-    method: "POST",
-    headers: { Accept: "application/json", "Content-Type": "application/json" },
-    body: JSON.stringify({ consumer_key: consumerKey, consumer_secret: consumerSecret }),
-  });
+// Default markup: 2x supplier rate
+const DEFAULT_MARKUP = 2.0;
 
-  const raw = await response.text();
-  let data;
-  try { data = JSON.parse(raw); } catch { data = { raw }; }
+/* =========================================================
+   REFERRAL CONFIG
+========================================================= */
 
-  if (!response.ok) throw new Error(`PesaPal authentication HTTP ${response.status}: ${raw.slice(0, 1000)}`);
-  const token = data?.token || data?.access_token;
-  if (!token) throw new Error(`PesaPal authentication failed: ${JSON.stringify(data).slice(0, 1000)}`);
-  return token;
-}
+const REFERRAL_CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+const REFERRAL_CODE_LENGTH = 6;
+const REFERRAL_WINDOW_HOURS = 24;
+const REFERRAL_MAX_WINDOW_HOURS = 24 * 7; // 7-day rolling cap
+const REFERRAL_DISCOUNT_PCT = 10;
 
-async function pesapalRequest(env, path, options = {}) {
-  const token = await pesapalAuth(env);
-  const base = getPesapalBase(env);
-
-  const response = await fetch(`${base}${path}`, {
-    method: options.method || "GET",
+function json(data, status = 200, extraHeaders = {}) {
+  return new Response(JSON.stringify(data), {
+    status,
     headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...(options.headers || {}),
-    },
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-  });
-
-  const raw = await response.text();
-  let data;
-  try { data = JSON.parse(raw); } catch { data = { raw }; }
-
-  if (!response.ok) throw new Error(`PesaPal HTTP ${response.status}: ${raw.slice(0, 1500)}`);
-
-  const errMsg = data?.error?.message || data?.error_description
-    || (typeof data?.error === "string" ? data.error : null);
-  if (errMsg) throw new Error(errMsg);
-  return data;
-}
-
-async function submitPesapalOrder(env, { merchantReference, amount, description, callbackUrl, cancellationUrl, phone, firstName, lastName }) {
-  const notificationId = text(env.PESAPAL_IPN_ID);
-  if (!notificationId) throw new Error("PESAPAL_IPN_ID is not configured.");
-  if (!merchantReference) throw new Error("Missing PesaPal merchant reference.");
-  if (!amount || amount <= 0) throw new Error("Invalid PesaPal payment amount.");
-
-  const billingPhone = normalizePhone(phone);
-  const billingAddress = {
-    email_address: text(env.PESAPAL_BILLING_EMAIL) || "customer@huppycube.com",
-    phone_number: billingPhone, country_code: "KE",
-    first_name: text(firstName) || "HUPPY", middle_name: "",
-    last_name: text(lastName) || "Customer",
-    line_1: "HUPPY CUBE", line_2: "", city: "Nairobi",
-    state: "", postal_code: "", zip_code: "",
-  };
-
-  return await pesapalRequest(env, "/api/Transactions/SubmitOrderRequest", {
-    method: "POST",
-    body: {
-      id: merchantReference, currency: "KES",
-      amount: roundMoney(amount),
-      description: String(description).slice(0, 100),
-      callback_url: callbackUrl,
-      cancellation_url: cancellationUrl || callbackUrl,
-      redirect_mode: "TOP_WINDOW",
-      notification_id: notificationId,
-      billing_address: billingAddress,
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+      ...extraHeaders,
     },
   });
 }
 
-async function getPesapalTransactionStatus(env, pesapalTrackingId) {
-  if (!pesapalTrackingId) throw new Error("Missing PesaPal OrderTrackingId.");
-  return await pesapalRequest(env,
-    `/api/Transactions/GetTransactionStatus?orderTrackingId=${encodeURIComponent(pesapalTrackingId)}`,
-    { method: "GET" });
-}
-
-async function readPesapalNotification(request) {
-  const url = new URL(request.url);
-  let body = {};
-
-  if (request.method.toUpperCase() === "POST") {
-    const contentType = request.headers.get("content-type") || "";
-    try {
-      if (contentType.toLowerCase().includes("application/json")) {
-        body = await request.json();
-      } else if (contentType.toLowerCase().includes("application/x-www-form-urlencoded")) {
-        const form = await request.formData();
-        body = Object.fromEntries(form.entries());
-      } else {
-        const raw = await request.text();
-        if (raw) {
-          const parsedJson = safeJsonParse(raw, null);
-          if (parsedJson) body = parsedJson;
-          else {
-            const params = new URLSearchParams(raw);
-            body = Object.fromEntries(params.entries());
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Could not parse PesaPal notification:", error);
-    }
-  }
-
-  const pick = (...keys) => {
-    for (const key of keys) {
-      const fromUrl = url.searchParams.get(key);
-      if (fromUrl !== null && String(fromUrl).trim() !== "") return String(fromUrl).trim();
-      const fromBody = body?.[key];
-      if (fromBody !== undefined && fromBody !== null && String(fromBody).trim() !== "") {
-        return String(fromBody).trim();
-      }
-    }
-    return "";
-  };
-
+function corsHeaders(origin = "*") {
   return {
-    merchantReference: pick("OrderMerchantReference", "orderMerchantReference", "pesapal_merchant_reference"),
-    orderTrackingId: pick("OrderTrackingId", "orderTrackingId", "pesapal_transaction_tracking_id"),
-    notificationType: pick("OrderNotificationType", "orderNotificationType", "pesapal_notification_type"),
+    "Access-Control-Allow-Origin": origin || "*",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+    "Access-Control-Max-Age": "86400",
   };
 }
 
-function pesapalStatusCode(data) {
-  const value = data?.status_code ?? data?.statusCode ?? data?.payment_status_code;
-  if (value !== undefined && value !== null && String(value) !== "") return Number(value);
+function corsJson(data, status = 200, origin = "*") {
+  return json(data, status, corsHeaders(origin));
+}
+
+function text(value) {
+  return value === undefined || value === null ? "" : String(value).trim();
+}
+
+function number(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function roundMoney(value) {
+  return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+}
+
+function safeJsonParse(value, fallback = null) {
+  try { return JSON.parse(value); } catch { return fallback; }
+}
+
+function randomId(prefix = "HUPPY") {
+  const random = typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID().replace(/-/g, "").slice(0, 20).toUpperCase()
+    : Math.random().toString(36).slice(2, 14).toUpperCase();
+  return `${prefix}-${Date.now()}-${random}`;
+}
+
+function normalizePhone(phone) {
+  let p = text(phone).replace(/[^\d+]/g, "");
+  if (p.startsWith("+254")) p = "254" + p.slice(4);
+  else if (p.startsWith("254")) { /* ok */ }
+  else if (p.startsWith("0")) p = "254" + p.slice(1);
+  return p;
+}
+
+function isValidPhone(phone) {
+  return /^2547\d{8}$/.test(phone) || /^2541\d{8}$/.test(phone);
+}
+
+function maskSecret(value) {
+  const v = text(value);
+  if (!v) return "";
+  if (v.length <= 8) return "********";
+  return `${v.slice(0, 4)}********${v.slice(-4)}`;
+}
+
+function errorMessage(error) {
+  if (!error) return "Unknown error";
+  if (typeof error === "string") return error;
+  return error.message || error.error?.message || error.error_description || JSON.stringify(error);
+}
+
+function getOrigin(request) { return new URL(request.url).origin; }
+
+function getEnvOrigin(env, request) {
+  return text(env.PUBLIC_BASE_URL).replace(/\/$/, "") || getOrigin(request);
+}
+
+function isAdminAuthorized(env, request) {
+  const url = new URL(request.url);
+  const provided = text(url.searchParams.get("secret"));
+  const expected = text(env.TEST_ORDER_SECRET);
+  if (!expected) return false;
+  if (!provided) return false;
+  return provided === expected;
+}
+
+function adminUnauthorized() {
+  return json({ success: false, error: "Unauthorized." }, 401);
+}
+
+function buildDateFilter(url) {
+  const from = text(url.searchParams.get("from"));
+  const to = text(url.searchParams.get("to"));
+  const wheres = [];
+  const binds = [];
+  if (from) { wheres.push(`date(created_at, '+3 hours') >= ?`); binds.push(from); }
+  if (to) { wheres.push(`date(created_at, '+3 hours') <= ?`); binds.push(to); }
+  return { wheres, binds };
+}
+
+function toNairobiISO(utcString) {
+  if (!utcString) return "";
+  const raw = String(utcString);
+  const iso = raw.includes("T") ? raw : raw.replace(" ", "T") + "Z";
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) return raw;
+  return new Date(ms + 3 * 60 * 60 * 1000).toISOString().replace("Z", "+03:00");
+}
+
+function normalizeSupplierStatus(raw) {
+  const s = String(raw ?? "").trim().toLowerCase();
+  if (!s) return null;
+  if (s === "completed") return "Completed";
+  if (s === "partial") return "Partial";
+  if (s === "canceled" || s === "cancelled") return "Cancelled";
+  if (s === "fail" || s === "failed") return "Failed";
+  if (s === "in progress" || s === "inprogress" || s === "processing") return "Processing";
+  if (s === "awaiting" || s === "pending") return "Pending";
   return null;
 }
 
-function pesapalStatusDescription(data) {
-  return text(data?.payment_status_description || data?.paymentStatusDescription
-    || data?.description || data?.status_description).toUpperCase();
+function isTerminalStatus(status) {
+  const s = String(status || "").toLowerCase();
+  return s.includes("completed") || s.includes("partial") || s.includes("cancel")
+    || s.includes("failed") || s.includes("reversed");
 }
 
-function isPesapalCompleted(data) {
-  const code = pesapalStatusCode(data);
-  const description = pesapalStatusDescription(data);
-  return code === 1 || description === "COMPLETED" || description.includes("COMPLETED");
+function recentlyFailedSubmission(order) {
+  if (!order?.error_message) return false;
+  if (!order?.updated_at) return false;
+  const raw = String(order.updated_at);
+  const iso = raw.includes("T") ? raw : raw.replace(" ", "T") + "Z";
+  const updated = Date.parse(iso);
+  if (!Number.isFinite(updated)) return false;
+  return Date.now() - updated < 60_000;
 }
 
-function isPesapalFailed(data) {
-  const code = pesapalStatusCode(data);
-  const description = pesapalStatusDescription(data);
-  return code === 2 || description === "FAILED" || description.includes("FAILED");
+const REQUIRED_ORDER_COLUMNS = {
+  tracking_id: "TEXT", service_id: "TEXT", service_name: "TEXT", link: "TEXT",
+  quantity: "INTEGER", phone: "TEXT",
+  supplier_rate: "REAL", customer_rate: "REAL", supplier_amount: "REAL", customer_amount: "REAL",
+  payment_status: "TEXT", order_status: "TEXT",
+  pesapal_order_tracking_id: "TEXT", pesapal_merchant_reference: "TEXT",
+  supplier_order_id: "TEXT", supplier_response: "TEXT",
+  error_message: "TEXT", created_at: "TEXT", updated_at: "TEXT",
+  referral_code: "TEXT", discount_pct: "INTEGER DEFAULT 0",
+  original_amount: "REAL", referral_referrer_phone: "TEXT",
+};
+
+let ORDERS_TABLE_READY = false;
+
+async function ensureOrdersTable(env) {
+  if (ORDERS_TABLE_READY) return;
+
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS orders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tracking_id TEXT UNIQUE NOT NULL,
+      service_id TEXT, service_name TEXT, link TEXT, quantity INTEGER, phone TEXT,
+      supplier_rate REAL DEFAULT 0, customer_rate REAL DEFAULT 0,
+      supplier_amount REAL DEFAULT 0, customer_amount REAL DEFAULT 0,
+      payment_status TEXT DEFAULT 'PENDING', order_status TEXT DEFAULT 'Pending',
+      pesapal_order_tracking_id TEXT, pesapal_merchant_reference TEXT,
+      supplier_order_id TEXT, supplier_response TEXT, error_message TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+
+  const tableInfo = await env.DB.prepare(`PRAGMA table_info(orders)`).all();
+  const existing = new Set((tableInfo.results || []).map((row) => row.name));
+
+  for (const [column, definition] of Object.entries(REQUIRED_ORDER_COLUMNS)) {
+    if (existing.has(column)) continue;
+    await env.DB.prepare(`ALTER TABLE orders ADD COLUMN ${column} ${definition}`).run();
+  }
+
+  ORDERS_TABLE_READY = true;
 }
 
-function isPesapalReversed(data) {
-  const code = pesapalStatusCode(data);
-  const description = pesapalStatusDescription(data);
-  return code === 3 || description === "REVERSED" || description.includes("REVERSED");
+/* =========================================================
+   SETTINGS TABLE — for adjustable markup and future config
+========================================================= */
+
+let SETTINGS_TABLE_READY = false;
+
+async function ensureSettingsTable(env) {
+  if (SETTINGS_TABLE_READY) return;
+
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+
+  SETTINGS_TABLE_READY = true;
 }
 
-async function verifyPesapalPayment(env, order) {
-  if (!order?.pesapal_order_tracking_id) {
-    throw new Error("This order does not have a PesaPal tracking ID yet.");
-  }
-  const status = await getPesapalTransactionStatus(env, order.pesapal_order_tracking_id);
-  const returnedMerchantReference = text(status?.merchant_reference);
-  if (returnedMerchantReference && order.pesapal_merchant_reference &&
-      returnedMerchantReference !== order.pesapal_merchant_reference) {
-    throw new Error("PesaPal merchant reference does not match this order.");
-  }
-  const returnedCurrency = text(status?.currency).toUpperCase();
-  if (returnedCurrency && returnedCurrency !== "KES") {
-    throw new Error(`Unexpected PesaPal currency: ${returnedCurrency}`);
-  }
-  return status;
-}
-
-async function processPaidOrder(env, originalOrder) {
-  let order = originalOrder;
-  if (!order) return { success: false, message: "Order not found." };
-
-  if (order.supplier_order_id) {
-    return { success: true, paid: true, submitted: true,
-      supplier_order_id: order.supplier_order_id,
-      order_status: order.order_status || "Processing" };
-  }
-
-  if (String(order.order_status || "").toLowerCase() === "submitting") {
-    return { success: true, paid: true, submitting: true,
-      tracking_id: order.tracking_id, order_status: "Submitting" };
-  }
-
-  if (!order.pesapal_order_tracking_id) {
-    return { success: false, paid: false, pending: true, message: "Waiting for PesaPal tracking ID." };
-  }
-
-  let payment;
+async function getSetting(env, key, fallback = null) {
   try {
-    payment = await verifyPesapalPayment(env, order);
-  } catch (error) {
-    console.error("PesaPal verification error:", error);
-    await updateOrder(env, order.tracking_id, { error_message: errorMessage(error) });
-    throw error;
+    const row = await env.DB.prepare(
+      `SELECT value FROM settings WHERE key = ? LIMIT 1`
+    ).bind(key).first();
+    return row?.value ?? fallback;
+  } catch {
+    return fallback;
   }
-
-  console.log("PesaPal transaction status:", JSON.stringify(payment));
-
-  if (isPesapalCompleted(payment)) {
-    const paidAmount = number(payment?.amount, 0);
-    const expectedAmount = number(order.customer_amount, 0);
-    const difference = paidAmount - expectedAmount;
-    const realMismatch = paidAmount > 0 && expectedAmount > 0 &&
-      (difference < -1.0 || difference > 5.0);
-
-    if (realMismatch) {
-      const message = `Payment amount mismatch. Expected KES ${expectedAmount}, received KES ${paidAmount}.`;
-      await updateOrder(env, order.tracking_id, {
-        payment_status: "PAYMENT_MISMATCH", order_status: "Payment Error",
-        error_message: message, supplier_response: JSON.stringify(payment),
-      });
-      throw new Error(message);
-    }
-
-    if (paidAmount > 0 && Math.abs(difference) > 0.01) {
-      await updateOrder(env, order.tracking_id, { customer_amount: paidAmount });
-      order = await getOrderByTrackingId(env, order.tracking_id);
-    }
-
-    const claimed = await claimSupplierSubmission(env, order.tracking_id);
-    if (!claimed) {
-      const latest = await getOrderByTrackingId(env, order.tracking_id);
-      if (latest?.supplier_order_id) {
-        return { success: true, paid: true, submitted: true,
-          supplier_order_id: latest.supplier_order_id, order_status: latest.order_status };
-      }
-      return { success: true, paid: true, submitting: true,
-        tracking_id: order.tracking_id, order_status: latest?.order_status || "Submitting" };
-    }
-
-    order = await getOrderByTrackingId(env, order.tracking_id);
-    if (!order) throw new Error("Order disappeared after submission lock.");
-
-    let supplierResponse;
-    try {
-      supplierResponse = await addDenzGainsOrder(env, order.service_id, order.link, order.quantity);
-    } catch (error) {
-      const message = errorMessage(error);
-      console.error("DenzGains order submission failed:", message);
-      await updateOrder(env, order.tracking_id, {
-        payment_status: "COMPLETED", order_status: "Supplier Error",
-        error_message: message, supplier_response: JSON.stringify({ error: message }),
-      });
-      throw error;
-    }
-
-    const supplierOrderId = extractSupplierOrderId(supplierResponse);
-    if (!supplierOrderId) {
-      const message = "DenzGains accepted the request but did not return a supplier order ID.";
-      await updateOrder(env, order.tracking_id, {
-        payment_status: "COMPLETED", order_status: "Supplier Error",
-        error_message: message, supplier_response: JSON.stringify(supplierResponse),
-      });
-      throw new Error(message);
-    }
-
-    await updateOrder(env, order.tracking_id, {
-      payment_status: "COMPLETED", order_status: "Processing",
-      supplier_order_id: supplierOrderId,
-      supplier_response: JSON.stringify(supplierResponse), error_message: null,
-    });
-
-    return { success: true, paid: true, submitted: true,
-      supplier_order_id: supplierOrderId, order_status: "Processing" };
-  }
-
-  if (isPesapalFailed(payment)) {
-    await updateOrder(env, order.tracking_id, {
-      payment_status: "FAILED", order_status: "Payment Failed",
-      supplier_response: JSON.stringify(payment),
-      error_message: text(payment?.description) || "PesaPal payment failed.",
-    });
-    return { success: false, paid: false, failed: true,
-      order_status: "Payment Failed", payment_status: "FAILED" };
-  }
-
-  if (isPesapalReversed(payment)) {
-    await updateOrder(env, order.tracking_id, {
-      payment_status: "REVERSED", order_status: "Payment Reversed",
-      supplier_response: JSON.stringify(payment),
-      error_message: text(payment?.description) || "PesaPal payment was reversed.",
-    });
-    return { success: false, paid: false, reversed: true,
-      order_status: "Payment Reversed", payment_status: "REVERSED" };
-  }
-
-  await updateOrder(env, order.tracking_id, {
-    payment_status: "PENDING", order_status: "Payment Pending",
-    supplier_response: JSON.stringify(payment),
-  });
-  return { success: true, paid: false, pending: true,
-    order_status: "Payment Pending", payment_status: "PENDING" };
 }
 
+async function setSetting(env, key, value) {
+  await env.DB.prepare(`
+    INSERT INTO settings (key, value, updated_at)
+    VALUES (?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(key) DO UPDATE SET
+      value = excluded.value,
+      updated_at = CURRENT_TIMESTAMP
+  `).bind(key, String(value)).run();
+}
+
+async function getMarkupMultiplier(env) {
+  const raw = await getSetting(env, "markup_multiplier", null);
+  if (raw === null || raw === undefined || raw === "") return DEFAULT_MARKUP;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_MARKUP;
+}
+
+async function getDenzGainsServices(env) {
+  const response = await denzGainsRequest(env, { action: "services" });
+  if (Array.isArray(response)) return response;
+  if (Array.isArray(response?.services)) return response.services;
+  throw new Error(`DenzGains services response is not an array`);
+}
+
+async function getOrderByTrackingId(env, trackingId) {
+  if (!trackingId) return null;
+  return await env.DB.prepare(`SELECT * FROM orders WHERE tracking_id = ? LIMIT 1`)
+    .bind(trackingId).first();
+}
+
+async function getOrderByPesapalTrackingId(env, pesapalTrackingId) {
+  if (!pesapalTrackingId) return null;
+  return await env.DB.prepare(`SELECT * FROM orders WHERE pesapal_order_tracking_id = ? LIMIT 1`)
+    .bind(pesapalTrackingId).first();
+}
+
+async function getOrderByMerchantReference(env, merchantReference) {
+  if (!merchantReference) return null;
+  return await env.DB.prepare(
+    `SELECT * FROM orders WHERE pesapal_merchant_reference = ? OR tracking_id = ? LIMIT 1`
+  ).bind(merchantReference, merchantReference).first();
+}
+
+async function updateOrder(env, trackingId, values) {
+  const entries = Object.entries(values || {}).filter(([, value]) => value !== undefined);
+  if (!entries.length) return;
+  const assignments = entries.map(([key]) => `${key} = ?`).join(", ");
+  const params = entries.map(([, value]) => value);
+  await env.DB.prepare(
+    `UPDATE orders SET ${assignments}, updated_at = CURRENT_TIMESTAMP WHERE tracking_id = ?`
+  ).bind(...params, trackingId).run();
+}
+
+async function claimSupplierSubmission(env, trackingId) {
+  const result = await env.DB.prepare(`
+    UPDATE orders
+    SET payment_status = 'COMPLETED', order_status = 'Submitting',
+        error_message = NULL, updated_at = CURRENT_TIMESTAMP
+    WHERE tracking_id = ? AND supplier_order_id IS NULL
+      AND (order_status IS NULL OR order_status != 'Submitting')
+  `).bind(trackingId).run();
+  return Number(result?.meta?.changes || 0) > 0;
+}
+
+async function denzGainsRequest(env, payload) {
+  const apiKey = text(env.DENZGAINS_API_KEY);
+  if (!apiKey) throw new Error("DENZGAINS_API_KEY is not configured.");
+
+  const params = new URLSearchParams();
+  params.set("key", apiKey);
+  for (const [key, value] of Object.entries(payload || {})) {
+    if (value !== undefined && value !== null && value !== "") {
+      params.set(key, String(value));
+    }
+  }
+
+  const url = `${DENZGAINS_BASE}?${params.toString()}`;
+  console.log("DenzGains request:", { action: payload?.action, apiKey: maskSecret(apiKey) });
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: { Accept: "application/json", "User-Agent": "HUPPY-CUBE/1.0" },
+  });
+
+  const raw = await response.text();
+  let data;
+  try { data = JSON.parse(raw); } catch { data = { raw }; }
+
+  if (!response.ok) {
+    throw new Error(`DenzGains HTTP ${response.status}: ${raw.slice(0, 1000)}`);
+  }
+  if (data && (data.error || data.errors || data.success === false)) {
+    throw new Error(
+      typeof data.error === "string" ? data.error
+        : data.error?.message || data.message || data.errors?.message || JSON.stringify(data)
+    );
+  }
+  return data;
+}
+
+function normalizeSupplierService(service) {
+  const serviceId = service?.service ?? service?.service_id ?? service?.id;
+  const rate = service?.rate ?? service?.price ?? service?.cost ?? 0;
+  const min = service?.min ?? service?.minimum ?? service?.min_quantity ?? 1;
+  const max = service?.max ?? service?.maximum ?? service?.max_quantity ?? 1000000;
+
+  return {
+    service_id: String(serviceId ?? ""),
+    name: text(service?.name),
+    rate: number(rate),
+    min: number(min, 1), max: number(max, 1000000),
+    min_quantity: number(min, 1), max_quantity: number(max, 1000000),
+    category: text(service?.category), type: text(service?.type),
+    refill: service?.refill, cancel: service?.cancel, raw: service,
+  };
+}
+
+async function findSupplierService(env, serviceId) {
+  const services = await getDenzGainsServices(env);
+  const requested = String(serviceId);
+  const found = services.find((service) => {
+    const id = service?.service ?? service?.service_id ?? service?.id;
+    return String(id) === requested;
+  });
+  if (!found) throw new Error(`DenzGains service ${requested} was not found.`);
+  return normalizeSupplierService(found);
+}
+
+async function addDenzGainsOrder(env, serviceId, link, quantity) {
+  return await denzGainsRequest(env, {
+    action: "add", service: String(serviceId),
+    link: String(link), quantity: Number(quantity),
+  });
+}
+
+async function getDenzGainsOrderStatus(env, supplierOrderId) {
+  return await denzGainsRequest(env, {
+    action: "status", order: String(supplierOrderId),
+  });
+}
+
+async function getDenzGainsBalance(env) {
+  return await denzGainsRequest(env, { action: "balance" });
+}
+
+function extractSupplierOrderId(response) {
+  if (!response) return "";
+  const candidates = [response.order, response.order_id, response.id,
+    response.orderId, response.supplier_order_id];
+  for (const value of candidates) {
+    if (value !== undefined && value !== null && String(value).trim() !== "") {
+      return String(value).trim();
+    }
+  }
+  return "";
+  }
 /* =========================================================
    SERVICES — uses live markup multiplier
 ========================================================= */
@@ -724,8 +811,62 @@ async function handleServices(env, request) {
 }
 
 /* =========================================================
-   ORDER PAYMENT — uses live markup multiplier
+   REFERRAL INFO — returns code, share URL, discount status
 ========================================================= */
+
+async function handleReferralInfo(env, request) {
+  try {
+    const url = new URL(request.url);
+    const phone = normalizePhone(url.searchParams.get("phone"));
+
+    if (!isValidPhone(phone)) {
+      return corsJson({ success: false, error: "Enter a valid Kenyan phone number." },
+        400, request.headers.get("Origin") || "*");
+    }
+
+    const code = await getOrCreateReferralCode(env, phone);
+    if (!code) {
+      return corsJson({ success: false, error: "Could not create referral code." },
+        500, request.headers.get("Origin") || "*");
+    }
+
+    const discount = await getReferralDiscount(env, phone);
+
+    const totals = await env.DB.prepare(`
+      SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN status = 'CONFIRMED' THEN 1 ELSE 0 END) AS confirmed
+      FROM referrals WHERE referrer_phone = ?
+    `).bind(phone).first();
+
+    const origin = getEnvOrigin(env, request);
+    return corsJson({
+      success: true,
+      phone,
+      code,
+      share_url: `${origin}/r/${code}`,
+      discount: {
+        active: Boolean(discount?.active),
+        percent: REFERRAL_DISCOUNT_PCT,
+        expires_at: discount?.expires_at || 0,
+      },
+      referrals: {
+        total: Number(totals?.total || 0),
+        confirmed: Number(totals?.confirmed || 0),
+      },
+    }, 200, request.headers.get("Origin") || "*");
+  } catch (error) {
+    console.error("Referral info error:", error);
+    return corsJson({ success: false, error: errorMessage(error) },
+      500, request.headers.get("Origin") || "*");
+  }
+}
+
+/* =========================================================
+   ORDER PAYMENT — applies referrer discount + tags referral
+========================================================= */
+
+const MIN_CHARGE_KES = 4;
 
 async function handleOrderPayment(env, request) {
   let body;
@@ -737,6 +878,7 @@ async function handleOrderPayment(env, request) {
   const link = text(body?.link);
   const phone = normalizePhone(body?.phone);
   const quantity = Math.floor(number(body?.quantity, 0));
+  const refCodeIn = text(body?.ref_code).toUpperCase();
 
   if (!serviceId) return corsJson({ success: false, error: "Service ID is required." }, 400);
   if (!link) return corsJson({ success: false, error: "Service link is required." }, 400);
@@ -763,15 +905,53 @@ async function handleOrderPayment(env, request) {
     return corsJson({ success: false, error: "Supplier returned an invalid service rate." }, 400);
   }
 
-  // Fetch live markup
   const markup = await getMarkupMultiplier(env);
   const customerRate = supplierRate * markup;
-
   const supplierAmount = roundMoney((supplierRate * quantity) / 1000);
-  const customerAmount = roundMoney((customerRate * quantity) / 1000);
+  let customerAmount = roundMoney((customerRate * quantity) / 1000);
 
   if (!customerAmount || customerAmount <= 0) {
     return corsJson({ success: false, error: "Calculated payment amount is invalid." }, 400);
+  }
+
+  // --- Apply referrer's OWN active discount (the buyer, if they are a referrer) ---
+  let discountPct = 0;
+  let originalAmount = customerAmount;
+  try {
+    const myDiscount = await getReferralDiscount(env, phone);
+    if (myDiscount?.active) {
+      const candidate = roundMoney(customerAmount * (100 - REFERRAL_DISCOUNT_PCT) / 100);
+      if (candidate >= MIN_CHARGE_KES) {
+        discountPct = REFERRAL_DISCOUNT_PCT;
+        originalAmount = customerAmount;
+        customerAmount = candidate;
+      }
+    }
+  } catch (e) {
+    console.error("Discount lookup failed:", e);
+  }
+
+  // --- Attribute referral: only if referee has never ordered before ---
+  let referralReferrerPhone = null;
+  let referralCodeUsed = null;
+  if (refCodeIn) {
+    try {
+      const referrerPhone = await resolveReferralCode(env, refCodeIn);
+      if (referrerPhone && referrerPhone !== phone) {
+        const alreadyOrdered = await hasOrderedBefore(env, phone);
+        if (!alreadyOrdered) {
+          const existing = await env.DB.prepare(
+            `SELECT status FROM referrals WHERE referrer_phone = ? AND referee_phone = ? LIMIT 1`
+          ).bind(referrerPhone, phone).first();
+          if (!existing) {
+            referralReferrerPhone = referrerPhone;
+            referralCodeUsed = refCodeIn;
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Referral attribution failed:", e);
+    }
   }
 
   await ensureOrdersTable(env);
@@ -783,16 +963,36 @@ async function handleOrderPayment(env, request) {
       tracking_id, service_id, service_name, link, quantity, phone,
       supplier_rate, customer_rate, supplier_amount, customer_amount,
       payment_status, order_status, pesapal_merchant_reference,
+      referral_code, discount_pct, original_amount, referral_referrer_phone,
       created_at, updated_at
     )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', 'Pending', ?,
-      CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
   `).bind(
     trackingId, supplierService.service_id,
     serviceName || supplierService.name, link, quantity, phone,
     supplierRate, customerRate, supplierAmount, customerAmount,
-    merchantReference
+    merchantReference,
+    referralCodeUsed, discountPct, originalAmount,
+    referralReferrerPhone
   ).run();
+
+  // Insert PENDING referral row (only if attributed). UNIQUE prevents dupes.
+  if (referralCodeUsed && referralReferrerPhone) {
+    try {
+      await env.DB.prepare(`
+        INSERT INTO referrals (
+          referrer_phone, referee_phone, referral_code,
+          referee_order_tracking_id, status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, 'PENDING', ?, ?)
+      `).bind(
+        referralReferrerPhone, phone, referralCodeUsed,
+        trackingId, Date.now(), Date.now()
+      ).run();
+    } catch (e) {
+      console.error("Referral row insert failed:", e);
+    }
+  }
 
   const origin = getEnvOrigin(env, request);
   const callbackUrl = `${origin}/api/payment-callback?tracking_id=${encodeURIComponent(trackingId)}`;
@@ -814,6 +1014,14 @@ async function handleOrderPayment(env, request) {
       order_status: "Payment Setup Error",
       error_message: message,
     });
+    // Cleanup orphan PENDING referral — no payment was ever initiated.
+    if (referralCodeUsed && referralReferrerPhone) {
+      try {
+        await env.DB.prepare(
+          `DELETE FROM referrals WHERE referrer_phone = ? AND referee_phone = ? AND status = 'PENDING'`
+        ).bind(referralReferrerPhone, phone).run();
+      } catch (e) { console.error("Referral cleanup failed:", e); }
+    }
     return corsJson({
       success: false, tracking_id: trackingId,
       error: "Could not create the PesaPal payment.", details: message,
@@ -840,6 +1048,13 @@ async function handleOrderPayment(env, request) {
       order_status: "Payment Setup Error",
       error_message: message, supplier_response: JSON.stringify(pesapal),
     });
+    if (referralCodeUsed && referralReferrerPhone) {
+      try {
+        await env.DB.prepare(
+          `DELETE FROM referrals WHERE referrer_phone = ? AND referee_phone = ? AND status = 'PENDING'`
+        ).bind(referralReferrerPhone, phone).run();
+      } catch (e) { console.error("Referral cleanup failed:", e); }
+    }
     return corsJson({
       success: false, tracking_id: trackingId,
       error: "PesaPal did not return a tracking ID.", details: message,
@@ -859,6 +1074,8 @@ async function handleOrderPayment(env, request) {
     merchant_reference: returnedMerchantReference || merchantReference,
     redirect_url: redirectUrl,
     amount: customerAmount, currency: "KES",
+    original_amount: originalAmount,
+    discount_pct: discountPct,
     service_id: supplierService.service_id,
     service_name: supplierService.name,
     quantity, min_quantity: min, max_quantity: max,
@@ -917,6 +1134,8 @@ async function handleOrderStatus(env, request) {
       service_name: latest.service_name, quantity: latest.quantity,
       link: latest.link, phone: latest.phone,
       customer_amount: latest.customer_amount, currency: "KES",
+      original_amount: latest.original_amount,
+      discount_pct: latest.discount_pct,
       payment_status: latest.payment_status, order_status: latest.order_status,
       pesapal_order_tracking_id: latest.pesapal_order_tracking_id,
       supplier_order_id: latest.supplier_order_id,
@@ -1003,7 +1222,8 @@ async function handlePesapalIpn(env, request) {
       status: 200, message: "IPN received but order processing failed.",
     });
   }
-                                        }// ------------------------------------------------------------
+}
+// ------------------------------------------------------------
 // ADMIN — BALANCE
 // ------------------------------------------------------------
 
@@ -1032,7 +1252,6 @@ async function handleAdminGetSettings(env, request) {
     await ensureSettingsTable(env);
     const markup = await getMarkupMultiplier(env);
 
-    // Sample service preview to help admin see impact
     let sample = null;
     try {
       const services = await getDenzGainsServices(env);
@@ -1097,7 +1316,6 @@ async function handleAdminUpdateSettings(env, request) {
 
     await setSetting(env, "markup_multiplier", rounded);
 
-    // Build a fresh preview
     let sample = null;
     try {
       const services = await getDenzGainsServices(env);
@@ -1284,6 +1502,9 @@ async function handleAdminOrdersList(env, request) {
         quantity: o.quantity, phone: o.phone,
         supplier_rate: o.supplier_rate, customer_rate: o.customer_rate,
         supplier_amount: o.supplier_amount, customer_amount: o.customer_amount,
+        original_amount: o.original_amount,
+        discount_pct: o.discount_pct,
+        referral_code: o.referral_code,
         profit: roundMoney(Number(o.customer_amount || 0) - Number(o.supplier_amount || 0)),
         payment_status: o.payment_status, order_status: o.order_status,
         pesapal_order_tracking_id: o.pesapal_order_tracking_id,
@@ -1403,12 +1624,13 @@ async function handleHealth(env, request) {
 
 async function handleApiInfo() {
   return json({
-    success: true, name: "HUPPY CUBE API", version: "1.6.0", currency: "KES",
+    success: true, name: "HUPPY CUBE API", version: "1.7.0", currency: "KES",
     routes: {
       health: "/api/health",
       services: "/api/services",
-      order_payment: "/api/order-payment",
+      order_payment: "POST /api/order-payment { service_id, service_name, quantity, link, phone, ref_code? }",
       order_status: "/api/order-status?tracking_id=...",
+      referral_info: "/api/referral-info?phone=...",
       pesapal_callback: "/api/payment-callback",
       pesapal_ipn: "/api/pesapal-ipn",
       admin_stats: "/api/admin-stats?secret=...&from=&to=",
@@ -1421,6 +1643,20 @@ async function handleApiInfo() {
       admin_settings_update: "POST /api/admin-settings?secret=... { markup_multiplier: 2.5 }",
     },
   });
+}
+
+// ------------------------------------------------------------
+// REFERRAL SHORT LINK — /r/<code> -> /?ref=<code>
+// ------------------------------------------------------------
+
+function handleReferralShortLink(request) {
+  const url = new URL(request.url);
+  const match = url.pathname.match(/^\/r\/([A-Za-z0-9]{4,12})\/?$/);
+  if (!match) return null;
+  const code = match[1].toUpperCase();
+  const target = new URL("/", url.origin);
+  target.searchParams.set("ref", code);
+  return Response.redirect(target.toString(), 302);
 }
 
 // ------------------------------------------------------------
@@ -1437,14 +1673,20 @@ export default {
       return new Response(null, { status: 204, headers: corsHeaders(origin) });
     }
 
+    // Short referral link: /r/CODE -> /?ref=CODE (302 redirect)
+    const shortLink = handleReferralShortLink(request);
+    if (shortLink) return shortLink;
+
     try {
       await ensureOrdersTable(env);
       await ensureSettingsTable(env);
+      await ensureReferralTables(env);
 
       if (url.pathname === "/api/health" && method === "GET") return await handleHealth(env, request);
       if (url.pathname === "/api/services" && method === "GET") return await handleServices(env, request);
       if (url.pathname === "/api/order-payment" && method === "POST") return await handleOrderPayment(env, request);
       if (url.pathname === "/api/order-status" && method === "GET") return await handleOrderStatus(env, request);
+      if (url.pathname === "/api/referral-info" && method === "GET") return await handleReferralInfo(env, request);
       if (url.pathname === "/api/payment-callback") return await handlePaymentCallback(env, request);
       if (url.pathname === "/api/pesapal-ipn") return await handlePesapalIpn(env, request);
 
