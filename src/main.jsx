@@ -1,3 +1,4 @@
+
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
@@ -89,7 +90,6 @@ const PLATFORM_ICONS = {
   Spotify: Headphones, Gaming: Gamepad2, Other: Globe
 };
 
-// Replace the generic icons with the real brand icons
 Object.assign(PLATFORM_ICONS, BRAND_ICONS);
 
 const TYPE_ORDER = [
@@ -140,10 +140,6 @@ const SUB_TYPE_META = {
   "Custom Comments": { emoji: "✍️" }
 };
 
-/* ---------------------------------------------------------
-   iPhone-style tap bounce: squish, overshoot, settle,
-   then run the action (e.g. open the next screen)
---------------------------------------------------------- */
 function bounceThen(event, action) {
   const el = event.currentTarget;
   const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -154,9 +150,6 @@ function bounceThen(event, action) {
   setTimeout(action, 240);
 }
 
-/* ---------------------------------------------------------
-   Text normalizer — collapses fancy Unicode to ASCII
---------------------------------------------------------- */
 function normalizeText(value) {
   return String(value || "").normalize("NFKD").toLowerCase();
 }
@@ -275,10 +268,6 @@ function detectServiceSubType(service, type) {
 
   return null;
 }
-
-/* ---------------------------------------------------------
-   REFERRAL HELPERS
---------------------------------------------------------- */
 
 function formatDuration(ms) {
   if (!ms || ms <= 0) return "0m";
@@ -471,7 +460,7 @@ function TrackOrderCard({ hasTrackingId, onTrack }) {
 }
 
 const TRUST_BADGES = [
-  { icon: "🛡️", title: "Secure Payments", description: "Powered by PesaPal" },
+  { icon: "🛡️", title: "Secure Payments", description: "M-Pesa & PesaPal" },
   { icon: "⚡", title: "Fast Delivery", description: "Orders start instantly" },
   { icon: "💳", title: "M-Pesa Accepted", description: "Pay in 30 seconds" },
   { icon: "🎧", title: "24/7 Support", description: "We're on WhatsApp" }
@@ -492,10 +481,6 @@ function TrustBadges() {
     </section>
   );
 }
-
-/* =========================================================
-   REFERRAL — banner + my referrals card
-========================================================= */
 
 function ReferralBanner({ discount, onTimer, expiresAt }) {
   const [remaining, setRemaining] = useState(expiresAt ? expiresAt - Date.now() : 0);
@@ -600,10 +585,6 @@ function MyReferralsCard({ phone, onPhoneSubmit, referralInfo, loading }) {
     </div>
   );
 }
-
-/* =========================================================
-   STATUS LABELS + TRACKING PROGRESS
-========================================================= */
 
 function statusLabel(status) {
   if (!status) return "Awaiting Payment";
@@ -863,10 +844,6 @@ function OrderTracking({ trackingId, initialData, onClose }) {
   );
 }
 
-/* =========================================================
-   MAIN APP
-========================================================= */
-
 function App() {
   const [services, setServices] = useState([]);
   const [selectedPlatform, setSelectedPlatform] = useState("All");
@@ -877,6 +854,7 @@ function App() {
   const [quantity, setQuantity] = useState("");
   const [link, setLink] = useState("");
   const [phone, setPhone] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("mpesa"); // "mpesa" or "pesapal"
   const [loadingServices, setLoadingServices] = useState(true);
   const [ordering, setOrdering] = useState(false);
   const [orderResult, setOrderResult] = useState(null);
@@ -884,7 +862,6 @@ function App() {
   const [error, setError] = useState("");
   const [showTracking, setShowTracking] = useState(false);
 
-  // Referral state
   const [refCode, setRefCode] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [referralInfo, setReferralInfo] = useState(null);
@@ -1054,6 +1031,7 @@ function App() {
     setPhone(customerPhone || phone || "");
     setError("");
     setOrderResult(null);
+    setPaymentMethod("mpesa"); // Default to M-Pesa when opening
   }
 
   function closeOrder() {
@@ -1123,7 +1101,8 @@ function App() {
           quantity: qty,
           link: link.trim(),
           phone: phone.trim(),
-          ref_code: refCode || undefined
+          ref_code: refCode || undefined,
+          payment_method: paymentMethod // SEND METHOD TO BACKEND
         })
       });
 
@@ -1147,7 +1126,6 @@ function App() {
         );
       }
 
-      // Remember this phone as the customer's phone
       const cleanPhone = phone.trim();
       if (cleanPhone && !customerPhone) {
         setCustomerPhone(cleanPhone);
@@ -1158,9 +1136,12 @@ function App() {
       try { localStorage.setItem("huppy_cube_tracking_id", data.tracking_id); } catch {}
 
       if (data.redirect_url) {
+        // If PesaPal is used, it returns a redirect URL
         window.location.href = data.redirect_url;
         return;
       }
+      
+      // If M-Pesa is used, there is no redirect URL. We show the success screen.
       setOrderResult(data);
     } catch (err) {
       console.error("Order payment error:", err);
@@ -1178,7 +1159,6 @@ function App() {
     } catch {}
   }, [trackingId]);
 
-  // Escape closes the order form
   useEffect(() => {
     if (!selectedService) return;
     const onKey = (e) => {
@@ -1686,6 +1666,28 @@ function App() {
                            placeholder="07XXXXXXXX" />
                   </label>
 
+                  {/* === NEW PAYMENT METHOD SELECTOR === */}
+                  <div className="field" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}><CreditCard size={16} /> Select Payment Method</span>
+                    
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px', border: paymentMethod === 'mpesa' ? '2px solid #4CAF50' : '1px solid #ccc', borderRadius: '8px', cursor: 'pointer', background: 'rgba(76, 175, 80, 0.1)' }}>
+                      <input type="radio" name="payment" value="mpesa" checked={paymentMethod === 'mpesa'} onChange={() => setPaymentMethod('mpesa')} style={{ accentColor: '#4CAF50', transform: 'scale(1.2)' }} />
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <strong style={{ fontSize: '14px' }}>M-Pesa (Instant)</strong>
+                        <small style={{ opacity: 0.7 }}>Prompt sent to your phone</small>
+                      </div>
+                    </label>
+
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px', border: paymentMethod === 'pesapal' ? '2px solid #4CAF50' : '1px solid #ccc', borderRadius: '8px', cursor: 'pointer', opacity: 0.8 }}>
+                      <input type="radio" name="payment" value="pesapal" checked={paymentMethod === 'pesapal'} onChange={() => setPaymentMethod('pesapal')} style={{ accentColor: '#4CAF50', transform: 'scale(1.2)' }} />
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <strong style={{ fontSize: '14px' }}>Card / Bank</strong>
+                        <small style={{ opacity: 0.7 }}>via PesaPal</small>
+                      </div>
+                    </label>
+                  </div>
+                  {/* ================================== */}
+
                   {(() => {
                     const rawTotal = priceFor(selectedService, quantity);
                     const shown = activeDiscountPct > 0
@@ -1720,14 +1722,20 @@ function App() {
                     )}
                   </button>
 
-                  <div className="secure-note">🔒 Secure payment powered by PesaPal</div>
+                  <div className="secure-note">
+                    🔒 Secure payment powered by {paymentMethod === "mpesa" ? "Safaricom M-Pesa" : "PesaPal"}
+                  </div>
                 </form>
               </>
             ) : (
               <div className="success-screen">
                 <div className="success-icon"><CheckCircle2 size={48} /></div>
-                <h2>Order Created!</h2>
-                <p>Your order has been created. Use the tracking page to follow its progress.</p>
+                <h2>{orderResult.payment_method === "mpesa" ? "Check Your Phone!" : "Order Created!"}</h2>
+                <p>
+                  {orderResult.payment_method === "mpesa" 
+                    ? "We have sent an M-Pesa prompt to your phone. Please enter your M-Pesa PIN to complete the payment."
+                    : "Your order has been created. Use the tracking page to follow its progress."}
+                </p>
 
                 <div className="success-details">
                   <div>
@@ -1771,10 +1779,6 @@ function App() {
     </div>
   );
 }
-
-/* =========================================================
-   ROOT — ROUTES /admin TO ADMIN DASHBOARD
-========================================================= */
 
 function Root() {
   if (window.location.pathname === "/admin") {
