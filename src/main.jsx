@@ -1,4 +1,3 @@
-
 import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
@@ -460,7 +459,7 @@ function TrackOrderCard({ hasTrackingId, onTrack }) {
 }
 
 const TRUST_BADGES = [
-  { icon: "🛡️", title: "Secure Payments", description: "M-Pesa & PesaPal" },
+  { icon: "🛡️", title: "Secure Payments", description: "Powered by PesaPal" },
   { icon: "⚡", title: "Fast Delivery", description: "Orders start instantly" },
   { icon: "💳", title: "M-Pesa Accepted", description: "Pay in 30 seconds" },
   { icon: "🎧", title: "24/7 Support", description: "We're on WhatsApp" }
@@ -854,7 +853,7 @@ function App() {
   const [quantity, setQuantity] = useState("");
   const [link, setLink] = useState("");
   const [phone, setPhone] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("mpesa"); // "mpesa" or "pesapal"
+  const [paymentMethod, setPaymentMethod] = useState("mpesa"); // NEW: M-Pesa Default
   const [loadingServices, setLoadingServices] = useState(true);
   const [ordering, setOrdering] = useState(false);
   const [orderResult, setOrderResult] = useState(null);
@@ -862,6 +861,7 @@ function App() {
   const [error, setError] = useState("");
   const [showTracking, setShowTracking] = useState(false);
 
+  // Referral state
   const [refCode, setRefCode] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
   const [referralInfo, setReferralInfo] = useState(null);
@@ -1031,7 +1031,7 @@ function App() {
     setPhone(customerPhone || phone || "");
     setError("");
     setOrderResult(null);
-    setPaymentMethod("mpesa"); // Default to M-Pesa when opening
+    setPaymentMethod("mpesa");
   }
 
   function closeOrder() {
@@ -1101,8 +1101,8 @@ function App() {
           quantity: qty,
           link: link.trim(),
           phone: phone.trim(),
-          ref_code: refCode || undefined,
-          payment_method: paymentMethod // SEND METHOD TO BACKEND
+          payment_method: paymentMethod, // Send the selected method
+          ref_code: refCode || undefined
         })
       });
 
@@ -1118,7 +1118,9 @@ function App() {
         throw new Error("The payment server returned an empty response. Please try again.");
       }
       if (!response.ok || data.success === false) {
-        throw new Error(data.error || "Unable to create payment.");
+        // --- NEW: SHOW THE REAL SAFARICOM ERROR ---
+        const errMsg = data.details ? `${data.error} (Details: ${data.details})` : (data.error || "Unable to create payment.");
+        throw new Error(errMsg);
       }
       if (!data.tracking_id) {
         throw new Error(
@@ -1136,12 +1138,9 @@ function App() {
       try { localStorage.setItem("huppy_cube_tracking_id", data.tracking_id); } catch {}
 
       if (data.redirect_url) {
-        // If PesaPal is used, it returns a redirect URL
         window.location.href = data.redirect_url;
         return;
       }
-      
-      // If M-Pesa is used, there is no redirect URL. We show the success screen.
       setOrderResult(data);
     } catch (err) {
       console.error("Order payment error:", err);
@@ -1666,27 +1665,21 @@ function App() {
                            placeholder="07XXXXXXXX" />
                   </label>
 
-                  {/* === NEW PAYMENT METHOD SELECTOR === */}
-                  <div className="field" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}><CreditCard size={16} /> Select Payment Method</span>
-                    
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px', border: paymentMethod === 'mpesa' ? '2px solid #4CAF50' : '1px solid #ccc', borderRadius: '8px', cursor: 'pointer', background: 'rgba(76, 175, 80, 0.1)' }}>
-                      <input type="radio" name="payment" value="mpesa" checked={paymentMethod === 'mpesa'} onChange={() => setPaymentMethod('mpesa')} style={{ accentColor: '#4CAF50', transform: 'scale(1.2)' }} />
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <strong style={{ fontSize: '14px' }}>M-Pesa (Instant)</strong>
-                        <small style={{ opacity: 0.7 }}>Prompt sent to your phone</small>
-                      </div>
-                    </label>
-
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px', border: paymentMethod === 'pesapal' ? '2px solid #4CAF50' : '1px solid #ccc', borderRadius: '8px', cursor: 'pointer', opacity: 0.8 }}>
-                      <input type="radio" name="payment" value="pesapal" checked={paymentMethod === 'pesapal'} onChange={() => setPaymentMethod('pesapal')} style={{ accentColor: '#4CAF50', transform: 'scale(1.2)' }} />
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <strong style={{ fontSize: '14px' }}>Card / Bank</strong>
-                        <small style={{ opacity: 0.7 }}>via PesaPal</small>
-                      </div>
-                    </label>
+                  <div className="field" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 600, opacity: 0.8 }}>
+                      <CreditCard size={16} /> Select Payment Method
+                    </span>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                      <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px', background: paymentMethod === 'mpesa' ? 'rgba(34, 197, 94, 0.1)' : 'rgba(255,255,255,0.05)', border: paymentMethod === 'mpesa' ? '1px solid #22c55e' : '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', cursor: 'pointer' }}>
+                        <input type="radio" name="payment" value="mpesa" checked={paymentMethod === 'mpesa'} onChange={() => setPaymentMethod('mpesa')} style={{ accentColor: '#22c55e' }} />
+                        <span style={{ fontSize: '13px', fontWeight: 600 }}>M-Pesa<br/><span style={{ fontSize: '11px', fontWeight: 400, opacity: 0.6 }}>Instant Prompt</span></span>
+                      </label>
+                      <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px', background: paymentMethod === 'pesapal' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(255,255,255,0.05)', border: paymentMethod === 'pesapal' ? '1px solid #3b82f6' : '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', cursor: 'pointer' }}>
+                        <input type="radio" name="payment" value="pesapal" checked={paymentMethod === 'pesapal'} onChange={() => setPaymentMethod('pesapal')} style={{ accentColor: '#3b82f6' }} />
+                        <span style={{ fontSize: '13px', fontWeight: 600 }}>Card / Bank<br/><span style={{ fontSize: '11px', fontWeight: 400, opacity: 0.6 }}>via PesaPal</span></span>
+                      </label>
+                    </div>
                   </div>
-                  {/* ================================== */}
 
                   {(() => {
                     const rawTotal = priceFor(selectedService, quantity);
@@ -1694,7 +1687,7 @@ function App() {
                       ? applyDiscount(rawTotal, activeDiscountPct)
                       : rawTotal;
                     return (
-                      <div className="total-box">
+                      <div className="total-box" style={{ marginTop: '16px' }}>
                         <div>
                           <span>Total</span>
                           <small>{Number(quantity || 0).toLocaleString()} units</small>
@@ -1722,20 +1715,14 @@ function App() {
                     )}
                   </button>
 
-                  <div className="secure-note">
-                    🔒 Secure payment powered by {paymentMethod === "mpesa" ? "Safaricom M-Pesa" : "PesaPal"}
-                  </div>
+                  <div className="secure-note">🔒 Secure payment</div>
                 </form>
               </>
             ) : (
               <div className="success-screen">
                 <div className="success-icon"><CheckCircle2 size={48} /></div>
-                <h2>{orderResult.payment_method === "mpesa" ? "Check Your Phone!" : "Order Created!"}</h2>
-                <p>
-                  {orderResult.payment_method === "mpesa" 
-                    ? "We have sent an M-Pesa prompt to your phone. Please enter your M-Pesa PIN to complete the payment."
-                    : "Your order has been created. Use the tracking page to follow its progress."}
-                </p>
+                <h2>Order Created!</h2>
+                <p>Your order has been created. Use the tracking page to follow its progress.</p>
 
                 <div className="success-details">
                   <div>
