@@ -2,34 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import "./index.css";
 import AdminDashboard from "./AdminDashboard.jsx";
-
-/* =========================================================
-   GLOBAL PWA SETUP — dark status bar everywhere
-========================================================= */
-
-if (typeof document !== "undefined") {
-  const ensureThemeColor = () => {
-    let theme = document.querySelector('meta[name="theme-color"]');
-    if (!theme) {
-      theme = document.createElement("meta");
-      theme.name = "theme-color";
-      document.head.appendChild(theme);
-    }
-    theme.content = "#05030d";
-  };
-  ensureThemeColor();
-
-  if (window.location.pathname === "/admin") {
-    let manifestLink = document.querySelector('link[rel="manifest"]');
-    if (!manifestLink) {
-      manifestLink = document.createElement("link");
-      manifestLink.rel = "manifest";
-      document.head.appendChild(manifestLink);
-    }
-    manifestLink.href = "/admin-manifest.json";
-  }
-}
-
+import { BRAND_ICONS } from "./BrandIcons.jsx";
 import {
   Search,
   ShoppingCart,
@@ -64,9 +37,35 @@ import {
   Radio,
   Timer,
   Gift,
-  Copy,
-  Users as UsersIcon
+  Copy
 } from "lucide-react";
+
+/* =========================================================
+   GLOBAL PWA SETUP — dark status bar everywhere
+========================================================= */
+
+if (typeof document !== "undefined") {
+  const ensureThemeColor = () => {
+    let theme = document.querySelector('meta[name="theme-color"]');
+    if (!theme) {
+      theme = document.createElement("meta");
+      theme.name = "theme-color";
+      document.head.appendChild(theme);
+    }
+    theme.content = "#05030d";
+  };
+  ensureThemeColor();
+
+  if (window.location.pathname === "/admin") {
+    let manifestLink = document.querySelector('link[rel="manifest"]');
+    if (!manifestLink) {
+      manifestLink = document.createElement("link");
+      manifestLink.rel = "manifest";
+      document.head.appendChild(manifestLink);
+    }
+    manifestLink.href = "/admin-manifest.json";
+  }
+}
 
 const WHATSAPP_NUMBER = "254796681162";
 const REF_DISCOUNT_PCT = 10;
@@ -89,6 +88,9 @@ const PLATFORM_ICONS = {
   Telegram: Send, "Twitter / X": Twitter, WhatsApp: MessageCircle,
   Spotify: Headphones, Gaming: Gamepad2, Other: Globe
 };
+
+// Replace the generic icons with the real brand icons
+Object.assign(PLATFORM_ICONS, BRAND_ICONS);
 
 const TYPE_ORDER = [
   "Likes", "Views", "Comments", "Followers", "Saves",
@@ -137,6 +139,20 @@ const SUB_TYPE_META = {
   "Random Comments": { emoji: "💬" },
   "Custom Comments": { emoji: "✍️" }
 };
+
+/* ---------------------------------------------------------
+   iPhone-style tap bounce: squish, overshoot, settle,
+   then run the action (e.g. open the next screen)
+--------------------------------------------------------- */
+function bounceThen(event, action) {
+  const el = event.currentTarget;
+  const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  if (reduce) return action();
+  el.classList.remove("bounce");
+  void el.offsetWidth;
+  el.classList.add("bounce");
+  setTimeout(action, 240);
+}
 
 /* ---------------------------------------------------------
    Text normalizer — collapses fancy Unicode to ASCII
@@ -326,7 +342,8 @@ function getWhatsAppUrl(trackingId = "") {
     ? `Hello HUPPY CUBE, I need help with my order. Tracking ID: ${trackingId}`
     : "Hello HUPPY CUBE, I need help with my order.";
   return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
-     }
+}
+
 const TICKER_SERVICES = [
   { platform: "Instagram", type: "Likes", emoji: "❤️", minQty: 500, maxQty: 5000 },
   { platform: "Instagram", type: "Followers", emoji: "👥", minQty: 200, maxQty: 2000 },
@@ -399,16 +416,19 @@ function OrderPopup() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
+    let innerHide;
     const startTimer = setTimeout(() => setVisible(true), 3000);
-    const hideTimer = setTimeout(() => setVisible(false), 9000);
+    const firstHide = setTimeout(() => setVisible(false), 9000);
     const loopTimer = setInterval(() => {
       setCurrent(buildRandomOrder());
       setVisible(true);
-      setTimeout(() => setVisible(false), 6000);
+      clearTimeout(innerHide);
+      innerHide = setTimeout(() => setVisible(false), 6000);
     }, 12000);
     return () => {
       clearTimeout(startTimer);
-      clearTimeout(hideTimer);
+      clearTimeout(firstHide);
+      clearTimeout(innerHide);
       clearInterval(loopTimer);
     };
   }, []);
@@ -549,7 +569,8 @@ function MyReferralsCard({ phone, onPhoneSubmit, referralInfo, loading }) {
             <span className="referral-link-label">Your share link</span>
             <div className="referral-link-row">
               <input type="text" readOnly value={referralInfo.share_url} />
-              <button type="button" className="referral-copy-btn" onClick={handleCopy}>
+              <button type="button" className="referral-copy-btn"
+                      aria-label="Copy referral link" onClick={handleCopy}>
                 {copied ? <CheckCircle2 size={17} /> : <Copy size={17} />}
               </button>
             </div>
@@ -668,6 +689,15 @@ function OrderTracking({ trackingId, initialData, onClose }) {
   const [trackingData, setTrackingData] = useState(initialData);
   const [loading, setLoading] = useState(!initialData);
   const [trackingError, setTrackingError] = useState("");
+  const [toast, setToast] = useState("");
+
+  function copyTrackingId(value) {
+    try {
+      navigator.clipboard?.writeText(value);
+      setToast("Tracking ID copied");
+      setTimeout(() => setToast(""), 1800);
+    } catch {}
+  }
 
   async function loadTracking(showLoader = false) {
     try {
@@ -752,7 +782,7 @@ function OrderTracking({ trackingId, initialData, onClose }) {
               <span>Tracking ID</span>
               <strong>{order.tracking_id}</strong>
             </div>
-            <button type="button" onClick={() => navigator.clipboard?.writeText(order.tracking_id)}>
+            <button type="button" onClick={() => copyTrackingId(order.tracking_id)}>
               Copy
             </button>
           </div>
@@ -825,9 +855,14 @@ function OrderTracking({ trackingId, initialData, onClose }) {
           </a>
         </>
       )}
+
+      <div className={`toast ${toast ? "visible" : ""}`} role="status" aria-live="polite">
+        {toast}
+      </div>
     </div>
   );
-   }
+}
+
 /* =========================================================
    MAIN APP
 ========================================================= */
@@ -1143,6 +1178,20 @@ function App() {
     } catch {}
   }, [trackingId]);
 
+  // Escape closes the order form
+  useEffect(() => {
+    if (!selectedService) return;
+    const onKey = (e) => {
+      if (e.key === "Escape" && !ordering) {
+        setSelectedService(null);
+        setOrderResult(null);
+        setError("");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selectedService, ordering]);
+
   if (showTracking && trackingId) {
     return (
       <div className="app-shell">
@@ -1260,7 +1309,7 @@ function App() {
                 const count = enrichedServices.filter((service) => service.platform === platform).length;
                 return (
                   <button key={platform} type="button" className="platform-card"
-                          onClick={() => setSelectedPlatform(platform)}>
+                          onClick={(e) => bounceThen(e, () => setSelectedPlatform(platform))}>
                     <span className="platform-icon"><Icon size={21} /></span>
                     <span className="platform-info">
                       <strong>{platform}</strong>
@@ -1332,7 +1381,7 @@ function App() {
                 const Icon = t.icon;
                 return (
                   <button key={t.type} type="button" className="type-card"
-                          onClick={() => { setSelectedType(t.type); setSelectedSubType(null); }}>
+                          onClick={(e) => bounceThen(e, () => { setSelectedType(t.type); setSelectedSubType(null); })}>
                     <span className="type-emoji">{t.emoji}</span>
                     <span className="type-info">
                       <strong><Icon size={17} />{t.type}</strong>
@@ -1397,7 +1446,7 @@ function App() {
             <div className="type-grid">
               {availableSubTypes.map((st) => (
                 <button key={st.subType} type="button" className="type-card"
-                        onClick={() => setSelectedSubType(st.subType)}>
+                        onClick={(e) => bounceThen(e, () => setSelectedSubType(st.subType))}>
                   <span className="type-emoji">{st.emoji || "•"}</span>
                   <span className="type-info">
                     <strong>{st.subType}</strong>
@@ -1493,16 +1542,18 @@ function App() {
                    value={search}
                    onChange={(event) => setSearch(event.target.value)} />
             {search && (
-              <button type="button" className="clear-search" onClick={() => setSearch("")}>
+              <button type="button" className="clear-search"
+                      aria-label="Clear search" onClick={() => setSearch("")}>
                 <X size={17} />
               </button>
             )}
           </div>
 
           {loadingServices ? (
-            <div className="loading-state">
-              <Loader2 className="spin" size={30} />
-              <span>Loading services...</span>
+            <div className="services-grid" aria-busy="true" aria-label="Loading services">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="skeleton-card" />
+              ))}
             </div>
           ) : error && !selectedService ? (
             <div className="error-state">
@@ -1561,7 +1612,8 @@ function App() {
                           </strong>
                         )}
                       </div>
-                      <button type="button" className="order-button" onClick={() => openOrder(service)}>
+                      <button type="button" className="order-button"
+                              onClick={(e) => bounceThen(e, () => openOrder(service))}>
                         Order <ShoppingCart size={17} />
                       </button>
                     </div>
@@ -1580,8 +1632,11 @@ function App() {
 
       {selectedService && (
         <div className="modal-backdrop" onClick={closeOrder}>
-          <div className="order-modal" onClick={(event) => event.stopPropagation()}>
-            <button type="button" className="modal-close" onClick={closeOrder} disabled={ordering}>
+          <div className="order-modal" role="dialog" aria-modal="true"
+               aria-label="Order service"
+               onClick={(event) => event.stopPropagation()}>
+            <button type="button" className="modal-close" aria-label="Close"
+                    onClick={closeOrder} disabled={ordering}>
               <X size={20} />
             </button>
 
