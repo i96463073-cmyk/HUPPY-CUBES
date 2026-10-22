@@ -500,12 +500,16 @@ async function initiateMpesaStkPush(env, phone, amount, accountRef, description,
   const passkey = text(env.MPESA_PASSKEY);
   const password = btoa(`${shortcode}${passkey}${timestamp}`);
 
+  // FIXED: Math.max ensures the amount is NEVER less than 1 KES.
+  // FIXED: Math.ceil rounds up (e.g., 1.2 -> 2) so you don't underpay.
+  const mpesaAmount = Math.max(1, Math.ceil(amount));
+
   const payload = {
     BusinessShortCode: shortcode,
     Password: password,
     Timestamp: timestamp,
     TransactionType: "CustomerPayBillOnline", 
-    Amount: Math.round(amount),
+    Amount: mpesaAmount,
     PartyA: phone,
     PartyB: shortcode,
     PhoneNumber: phone,
@@ -801,7 +805,7 @@ async function handleOrderPayment(env, request) {
   const phone = normalizePhone(body?.phone);
   const quantity = Math.floor(number(body?.quantity, 0));
   const refCodeIn = text(body?.ref_code).toUpperCase();
-  const paymentMethod = text(body?.payment_method).toLowerCase() || "pesapal"; // NEW: accept "mpesa" or "pesapal"
+  const paymentMethod = text(body?.payment_method).toLowerCase() || "pesapal";
 
   if (!serviceId || !link || !quantity || quantity <= 0 || !isValidPhone(phone)) {
     return corsJson({ success: false, error: "Missing or invalid order details." }, 400);
@@ -831,6 +835,11 @@ async function handleOrderPayment(env, request) {
       if (candidate >= MIN_CHARGE_KES) { discountPct = REFERRAL_DISCOUNT_PCT; originalAmount = customerAmount; customerAmount = candidate; }
     }
   } catch (e) {}
+
+  // FIXED: Prevent M-Pesa errors by ensuring the total is at least 1 KES
+  if (customerAmount < 1) {
+    return corsJson({ success: false, error: "Minimum order amount is 1 KES. Please increase the quantity." }, 400);
+  }
 
   let referralReferrerPhone = null;
   let referralCodeUsed = null;
