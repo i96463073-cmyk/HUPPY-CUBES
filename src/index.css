@@ -2528,9 +2528,11 @@
   .referral-link-row input { font-size: 11px; }
   .referral-stat strong { font-size: 14px; }
   .referral-stat span { font-size: 8px; }
-   }
+}
 /* =========================================================
    HUPPY CUBE — POLISH + LIQUID GLASS (v2)
+   Paste at the VERY BOTTOM of src/index.css. Additive only.
+   Replaces the earlier polish.css if you already pasted it.
 ========================================================= */
 
 :root {
@@ -2553,6 +2555,7 @@ h1, h2 { text-wrap: balance; }
 .service-bottom strong, .total-box strong, .hero-stat strong, .tracking-percent { font-variant-numeric: tabular-nums; }
 @supports (height: 100dvh) { .app-shell, .admin-shell { min-height: 100dvh; } .order-modal { max-height: 92dvh; } }
 
+/* overflow:hidden stopped the sticky top bar from sticking; clip keeps the clipping */
 .app-shell { overflow-x: clip; overflow-y: visible; }
 .topbar { padding-top: calc(12px + env(safe-area-inset-top, 0px)) !important; }
 .footer { padding-bottom: calc(35px + env(safe-area-inset-bottom, 0px)); }
@@ -2578,7 +2581,7 @@ h1, h2 { text-wrap: balance; }
   .order-popup-detail { font-size: 11px; }
 }
 
-/* Inputs */
+/* Inputs: no iOS zoom, clean dark autofill, no number spinners */
 .search-box input, .admin-login input, .admin-search-row input { font-size: 16px; }
 input:-webkit-autofill, input:-webkit-autofill:focus {
   -webkit-text-fill-color: #fff; caret-color: #fff;
@@ -2587,11 +2590,11 @@ input:-webkit-autofill, input:-webkit-autofill:focus {
 input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
 input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 
-/* ---------- Brighter ambient light ---------- */
+/* ---------- Brighter ambient light so the glass has something to catch ---------- */
 .ambient { width: 300px; height: 300px; opacity: .34; filter: blur(70px); }
 .ambient-three { background: #db2777; opacity: .2; }
 
-/* ---------- LIQUID GLASS: many-item surfaces (no blur) ---------- */
+/* ---------- LIQUID GLASS: many-item surfaces (no blur = smooth scrolling) ---------- */
 .platform-card, .type-card, .service-card, .trust-badge, .hero-stat, .tracking-details,
 .tracking-id-box, .success-details, .referral-stat, .tracking-auto, .empty-state, .loading-state {
   background: var(--g-fill);
@@ -2600,6 +2603,7 @@ input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-i
   -webkit-backdrop-filter: none; backdrop-filter: none;
 }
 
+/* specular highlight in the top-left corner of every glass card */
 .platform-card, .type-card, .service-card, .track-card, .referral-card, .tracking-status-card { position: relative; overflow: hidden; }
 .platform-card::before, .type-card::before, .service-card::before,
 .track-card::before, .referral-card::before, .tracking-status-card::before {
@@ -2609,7 +2613,7 @@ input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-i
 }
 .platform-card > *, .type-card > *, .service-card > *, .track-card > *, .referral-card > *, .tracking-status-card > * { position: relative; z-index: 1; }
 
-/* ---------- LIQUID GLASS: large surfaces with real blur ---------- */
+/* ---------- LIQUID GLASS: few large surfaces get real blur ---------- */
 .topbar {
   background: rgba(12,7,28,.5);
   -webkit-backdrop-filter: blur(18px) saturate(180%); backdrop-filter: blur(18px) saturate(180%);
@@ -2661,7 +2665,7 @@ input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-i
 }
 .support-button-wa { box-shadow: inset 0 1px 0 rgba(255,255,255,.45), inset 0 -1px 0 rgba(0,0,0,.12), 0 4px 14px rgba(37,211,102,.28) !important; }
 
-/* ---------- Touch: springy iOS press ---------- */
+/* ---------- Touch: springy iOS press, no sticky hover ---------- */
 .platform-card, .type-card, .service-card, .order-button, .pay-button, .track-card-btn,
 .referral-btn, .support-button, .tracking-back, .modal-close, .clear-search {
   -webkit-tap-highlight-color: transparent; touch-action: manipulation;
@@ -2685,6 +2689,7 @@ input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-i
   .tracking-step { min-width: 0; flex: 1 1 0; }
   .tracking-line { flex: 0 0 12px; margin: 17px -2px 0; }
 
+  /* order form slides up as an iOS-style bottom sheet */
   .modal-backdrop { padding: 0; align-items: flex-end; }
   .order-modal {
     width: 100%; border-radius: 28px 28px 0 0;
@@ -2695,7 +2700,7 @@ input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-i
 }
 @keyframes sheetUp { from { transform: translateY(40%); opacity: 0; } to { transform: none; opacity: 1; } }
 
-/* ---------- Skeleton + toast ---------- */
+/* ---------- Loading skeleton + toast (optional JSX) ---------- */
 .skeleton-card {
   height: 190px; border: 1px solid rgba(255,255,255,.08); border-radius: 21px;
   background: linear-gradient(100deg, rgba(255,255,255,.05) 30%, rgba(255,255,255,.12) 50%, rgba(255,255,255,.05) 70%);
@@ -2713,10 +2718,11 @@ input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-i
 }
 .toast.visible { transform: translate(-50%, 0); opacity: 1; }
 
+/* one entrance moment */
 .hero-section { animation: heroIn .6s cubic-bezier(.16,1,.3,1) both; }
 @keyframes heroIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 
-/* ---------- Accessibility ---------- */
+/* ---------- Accessibility fallbacks ---------- */
 @media (prefers-reduced-transparency: reduce) {
   .topbar, .search-box, .track-card, .referral-card, .referral-banner, .order-popup-inner, .order-modal, .toast {
     -webkit-backdrop-filter: none; backdrop-filter: none; background: #17102e;
@@ -2744,6 +2750,7 @@ input[type="number"]::-webkit-outer-spin-button, input[type="number"]::-webkit-i
 .platform-icon, .type-emoji { transition: transform .4s var(--spring); }
 .platform-card:active .platform-icon, .type-card:active .type-emoji { transform: scale(.82); }
 
+/* tap bounce: squish, overshoot, settle (JS adds .bounce) */
 @keyframes iosBounce {
   0%   { transform: scale(1); }
   28%  { transform: scale(.9); }
