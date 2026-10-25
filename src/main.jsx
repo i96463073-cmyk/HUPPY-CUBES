@@ -853,7 +853,7 @@ function App() {
   const [quantity, setQuantity] = useState("");
   const [link, setLink] = useState("");
   const [phone, setPhone] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("mpesa"); // NEW: M-Pesa Default
+  const [paymentMethod, setPaymentMethod] = useState("mpesa"); // M-Pesa is the default
   const [loadingServices, setLoadingServices] = useState(true);
   const [ordering, setOrdering] = useState(false);
   const [orderResult, setOrderResult] = useState(null);
@@ -1101,7 +1101,7 @@ function App() {
           quantity: qty,
           link: link.trim(),
           phone: phone.trim(),
-          payment_method: paymentMethod, // Send the selected method
+          payment_method: paymentMethod,
           ref_code: refCode || undefined
         })
       });
@@ -1118,8 +1118,9 @@ function App() {
         throw new Error("The payment server returned an empty response. Please try again.");
       }
       if (!response.ok || data.success === false) {
-        // --- NEW: SHOW THE REAL SAFARICOM ERROR ---
-        const errMsg = data.details ? `${data.error} (Details: ${data.details})` : (data.error || "Unable to create payment.");
+        const errMsg = data.details
+          ? `${data.error} (Details: ${data.details})`
+          : (data.error || "Unable to create payment.");
         throw new Error(errMsg);
       }
       if (!data.tracking_id) {
@@ -1189,7 +1190,7 @@ function App() {
           <a className="support-button support-button-wa"
              href={getWhatsAppUrl(trackingId)} target="_blank" rel="noreferrer">
             <WhatsAppIcon size={18} />
-            <span>WhatsApp</span>
+            <span>WhatsApp Support</span>
           </a>
         </header>
 
@@ -1224,7 +1225,7 @@ function App() {
           <a className="support-button support-button-wa"
              href={getWhatsAppUrl()} target="_blank" rel="noreferrer">
             <WhatsAppIcon size={18} />
-            <span>WhatsApp</span>
+            <span>WhatsApp Support</span>
           </a>
         </header>
 
@@ -1332,7 +1333,7 @@ function App() {
           <a className="support-button support-button-wa"
              href={getWhatsAppUrl()} target="_blank" rel="noreferrer">
             <WhatsAppIcon size={18} />
-            <span>WhatsApp</span>
+            <span>WhatsApp Support</span>
           </a>
         </header>
 
@@ -1400,7 +1401,7 @@ function App() {
           <a className="support-button support-button-wa"
              href={getWhatsAppUrl()} target="_blank" rel="noreferrer">
             <WhatsAppIcon size={18} />
-            <span>WhatsApp</span>
+            <span>WhatsApp Support</span>
           </a>
         </header>
 
@@ -1468,7 +1469,7 @@ function App() {
         <a className="support-button support-button-wa"
            href={getWhatsAppUrl()} target="_blank" rel="noreferrer">
           <WhatsAppIcon size={18} />
-          <span>WhatsApp</span>
+          <span>WhatsApp Support</span>
         </a>
       </header>
 
@@ -1611,11 +1612,20 @@ function App() {
 
       {selectedService && (
         <div className="modal-backdrop" onClick={closeOrder}>
-          <div className="order-modal" role="dialog" aria-modal="true"
-               aria-label="Order service"
-               onClick={(event) => event.stopPropagation()}>
-            <button type="button" className="modal-close" aria-label="Close"
-                    onClick={closeOrder} disabled={ordering}>
+          <div
+            className="order-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Order service"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="modal-close"
+              aria-label="Close"
+              onClick={closeOrder}
+              disabled={ordering}
+            >
               <X size={20} />
             </button>
 
@@ -1639,12 +1649,14 @@ function App() {
                 <form onSubmit={submitOrder}>
                   <label className="field">
                     <span><Hash size={16} />Quantity</span>
-                    <input type="number"
-                           min={selectedService.min_quantity ?? selectedService.min}
-                           max={selectedService.max_quantity ?? selectedService.max}
-                           value={quantity}
-                           onChange={(event) => setQuantity(event.target.value)}
-                           placeholder="Enter quantity" />
+                    <input
+                      type="number"
+                      min={selectedService.min_quantity ?? selectedService.min}
+                      max={selectedService.max_quantity ?? selectedService.max}
+                      value={quantity}
+                      onChange={(event) => setQuantity(event.target.value)}
+                      placeholder="Enter quantity"
+                    />
                     <small>
                       Min {Number(selectedService.min_quantity ?? selectedService.min ?? 0).toLocaleString()} • Max{" "}
                       {Number(selectedService.max_quantity ?? selectedService.max ?? 0).toLocaleString()}
@@ -1653,32 +1665,57 @@ function App() {
 
                   <label className="field">
                     <span><LinkIcon size={16} />Target link</span>
-                    <input type="url" value={link}
-                           onChange={(event) => setLink(event.target.value)}
-                           placeholder="https://..." />
+                    <input
+                      type="url"
+                      value={link}
+                      onChange={(event) => setLink(event.target.value)}
+                      placeholder="https://..."
+                    />
                   </label>
 
                   <label className="field">
                     <span><Phone size={16} />Phone number</span>
-                    <input type="tel" value={phone}
-                           onChange={(event) => setPhone(event.target.value)}
-                           placeholder="07XXXXXXXX" />
+                    <input
+                      type="tel"
+                      value={phone}
+                      onChange={(event) => setPhone(event.target.value)}
+                      placeholder="07XXXXXXXX"
+                    />
                   </label>
 
-                  <div className="field" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 600, opacity: 0.8 }}>
-                      <CreditCard size={16} /> Select Payment Method
-                    </span>
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                      <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px', background: paymentMethod === 'mpesa' ? 'rgba(34, 197, 94, 0.1)' : 'rgba(255,255,255,0.05)', border: paymentMethod === 'mpesa' ? '1px solid #22c55e' : '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', cursor: 'pointer' }}>
-                        <input type="radio" name="payment" value="mpesa" checked={paymentMethod === 'mpesa'} onChange={() => setPaymentMethod('mpesa')} style={{ accentColor: '#22c55e' }} />
-                        <span style={{ fontSize: '13px', fontWeight: 600 }}>M-Pesa<br/><span style={{ fontSize: '11px', fontWeight: 400, opacity: 0.6 }}>Instant Prompt</span></span>
-                      </label>
-                      <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', padding: '12px', background: paymentMethod === 'pesapal' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(255,255,255,0.05)', border: paymentMethod === 'pesapal' ? '1px solid #3b82f6' : '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', cursor: 'pointer' }}>
-                        <input type="radio" name="payment" value="pesapal" checked={paymentMethod === 'pesapal'} onChange={() => setPaymentMethod('pesapal')} style={{ accentColor: '#3b82f6' }} />
-                        <span style={{ fontSize: '13px', fontWeight: 600 }}>Card / Bank<br/><span style={{ fontSize: '11px', fontWeight: 400, opacity: 0.6 }}>via PesaPal</span></span>
-                      </label>
-                    </div>
+                  <div className="pay-section-title">
+                    <span>Payment method</span>
+                  </div>
+                  <div className="pay-methods" role="radiogroup" aria-label="Payment method">
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={paymentMethod === "mpesa"}
+                      className={`pay-method ${paymentMethod === "mpesa" ? "selected" : ""}`}
+                      onClick={() => setPaymentMethod("mpesa")}
+                    >
+                      <span className="pay-method-icon"><Phone size={19} /></span>
+                      <span className="pay-method-text">
+                        <strong>M-Pesa payment</strong>
+                        <small>Instant prompt on your phone</small>
+                      </span>
+                      <span className="pay-method-radio" />
+                    </button>
+
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={paymentMethod === "pesapal"}
+                      className={`pay-method ${paymentMethod === "pesapal" ? "selected" : ""}`}
+                      onClick={() => setPaymentMethod("pesapal")}
+                    >
+                      <span className="pay-method-icon"><CreditCard size={19} /></span>
+                      <span className="pay-method-text">
+                        <strong>Card / Bank</strong>
+                        <small>Secure checkout via PesaPal</small>
+                      </span>
+                      <span className="pay-method-radio" />
+                    </button>
                   </div>
 
                   {(() => {
@@ -1687,7 +1724,7 @@ function App() {
                       ? applyDiscount(rawTotal, activeDiscountPct)
                       : rawTotal;
                     return (
-                      <div className="total-box" style={{ marginTop: '16px' }}>
+                      <div className="total-box" style={{ marginTop: "16px" }}>
                         <div>
                           <span>Total</span>
                           <small>{Number(quantity || 0).toLocaleString()} units</small>
@@ -1711,11 +1748,25 @@ function App() {
                     {ordering ? (
                       <><Loader2 className="spin" size={19} />Preparing payment...</>
                     ) : (
-                      <>Pay & Order <ChevronRight size={20} /></>
+                      <>
+                        {paymentMethod === "mpesa" ? "Pay with M-Pesa" : "Pay with Card / Bank"}
+                        <ChevronRight size={20} />
+                      </>
                     )}
                   </button>
 
                   <div className="secure-note">🔒 Secure payment</div>
+
+                  <div className="help-divider">Need help paying?</div>
+                  <a
+                    className="wa-call-button"
+                    href={getWhatsAppUrl()}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <WhatsAppIcon size={20} /> Call on WhatsApp
+                  </a>
+                  <div className="wa-call-note">Replies within minutes</div>
                 </form>
               </>
             ) : (
@@ -1743,14 +1794,20 @@ function App() {
                   </div>
                 </div>
 
-                <button type="button" className="pay-button"
-                        onClick={() => openTracking(orderResult.tracking_id)}>
+                <button
+                  type="button"
+                  className="pay-button"
+                  onClick={() => openTracking(orderResult.tracking_id)}
+                >
                   Track My Order <ChevronRight size={20} />
                 </button>
 
-                <a className="whatsapp-help"
-                   href={getWhatsAppUrl(orderResult.tracking_id)}
-                   target="_blank" rel="noreferrer">
+                <a
+                  className="whatsapp-help"
+                  href={getWhatsAppUrl(orderResult.tracking_id)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   <WhatsAppIcon size={20} />
                   <div>
                     <strong>WhatsApp Help</strong>
