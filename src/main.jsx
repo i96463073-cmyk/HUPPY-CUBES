@@ -459,7 +459,7 @@ function TrackOrderCard({ hasTrackingId, onTrack }) {
 }
 
 const TRUST_BADGES = [
-  { icon: "🛡️", title: "Secure Payments", description: "Powered by PesaPal" },
+  { icon: "🛡️", title: "Secure Payments", description: "Powered by IntaSend" },
   { icon: "⚡", title: "Fast Delivery", description: "Orders start instantly" },
   { icon: "💳", title: "M-Pesa Accepted", description: "Pay in 30 seconds" },
   { icon: "🎧", title: "24/7 Support", description: "We're on WhatsApp" }
@@ -853,7 +853,8 @@ function App() {
   const [quantity, setQuantity] = useState("");
   const [link, setLink] = useState("");
   const [phone, setPhone] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("mpesa"); // M-Pesa is the default
+  // DEFAULT PAYMENT METHOD CHANGED TO INTASEND
+  const [paymentMethod, setPaymentMethod] = useState("intasend");
   const [loadingServices, setLoadingServices] = useState(true);
   const [ordering, setOrdering] = useState(false);
   const [orderResult, setOrderResult] = useState(null);
@@ -1031,7 +1032,7 @@ function App() {
     setPhone(customerPhone || phone || "");
     setError("");
     setOrderResult(null);
-    setPaymentMethod("mpesa");
+    setPaymentMethod("intasend"); // Default to IntaSend
   }
 
   function closeOrder() {
@@ -1687,17 +1688,19 @@ function App() {
                     <span>Payment method</span>
                   </div>
                   <div className="pay-methods" role="radiogroup" aria-label="Payment method">
+                    
+                    {/* REPLACED MPESA WITH INTASEND */}
                     <button
                       type="button"
                       role="radio"
-                      aria-checked={paymentMethod === "mpesa"}
-                      className={`pay-method ${paymentMethod === "mpesa" ? "selected" : ""}`}
-                      onClick={() => setPaymentMethod("mpesa")}
+                      aria-checked={paymentMethod === "intasend"}
+                      className={`pay-method ${paymentMethod === "intasend" ? "selected" : ""}`}
+                      onClick={() => setPaymentMethod("intasend")}
                     >
-                      <span className="pay-method-icon"><Phone size={19} /></span>
+                      <span className="pay-method-icon"><CreditCard size={19} /></span>
                       <span className="pay-method-text">
-                        <strong>M-Pesa payment</strong>
-                        <small>Instant prompt on your phone</small>
+                        <strong>Pay with IntaSend</strong>
+                        <small>Secure checkout (Card / Bank / M-Pesa)</small>
                       </span>
                       <span className="pay-method-radio" />
                     </button>
@@ -1711,7 +1714,7 @@ function App() {
                     >
                       <span className="pay-method-icon"><CreditCard size={19} /></span>
                       <span className="pay-method-text">
-                        <strong>Card / Bank</strong>
+                        <strong>Card / Bank (PesaPal)</strong>
                         <small>Secure checkout via PesaPal</small>
                       </span>
                       <span className="pay-method-radio" />
@@ -1749,7 +1752,7 @@ function App() {
                       <><Loader2 className="spin" size={19} />Preparing payment...</>
                     ) : (
                       <>
-                        {paymentMethod === "mpesa" ? "Pay with M-Pesa" : "Pay with Card / Bank"}
+                        {paymentMethod === "intasend" ? "Pay with IntaSend" : "Pay with Card / Bank"}
                         <ChevronRight size={20} />
                       </>
                     )}
