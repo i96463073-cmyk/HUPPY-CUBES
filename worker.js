@@ -613,15 +613,13 @@ async function initiateMpesaStkPush(env, phone, amount, accountRef, description,
   const passkey = text(env.MPESA_PASSKEY);
   const password = btoa(`${shortcode}${passkey}${timestamp}`);
 
-  // Math.max ensures the amount is NEVER less than 1 KES.
-  // Math.ceil rounds up (e.g., 1.2 -> 2) so Safaricom accepts it.
   const mpesaAmount = Math.max(1, Math.ceil(amount));
 
   const payload = {
     BusinessShortCode: shortcode,
     Password: password,
     Timestamp: timestamp,
-    TransactionType: "CustomerPayBillOnline",
+    TransactionType: "CustomerPayBillOnline", 
     Amount: mpesaAmount,
     PartyA: phone,
     PartyB: shortcode,
@@ -696,8 +694,6 @@ async function handleMpesaCallback(env, request) {
 
 /* =========================================================
 INTASEND M-PESA STK PUSH
-Docs: https://developers.intasend.com
-Sandbox: https://sandbox.intasend.com   Live: https://payment.intasend.com
 ========================================================= */
 
 function getIntasendBase(env) {
@@ -716,6 +712,8 @@ async function intasendPost(env, path, body) {
       Authorization: `Bearer ${secret}`,
       "Content-Type": "application/json",
       Accept: "application/json",
+      // 👇 THIS IS THE FIX FOR ERROR 1106 👇
+      "User-Agent": "Mozilla/5.0 (compatible; HUPPY-CUBE/1.0)",
     },
     body: JSON.stringify(body),
   });
@@ -745,8 +743,6 @@ async function getIntasendStatus(env, invoiceId) {
   return await intasendPost(env, "/api/v1/payment/status/", { invoice_id: invoiceId });
 }
 
-// Verifies directly with IntaSend, then fulfils.
-// Never trusts the browser or the webhook body.
 async function processIntasendOrder(env, order) {
   if (!order) return { success: false, message: "Order not found." };
   if (order.supplier_order_id) {
@@ -780,7 +776,6 @@ async function processIntasendOrder(env, order) {
     return { success: true, paid: false, pending: true };
   }
 
-  // Security checks
   const expected = Math.max(1, Math.ceil(number(order.customer_amount, 0)));
   const paid = number(inv?.value, 0);
   const currency = text(inv?.currency).toUpperCase();
@@ -801,7 +796,6 @@ async function processIntasendOrder(env, order) {
     throw new Error(problem);
   }
 
-  // Idempotent lock: only one caller gets past here
   const claimed = await claimSupplierSubmission(env, order.tracking_id);
   if (!claimed) {
     const latest = await getOrderByTrackingId(env, order.tracking_id);
@@ -1143,7 +1137,6 @@ async function processPaidOrder(env, originalOrder) {
         tracking_id: order.tracking_id, order_status: latest?.order_status || "Submitting" };
     }
 
-    // Payment confirmed — credit the referrer (idempotent).
     try {
       await creditReferrerForOrder(env, order);
     } catch (refErr) {
@@ -1351,12 +1344,10 @@ async function handleOrderPayment(env, request) {
     return corsJson({ success: false, error: "Calculated payment amount is invalid." }, 400);
   }
 
-  // Prevent M-Pesa errors by ensuring the total is at least 1 KES
   if (customerAmount < 1) {
     return corsJson({ success: false, error: "Minimum order amount is 1 KES. Please increase the quantity." }, 400);
   }
 
-  // Apply referrer's OWN active discount (if this buyer is a referrer)
   let discountPct = 0;
   let originalAmount = customerAmount;
   try {
@@ -1373,7 +1364,6 @@ async function handleOrderPayment(env, request) {
     console.error("Discount lookup failed:", e);
   }
 
-  // Attribute referral — only first-ever order counts
   let referralReferrerPhone = null;
   let referralCodeUsed = null;
   if (refCodeIn) {
@@ -1635,7 +1625,6 @@ async function handleOrderStatus(env, request) {
     order = await getOrderByTrackingId(env, trackingId);
   }
 
-  // IntaSend: confirm payment on the tracking page even if the webhook is late
   if (order?.intasend_invoice_id && !order?.supplier_order_id &&
     String(order?.order_status || "").toLowerCase() !== "submitting" &&
     !isTerminalStatus(order?.order_status) &&
