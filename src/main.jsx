@@ -1,1841 +1,2182 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { createRoot } from "react-dom/client";
-import "./index.css";
-import AdminDashboard from "./AdminDashboard.jsx";
-import { BRAND_ICONS } from "./BrandIcons.jsx";
-import {
-  Search,
-  ShoppingCart,
-  Instagram,
-  Music2,
-  Facebook,
-  Youtube,
-  Send,
-  Twitter,
-  MessageCircle,
-  Gamepad2,
-  Globe,
-  Sparkles,
-  X,
-  CheckCircle2,
-  Loader2,
-  Phone,
-  Link as LinkIcon,
-  Hash,
-  ChevronRight,
-  ChevronLeft,
-  Headphones,
-  CreditCard,
-  PackageCheck,
-  Clock3,
-  Heart,
-  Eye,
-  MessageSquare,
-  Users,
-  Bookmark,
-  Share2,
-  Radio,
-  Timer,
-  Gift,
-  Copy
-} from "lucide-react";
+// ============================================================
+// HUPPY CUBE - COMPLETE CLOUDFLARE WORKER
+// ============================================================
+
+const PESAPAL_LIVE_BASE = "https://pay.pesapal.com/v3";
+const PESAPAL_SANDBOX_BASE = "https://cybqa.pesapal.com/pesapalv3";
+const DENZGAINS_BASE = "https://denzgains.com/api/v2";
+const WHATSAPP_NUMBER = "254796681162";
+
+// Default markup: 2x supplier rate
+const DEFAULT_MARKUP = 2.0;
 
 /* =========================================================
-   GLOBAL PWA SETUP — dark status bar everywhere
+REFERRAL CONFIG
 ========================================================= */
 
-if (typeof document !== "undefined") {
-  const ensureThemeColor = () => {
-    let theme = document.querySelector('meta[name="theme-color"]');
-    if (!theme) {
-      theme = document.createElement("meta");
-      theme.name = "theme-color";
-      document.head.appendChild(theme);
-    }
-    theme.content = "#05030d";
+const REFERRAL_CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+const REFERRAL_CODE_LENGTH = 6;
+const REFERRAL_WINDOW_HOURS = 24;
+const REFERRAL_MAX_WINDOW_HOURS = 24 * 7; // 7-day rolling cap
+const REFERRAL_DISCOUNT_PCT = 10;
+const MIN_CHARGE_KES = 4;
+
+function json(data, status = 200, extraHeaders = {}) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+      ...extraHeaders,
+    },
+  });
+}
+
+function corsHeaders(origin = "*") {
+  return {
+    "Access-Control-Allow-Origin": origin || "*",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+    "Access-Control-Max-Age": "86400",
   };
-  ensureThemeColor();
-
-  if (window.location.pathname === "/admin") {
-    let manifestLink = document.querySelector('link[rel="manifest"]');
-    if (!manifestLink) {
-      manifestLink = document.createElement("link");
-      manifestLink.rel = "manifest";
-      document.head.appendChild(manifestLink);
-    }
-    manifestLink.href = "/admin-manifest.json";
-  }
 }
 
-const WHATSAPP_NUMBER = "254796681162";
-const REF_DISCOUNT_PCT = 10;
-
-const PLATFORM_ORDER = [
-  "All", "Instagram", "TikTok", "Facebook", "YouTube",
-  "Telegram", "Twitter / X", "WhatsApp", "Spotify", "Gaming", "Other"
-];
-
-function WhatsAppIcon({ size = 18 }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width={size} height={size} fill="currentColor" aria-hidden="true">
-      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
-    </svg>
-  );
+function corsJson(data, status = 200, origin = "*") {
+  return json(data, status, corsHeaders(origin));
 }
 
-const PLATFORM_ICONS = {
-  Instagram, TikTok: Music2, Facebook, YouTube: Youtube,
-  Telegram: Send, "Twitter / X": Twitter, WhatsApp: MessageCircle,
-  Spotify: Headphones, Gaming: Gamepad2, Other: Globe
-};
-
-Object.assign(PLATFORM_ICONS, BRAND_ICONS);
-
-const TYPE_ORDER = [
-  "Likes", "Views", "Comments", "Followers", "Saves",
-  "Shares", "Live Stream", "Watch Time", "Accounts & Bundles", "Other"
-];
-
-const TYPE_META = {
-  Likes: { emoji: "❤️", icon: Heart },
-  Views: { emoji: "👁️", icon: Eye },
-  Comments: { emoji: "💬", icon: MessageSquare },
-  Followers: { emoji: "👥", icon: Users },
-  Saves: { emoji: "🔖", icon: Bookmark },
-  Shares: { emoji: "🔁", icon: Share2 },
-  "Live Stream": { emoji: "📡", icon: Radio },
-  "Watch Time": { emoji: "⏱️", icon: Timer },
-  "Accounts & Bundles": { emoji: "🎁", icon: Gift },
-  Other: { emoji: "📦", icon: PackageCheck }
-};
-
-const SUB_TYPE_ORDER = {
-  Likes: ["Post Likes", "Reactions", "Story Reactions", "Live Reactions", "Comment Likes", "Auto Likes"],
-  Followers: ["Standard Followers", "High Quality", "Bot / Cheap", "Group Members", "Subscribers", "Premium Members"],
-  Views: ["Post Views", "Story Views", "Reel / Shorts Views", "Live Views", "Impressions / Reach"],
-  Comments: ["Random Comments", "Custom Comments"]
-};
-
-const SUB_TYPE_META = {
-  "Post Likes": { emoji: "👍" },
-  Reactions: { emoji: "🔥" },
-  "Story Reactions": { emoji: "📸" },
-  "Live Reactions": { emoji: "📡" },
-  "Comment Likes": { emoji: "💬" },
-  "Auto Likes": { emoji: "🤖" },
-  "Premium / Real Likes": { emoji: "💎" },
-  "Standard Followers": { emoji: "👥" },
-  "High Quality": { emoji: "💎" },
-  "Bot / Cheap": { emoji: "💰" },
-  "Group Members": { emoji: "👨‍👩‍👧" },
-  Subscribers: { emoji: "🔔" },
-  "Premium Members": { emoji: "👑" },
-  "Post Views": { emoji: "👁️" },
-  "Story Views": { emoji: "📸" },
-  "Reel / Shorts Views": { emoji: "🎬" },
-  "Live Views": { emoji: "📡" },
-  "Impressions / Reach": { emoji: "📊" },
-  "Random Comments": { emoji: "💬" },
-  "Custom Comments": { emoji: "✍️" }
-};
-
-function bounceThen(event, action) {
-  const el = event.currentTarget;
-  const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  if (reduce) return action();
-  el.classList.remove("bounce");
-  void el.offsetWidth;
-  el.classList.add("bounce");
-  setTimeout(action, 240);
+function text(value) {
+  return value === undefined || value === null ? "" : String(value).trim();
 }
 
-function normalizeText(value) {
-  return String(value || "").normalize("NFKD").toLowerCase();
+function number(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
 }
 
-function detectPlatform(service) {
-  const t = normalizeText(
-    `${service?.name || ""} ${service?.category || ""} ${service?.type || ""}`
-  );
-  if (t.includes("instagram") || t.includes("ig ") || t.includes(" ig") || t.includes("ig post") || t.includes("ig story") || t.includes("ig reel")) return "Instagram";
-  if (t.includes("tiktok") || t.includes("tik tok") || t.includes("tt ") || t.includes(" tt")) return "TikTok";
-  if (t.includes("facebook") || t.includes("fb ") || t.includes("fb post") || t.includes("fb group") || t.includes(" fb")) return "Facebook";
-  if (t.includes("youtube") || t.includes("yt ") || t.includes("yt-") || t.includes(" yt")) return "YouTube";
-  if (t.includes("telegram") || t.includes("tg ")) return "Telegram";
-  if (t.includes("twitter") || t.includes(" x ") || t.startsWith("x ") || t.includes(" x/") || t.includes("x (") || t.includes(" x.")) return "Twitter / X";
-  if (t.includes("whatsapp") || t.includes("wa chan") || t.includes("wa poll")) return "WhatsApp";
-  if (t.includes("spotify")) return "Spotify";
-  if (t.includes("boomplay") || t.includes("gaming") || t.includes("game ") || t.includes("twitch")) return "Gaming";
-  return "Other";
+function roundMoney(value) {
+  return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 }
 
-function detectServiceType(service) {
-  const name = normalizeText(service?.name);
-  const category = normalizeText(service?.category);
-  const type = normalizeText(service?.type);
-  const combined = `${name} ${category} ${type}`;
-
-  if (type === "package" || combined.includes("premium accounts") || combined.includes("netflix") ||
-      combined.includes("chat gpt") || combined.includes("chatgpt") || combined.includes("capcut") ||
-      combined.includes("prime video") || combined.includes("account ") || combined.includes("vpn") ||
-      combined.includes("whatsapp numbers") || combined.includes("telegram numbers") ||
-      combined.includes("safaricom") || combined.includes("data bundles") ||
-      combined.includes("google maps reviews") || combined.includes("verification")) {
-    return "Accounts & Bundles";
-  }
-
-  if (combined.includes("live stream") || combined.includes("live video") || combined.includes("live views") ||
-      combined.includes("live likes") || combined.includes("live reaction") || combined.includes("live pk") ||
-      combined.includes("battle points")) return "Live Stream";
-
-  if (combined.includes("watchtime") || combined.includes("watch time") || combined.includes("watch-time")) {
-    return "Watch Time";
-  }
-
-  if (combined.includes("like") || combined.includes("reaction") || combined.includes("react") || combined.includes("heart")) {
-    return "Likes";
-  }
-
-  if (combined.includes("view") || combined.includes("views") || combined.includes("play") ||
-      combined.includes("plays") || combined.includes("impression") || combined.includes("reach") ||
-      combined.includes("visits") || combined.includes("traffic") || combined.includes("stream") ||
-      combined.includes("listener")) return "Views";
-
-  if (combined.includes("comment") || combined.includes("mention")) return "Comments";
-
-  if (combined.includes("follower") || combined.includes("subscriber") || combined.includes("member") ||
-      combined.includes("subs") || combined.includes("sub ") || combined.includes("bot start")) {
-    return "Followers";
-  }
-
-  if (combined.includes("save") || combined.includes("bookmark")) return "Saves";
-  if (combined.includes("share") || combined.includes("repost") || combined.includes("retweet")) return "Shares";
-  return "Other";
+function safeJsonParse(value, fallback = null) {
+  try { return JSON.parse(value); } catch { return fallback; }
 }
 
-function detectServiceSubType(service, type) {
-  if (!type) return null;
-  if (type === "Saves" || type === "Shares" || type === "Watch Time" ||
-      type === "Accounts & Bundles" || type === "Live Stream" || type === "Other") return null;
+function randomId(prefix = "HUPPY") {
+  const random = typeof crypto !== "undefined" && crypto.randomUUID
+    ? crypto.randomUUID().replace(/-/g, "").slice(0, 20).toUpperCase()
+    : Math.random().toString(36).slice(2, 14).toUpperCase();
+  return `${prefix}-${Date.now()}-${random}`;
+}
 
-  const name = normalizeText(service?.name);
-  const category = normalizeText(service?.category);
-  const combined = `${name} ${category}`;
+function normalizePhone(phone) {
+  let p = text(phone).replace(/[^\d+]/g, "");
+  if (p.startsWith("+254")) p = "254" + p.slice(4);
+  else if (p.startsWith("254")) { /* ok */ }
+  else if (p.startsWith("0")) p = "254" + p.slice(1);
+  return p;
+}
 
-  if (type === "Likes") {
-    if (combined.includes("comment like") || combined.includes("comment likes") ||
-        combined.includes("under comment") || combined.includes("comments likes")) return "Comment Likes";
-    if (combined.includes("story") && (combined.includes("react") || combined.includes("like"))) return "Story Reactions";
-    if (combined.includes("live") && (combined.includes("react") || combined.includes("like"))) return "Live Reactions";
-    if (combined.includes("auto like") || combined.includes("auto likes") || combined.includes("auto react")) return "Auto Likes";
+function isValidPhone(phone) {
+  return /^2547\d{8}$/.test(phone) || /^2541\d{8}$/.test(phone);
+}
 
-    if (combined.includes("post like") || combined.includes("post/photo like") ||
-        combined.includes("post / photo like") || combined.includes("photo like") ||
-        combined.includes("post/photo likes") || combined.includes("photo likes")) {
-      return "Post Likes";
-    }
+function maskSecret(value) {
+  const v = text(value);
+  if (!v) return "";
+  if (v.length <= 8) return "********";
+  return `${v.slice(0, 4)}********${v.slice(-4)}`;
+}
 
-    if (combined.includes("reaction") || combined.includes("react") || combined.includes("emoji")) return "Reactions";
-    return "Post Likes";
-  }
+function errorMessage(error) {
+  if (!error) return "Unknown error";
+  if (typeof error === "string") return error;
+  return error.message || error.error?.message || error.error_description || JSON.stringify(error);
+}
 
-  if (type === "Followers") {
-    if (combined.includes("premium member") || combined.includes("prem member")) return "Premium Members";
-    if (combined.includes("group member") || combined.includes("group members")) return "Group Members";
-    if (combined.includes("subscriber") || combined.includes("sub ") || combined.includes("subs") ||
-        combined.includes("sub →") || combined.includes("yt subs") || combined.includes("yt sub")) return "Subscribers";
-    if (combined.includes("bot") || combined.includes("boost") || combined.includes("cheap") || combined.includes("budget")) return "Bot / Cheap";
-    if (combined.includes("supreme") || combined.includes("non drop") || combined.includes("non-drop") ||
-        combined.includes("nondrop") || combined.includes("hq") || combined.includes("high quality") ||
-        combined.includes("stable") || combined.includes("real")) return "High Quality";
-    return "Standard Followers";
-  }
+function getOrigin(request) { return new URL(request.url).origin; }
 
-  if (type === "Views") {
-    if (combined.includes("story")) return "Story Views";
-    if (combined.includes("reel") || combined.includes("short") || combined.includes("shorts")) return "Reel / Shorts Views";
-    if (combined.includes("live")) return "Live Views";
-    if (combined.includes("impression") || combined.includes("reach") ||
-        combined.includes("visit") || combined.includes("profile visit")) return "Impressions / Reach";
-    return "Post Views";
-  }
+function getEnvOrigin(env, request) {
+  return text(env.PUBLIC_BASE_URL).replace(/\/$/, "") || getOrigin(request);
+}
 
-  if (type === "Comments") {
-    if (combined.includes("custom")) return "Custom Comments";
-    return "Random Comments";
-  }
+function isAdminAuthorized(env, request) {
+  const url = new URL(request.url);
+  const provided = text(url.searchParams.get("secret"));
+  const expected = text(env.TEST_ORDER_SECRET);
+  if (!expected) return false;
+  if (!provided) return false;
+  return provided === expected;
+}
 
+function adminUnauthorized() {
+  return json({ success: false, error: "Unauthorized." }, 401);
+}
+
+function buildDateFilter(url) {
+  const from = text(url.searchParams.get("from"));
+  const to = text(url.searchParams.get("to"));
+  const wheres = [];
+  const binds = [];
+  if (from) { wheres.push(`date(created_at, '+3 hours') >= ?`); binds.push(from); }
+  if (to) { wheres.push(`date(created_at, '+3 hours') <= ?`); binds.push(to); }
+  return { wheres, binds };
+}
+
+function toNairobiISO(utcString) {
+  if (!utcString) return "";
+  const raw = String(utcString);
+  const iso = raw.includes("T") ? raw : raw.replace(" ", "T") + "Z";
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) return raw;
+  return new Date(ms + 3 * 60 * 60 * 1000).toISOString().replace("Z", "+03:00");
+}
+
+function normalizeSupplierStatus(raw) {
+  const s = String(raw ?? "").trim().toLowerCase();
+  if (!s) return null;
+  if (s === "completed") return "Completed";
+  if (s === "partial") return "Partial";
+  if (s === "canceled" || s === "cancelled") return "Cancelled";
+  if (s === "fail" || s === "failed") return "Failed";
+  if (s === "in progress" || s === "inprogress" || s === "processing") return "Processing";
+  if (s === "awaiting" || s === "pending") return "Pending";
   return null;
 }
 
-function formatDuration(ms) {
-  if (!ms || ms <= 0) return "0m";
-  const total = Math.floor(ms / 60000);
-  const h = Math.floor(total / 60);
-  const m = total % 60;
-  if (h > 0) return `${h}h ${m}m`;
-  return `${m}m`;
+function isTerminalStatus(status) {
+  const s = String(status || "").toLowerCase();
+  return s.includes("completed") || s.includes("partial") || s.includes("cancel")
+    || s.includes("failed") || s.includes("reversed");
 }
 
-function applyDiscount(amount, pct) {
-  if (!pct) return Number(amount || 0);
-  return Number(amount || 0) * (100 - pct) / 100;
+function recentlyFailedSubmission(order) {
+  if (!order?.error_message) return false;
+  if (!order?.updated_at) return false;
+  const raw = String(order.updated_at);
+  const iso = raw.includes("T") ? raw : raw.replace(" ", "T") + "Z";
+  const updated = Date.parse(iso);
+  if (!Number.isFinite(updated)) return false;
+  return Date.now() - updated < 60_000;
 }
 
-function readRefCodeFromUrl() {
+const REQUIRED_ORDER_COLUMNS = {
+  tracking_id: "TEXT", service_id: "TEXT", service_name: "TEXT", link: "TEXT",
+  quantity: "INTEGER", phone: "TEXT",
+  supplier_rate: "REAL", customer_rate: "REAL", supplier_amount: "REAL", customer_amount: "REAL",
+  payment_status: "TEXT", order_status: "TEXT",
+  pesapal_order_tracking_id: "TEXT", pesapal_merchant_reference: "TEXT",
+  mpesa_checkout_request_id: "TEXT", mpesa_receipt_number: "TEXT",
+  supplier_order_id: "TEXT", supplier_response: "TEXT",
+  error_message: "TEXT", created_at: "TEXT", updated_at: "TEXT",
+  referral_code: "TEXT", discount_pct: "INTEGER DEFAULT 0",
+  original_amount: "REAL", referral_referrer_phone: "TEXT",
+};
+
+let ORDERS_TABLE_READY = false;
+
+async function ensureOrdersTable(env) {
+  if (ORDERS_TABLE_READY) return;
+
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS orders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      tracking_id TEXT UNIQUE NOT NULL,
+      service_id TEXT, service_name TEXT, link TEXT, quantity INTEGER, phone TEXT,
+      supplier_rate REAL DEFAULT 0, customer_rate REAL DEFAULT 0,
+      supplier_amount REAL DEFAULT 0, customer_amount REAL DEFAULT 0,
+      payment_status TEXT DEFAULT 'PENDING', order_status TEXT DEFAULT 'Pending',
+      pesapal_order_tracking_id TEXT, pesapal_merchant_reference TEXT,
+      mpesa_checkout_request_id TEXT, mpesa_receipt_number TEXT,
+      supplier_order_id TEXT, supplier_response TEXT, error_message TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+
+  const tableInfo = await env.DB.prepare(`PRAGMA table_info(orders)`).all();
+  const existing = new Set((tableInfo.results || []).map((row) => row.name));
+
+  for (const [column, definition] of Object.entries(REQUIRED_ORDER_COLUMNS)) {
+    if (existing.has(column)) continue;
+    await env.DB.prepare(`ALTER TABLE orders ADD COLUMN ${column} ${definition}`).run();
+  }
+
+  ORDERS_TABLE_READY = true;
+}
+
+/* =========================================================
+SETTINGS TABLE — for adjustable markup and future config
+========================================================= */
+
+let SETTINGS_TABLE_READY = false;
+
+async function ensureSettingsTable(env) {
+  if (SETTINGS_TABLE_READY) return;
+
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
+
+  SETTINGS_TABLE_READY = true;
+}
+
+async function getSetting(env, key, fallback = null) {
   try {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("ref");
-    if (code) {
-      const upper = String(code).toUpperCase().slice(0, 12);
-      localStorage.setItem("huppy_cube_ref_code", upper);
-      return upper;
-    }
-  } catch {}
-  try {
-    return localStorage.getItem("huppy_cube_ref_code") || "";
+    const row = await env.DB.prepare(
+      `SELECT value FROM settings WHERE key = ? LIMIT 1`
+    ).bind(key).first();
+    return row?.value ?? fallback;
   } catch {
-    return "";
+    return fallback;
   }
 }
 
-function readStoredPhone() {
-  try { return localStorage.getItem("huppy_cube_phone") || ""; } catch { return ""; }
+async function setSetting(env, key, value) {
+  await env.DB.prepare(`
+    INSERT INTO settings (key, value, updated_at)
+    VALUES (?, ?, CURRENT_TIMESTAMP)
+    ON CONFLICT(key) DO UPDATE SET
+    value = excluded.value,
+    updated_at = CURRENT_TIMESTAMP
+  `).bind(key, String(value)).run();
 }
 
-function saveStoredPhone(phone) {
+async function getMarkupMultiplier(env) {
+  const raw = await getSetting(env, "markup_multiplier", null);
+  if (raw === null || raw === undefined || raw === "") return DEFAULT_MARKUP;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : DEFAULT_MARKUP;
+}
+
+/* =========================================================
+REFERRAL TABLES
+========================================================= */
+
+let REFERRAL_TABLES_READY = false;
+
+async function ensureReferralTables(env) {
+  if (REFERRAL_TABLES_READY) return;
+
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS referral_codes (
+      phone TEXT PRIMARY KEY,
+      code TEXT UNIQUE NOT NULL,
+      created_at INTEGER NOT NULL
+    )
+  `).run();
+  await env.DB.prepare(
+    `CREATE INDEX IF NOT EXISTS idx_referral_codes_code ON referral_codes(code)`
+  ).run();
+
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS referrals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      referrer_phone TEXT NOT NULL,
+      referee_phone TEXT NOT NULL,
+      referral_code TEXT NOT NULL,
+      referee_order_tracking_id TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'PENDING',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      UNIQUE(referrer_phone, referee_phone)
+    )
+  `).run();
+  await env.DB.prepare(
+    `CREATE INDEX IF NOT EXISTS idx_referrals_referrer ON referrals(referrer_phone)`
+  ).run();
+  await env.DB.prepare(
+    `CREATE INDEX IF NOT EXISTS idx_referrals_referee ON referrals(referee_phone)`
+  ).run();
+
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS referral_discounts (
+      phone TEXT PRIMARY KEY,
+      expires_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `).run();
+
   try {
-    if (phone) localStorage.setItem("huppy_cube_phone", phone);
-  } catch {}
-}
-
-function getCustomerRate(service) {
-  return Number(service?.customer_rate ?? service?.price ?? service?.rate ?? 0);
-}
-
-function formatKES(value) {
-  return `KSh ${Number(value || 0).toLocaleString("en-KE", {
-    minimumFractionDigits: 2, maximumFractionDigits: 2
-  })}`;
-}
-
-function priceFor(service, quantity) {
-  const rate = getCustomerRate(service);
-  const qty = Number(quantity || 0);
-  return (rate * qty) / 1000;
-}
-
-function getWhatsAppUrl(trackingId = "") {
-  const message = trackingId
-    ? `Hello HUPPY CUBE, I need help with my order. Tracking ID: ${trackingId}`
-    : "Hello HUPPY CUBE, I need help with my order.";
-  return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
-}
-
-const TICKER_SERVICES = [
-  { platform: "Instagram", type: "Likes", emoji: "❤️", minQty: 500, maxQty: 5000 },
-  { platform: "Instagram", type: "Followers", emoji: "👥", minQty: 200, maxQty: 2000 },
-  { platform: "Instagram", type: "Views", emoji: "👁️", minQty: 1000, maxQty: 20000 },
-  { platform: "Instagram", type: "Comments", emoji: "💬", minQty: 20, maxQty: 200 },
-  { platform: "TikTok", type: "Likes", emoji: "❤️", minQty: 500, maxQty: 5000 },
-  { platform: "TikTok", type: "Views", emoji: "⚡", minQty: 1000, maxQty: 50000 },
-  { platform: "TikTok", type: "Followers", emoji: "👥", minQty: 200, maxQty: 2000 },
-  { platform: "Facebook", type: "Page Likes", emoji: "👍", minQty: 200, maxQty: 2000 },
-  { platform: "Facebook", type: "Followers", emoji: "👥", minQty: 200, maxQty: 3000 },
-  { platform: "Facebook", type: "Post Reactions", emoji: "🔥", minQty: 100, maxQty: 1000 },
-  { platform: "YouTube", type: "Views", emoji: "▶️", minQty: 500, maxQty: 5000 },
-  { platform: "YouTube", type: "Subscribers", emoji: "🔔", minQty: 100, maxQty: 1000 },
-  { platform: "YouTube", type: "Likes", emoji: "❤️", minQty: 200, maxQty: 2000 },
-  { platform: "Telegram", type: "Members", emoji: "📨", minQty: 200, maxQty: 2000 },
-  { platform: "Telegram", type: "Views", emoji: "👁️", minQty: 500, maxQty: 5000 },
-  { platform: "Twitter / X", type: "Followers", emoji: "🐦", minQty: 200, maxQty: 2000 },
-  { platform: "WhatsApp", type: "Channel Members", emoji: "💚", minQty: 100, maxQty: 1000 },
-  { platform: "Spotify", type: "Plays", emoji: "🎵", minQty: 500, maxQty: 5000 },
-  { platform: "Spotify", type: "Followers", emoji: "🎧", minQty: 200, maxQty: 1000 }
-];
-
-const TICKER_LOCATIONS = [
-  "Nairobi", "Mombasa", "Kisumu", "Nakuru", "Eldoret", "Thika", "Malindi",
-  "Kitale", "Garissa", "Kakamega", "Nyeri", "Meru", "Embu", "Machakos",
-  "Naivasha", "Kericho", "Kisii", "Bungoma", "Busia", "Homa Bay", "Migori",
-  "Siaya", "Vihiga", "Nyamira", "Bomet", "Narok", "Kajiado", "Kiambu",
-  "Murang'a", "Kirinyaga", "Nyandarua", "Laikipia", "Samburu", "Isiolo",
-  "Taita-Taveta", "Kilifi", "Kwale", "Lamu", "Voi", "Nanyuki", "Chuka",
-  "Karatina", "Ruiru", "Juja", "Athi River", "Ngong", "Limuru", "Kikuyu",
-  "Kangundo", "Wote", "Marsabit", "Wajir"
-];
-
-const TICKER_NAMES = [
-  "Brian", "Kevin", "Dennis", "Collins", "Felix", "Peter", "Eric", "Victor",
-  "Samuel", "Anthony", "George", "James", "Daniel", "Alex", "Martin", "Simon",
-  "Elvis", "Wycliffe", "Vincent", "Duncan", "Nicholas", "Alfred", "Boniface",
-  "Steve", "Fred", "Joseph", "Patrick", "Michael", "John", "David", "Faith",
-  "Mercy", "Grace", "Joy", "Mary", "Esther", "Sharon", "Winnie", "Anne",
-  "Diana", "Cynthia", "Purity", "Ruth", "Sarah", "Naomi", "Caroline",
-  "Elizabeth", "Hannah", "Irene", "Millicent", "Nancy", "Lucy", "Christine",
-  "Beatrice", "Gloria", "Jemimah", "Wanjiku", "Akinyi", "Chebet", "Mueni"
-];
-
-function pickRandom(list) {
-  return list[Math.floor(Math.random() * list.length)];
-}
-
-function pickRandomQty(min, max) {
-  const raw = min + Math.random() * (max - min);
-  const step = raw >= 5000 ? 500 : raw >= 500 ? 100 : 50;
-  return Math.round(raw / step) * step;
-}
-
-function buildRandomOrder() {
-  const service = pickRandom(TICKER_SERVICES);
-  const location = pickRandom(TICKER_LOCATIONS);
-  const name = pickRandom(TICKER_NAMES);
-  const qty = pickRandomQty(service.minQty, service.maxQty);
-  return { emoji: service.emoji, qty, name, platform: service.platform,
-    type: service.type, location };
-}
-
-function formatQty(n) {
-  return Number(n).toLocaleString("en-KE");
-}
-
-function OrderPopup() {
-  const [current, setCurrent] = useState(() => buildRandomOrder());
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    let innerHide;
-    const startTimer = setTimeout(() => setVisible(true), 3000);
-    const firstHide = setTimeout(() => setVisible(false), 9000);
-    const loopTimer = setInterval(() => {
-      setCurrent(buildRandomOrder());
-      setVisible(true);
-      clearTimeout(innerHide);
-      innerHide = setTimeout(() => setVisible(false), 6000);
-    }, 12000);
-    return () => {
-      clearTimeout(startTimer);
-      clearTimeout(firstHide);
-      clearTimeout(innerHide);
-      clearInterval(loopTimer);
+    const info = await env.DB.prepare(`PRAGMA table_info(orders)`).all();
+    const existing = new Set((info.results || []).map((r) => r.name));
+    const wanted = {
+      referral_code: "TEXT",
+      discount_pct: "INTEGER DEFAULT 0",
+      original_amount: "REAL",
+      referral_referrer_phone: "TEXT",
     };
-  }, []);
-
-  return (
-    <div className={`order-popup ${visible ? "visible" : "hidden"}`}>
-      <div className="order-popup-inner">
-        <div className="order-popup-emoji">{current.emoji}</div>
-        <div className="order-popup-body">
-          <div className="order-popup-title">
-            <strong>{current.name}</strong> from <strong>{current.location}</strong>
-          </div>
-          <div className="order-popup-detail">
-            Just ordered <strong>{formatQty(current.qty)}</strong> {current.platform} {current.type}
-          </div>
-          <div className="order-popup-time">Just now</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TrackOrderCard({ hasTrackingId, onTrack }) {
-  return (
-    <div className="track-card">
-      <div className="track-card-icon"><PackageCheck size={22} /></div>
-      <div className="track-card-info">
-        <strong>Already placed an order?</strong>
-        <span>
-          {hasTrackingId
-            ? "Open your tracking page to see live status."
-            : "View live status of your recent order."}
-        </span>
-      </div>
-      <button type="button" className="track-card-btn" onClick={onTrack}>
-        Track Order <ChevronRight size={17} />
-      </button>
-    </div>
-  );
-}
-
-const TRUST_BADGES = [
-  { icon: "🛡️", title: "Secure Payments", description: "Powered by IntaSend" },
-  { icon: "⚡", title: "Fast Delivery", description: "Orders start instantly" },
-  { icon: "💳", title: "M-Pesa Accepted", description: "Pay in 30 seconds" },
-  { icon: "🎧", title: "24/7 Support", description: "We're on WhatsApp" }
-];
-
-function TrustBadges() {
-  return (
-    <section className="trust-badges">
-      {TRUST_BADGES.map((badge) => (
-        <div className="trust-badge" key={badge.title}>
-          <div className="trust-badge-icon">{badge.icon}</div>
-          <div className="trust-badge-text">
-            <strong>{badge.title}</strong>
-            <span>{badge.description}</span>
-          </div>
-        </div>
-      ))}
-    </section>
-  );
-}
-
-function ReferralBanner({ discount, onTimer, expiresAt }) {
-  const [remaining, setRemaining] = useState(expiresAt ? expiresAt - Date.now() : 0);
-
-  useEffect(() => {
-    if (!expiresAt) return;
-    const tick = () => setRemaining(expiresAt - Date.now());
-    tick();
-    const t = setInterval(tick, 60000);
-    return () => clearInterval(t);
-  }, [expiresAt]);
-
-  if (!discount?.active) return null;
-
-  return (
-    <div className="referral-banner">
-      <div className="referral-banner-icon">🎉</div>
-      <div className="referral-banner-body">
-        <strong>{REF_DISCOUNT_PCT}% referral discount active</strong>
-        <span>
-          {remaining > 0
-            ? `Expires in ${formatDuration(remaining)} — prices below already show your discount.`
-            : "Prices below already show your discount."}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function MyReferralsCard({ phone, onPhoneSubmit, referralInfo, loading }) {
-  const [input, setInput] = useState(phone || "");
-  const [copied, setCopied] = useState(false);
-
-  async function handleCopy() {
-    if (!referralInfo?.share_url) return;
-    try {
-      await navigator.clipboard?.writeText(referralInfo.share_url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {}
+    for (const [col, def] of Object.entries(wanted)) {
+      if (!existing.has(col)) {
+        await env.DB.prepare(`ALTER TABLE orders ADD COLUMN ${col} ${def}`).run();
+      }
+    }
+  } catch (e) {
+    console.error("Referral column setup failed:", e);
   }
 
-  return (
-    <div className="referral-card">
-      <div className="referral-card-header">
-        <div className="referral-card-icon">🎁</div>
-        <div className="referral-card-title">
-          <strong>Refer friends, earn {REF_DISCOUNT_PCT}% off</strong>
-          <span>Each friend who orders gives you 24 hours of discount</span>
-        </div>
-      </div>
-
-      {!referralInfo ? (
-        <div className="referral-card-form">
-          <label className="field">
-            <span>Your phone number</span>
-            <input type="tel" value={input}
-                   onChange={(e) => setInput(e.target.value)}
-                   placeholder="07XXXXXXXX" />
-          </label>
-          <button type="button"
-                  className="referral-btn"
-                  disabled={loading || !input.trim()}
-                  onClick={() => onPhoneSubmit(input.trim())}>
-            {loading ? <Loader2 className="spin" size={17} /> : "Get my referral link"}
-          </button>
-        </div>
-      ) : (
-        <div className="referral-card-body">
-          <div className="referral-link-box">
-            <span className="referral-link-label">Your share link</span>
-            <div className="referral-link-row">
-              <input type="text" readOnly value={referralInfo.share_url} />
-              <button type="button" className="referral-copy-btn"
-                      aria-label="Copy referral link" onClick={handleCopy}>
-                {copied ? <CheckCircle2 size={17} /> : <Copy size={17} />}
-              </button>
-            </div>
-          </div>
-
-          <div className="referral-stats">
-            <div className="referral-stat">
-              <strong>{referralInfo.referrals?.confirmed ?? 0}</strong>
-              <span>Confirmed</span>
-            </div>
-            <div className="referral-stat">
-              <strong>{referralInfo.referrals?.total ?? 0}</strong>
-              <span>Total invites</span>
-            </div>
-            <div className="referral-stat">
-              <strong>{referralInfo.code}</strong>
-              <span>Your code</span>
-            </div>
-          </div>
-
-          <p className="referral-hint">
-            Share this link. When a new customer places their first order through it,
-            you get 24 hours of {REF_DISCOUNT_PCT}% off — up to 7 days at a time.
-          </p>
-        </div>
-      )}
-    </div>
-  );
+  REFERRAL_TABLES_READY = true;
 }
 
-function statusLabel(status) {
-  if (!status) return "Awaiting Payment";
-  const v = String(status).toLowerCase().trim();
-  if (v.includes("completed")) return "Completed";
-  if (v.includes("partial")) return "Partially Completed";
-  if (v.includes("cancel")) return "Cancelled";
-  if (v.includes("processing")) return "Processing";
-  if (v.includes("submitting")) return "Submitting to Supplier";
-  if (v.includes("supplier error")) return "Supplier Error";
-  if (v.includes("payment mismatch")) return "Payment Amount Mismatch";
-  if (v.includes("payment error")) return "Payment Error";
-  if (v.includes("payment failed")) return "Payment Failed";
-  if (v.includes("reversed")) return "Payment Reversed";
-  if (v.includes("payment pending")) return "Awaiting Payment";
-  if (v === "pending") return "Order Created";
-  if (v.includes("failed")) return "Failed";
+function generateReferralCode() {
+  const bytes = new Uint8Array(REFERRAL_CODE_LENGTH);
+  crypto.getRandomValues(bytes);
+  let out = "";
+  for (let i = 0; i < REFERRAL_CODE_LENGTH; i++) {
+    out += REFERRAL_CODE_ALPHABET[bytes[i] % REFERRAL_CODE_ALPHABET.length];
+  }
+  return out;
+}
+
+async function getOrCreateReferralCode(env, phone) {
+  const p = normalizePhone(phone);
+  if (!isValidPhone(p)) return null;
+
+  const existing = await env.DB.prepare(
+    `SELECT code FROM referral_codes WHERE phone = ? LIMIT 1`
+  ).bind(p).first();
+  if (existing?.code) return existing.code;
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = generateReferralCode();
+    try {
+      await env.DB.prepare(
+        `INSERT INTO referral_codes (phone, code, created_at) VALUES (?, ?, ?)`
+      ).bind(p, code, Date.now()).run();
+      return code;
+    } catch {
+      const again = await env.DB.prepare(
+        `SELECT code FROM referral_codes WHERE phone = ? LIMIT 1`
+      ).bind(p).first();
+      if (again?.code) return again.code;
+    }
+  }
+  throw new Error("Could not generate a unique referral code.");
+}
+
+async function resolveReferralCode(env, code) {
+  const c = text(code).toUpperCase();
+  if (!c) return null;
+  const row = await env.DB.prepare(
+    `SELECT phone FROM referral_codes WHERE code = ? LIMIT 1`
+  ).bind(c).first();
+  return row?.phone || null;
+}
+
+async function getReferralDiscount(env, phone) {
+  const p = normalizePhone(phone);
+  if (!p) return null;
+  const row = await env.DB.prepare(
+    `SELECT expires_at FROM referral_discounts WHERE phone = ? LIMIT 1`
+  ).bind(p).first();
+  if (!row) return null;
+  const expires = Number(row.expires_at || 0);
+  return { active: expires > Date.now(), expires_at: expires };
+}
+
+async function extendReferralDiscount(env, phone) {
+  const p = normalizePhone(phone);
+  if (!p) return null;
+
+  const now = Date.now();
+  const addMs = REFERRAL_WINDOW_HOURS * 60 * 60 * 1000;
+  const capMs = REFERRAL_MAX_WINDOW_HOURS * 60 * 60 * 1000;
+
+  const existing = await env.DB.prepare(
+    `SELECT expires_at FROM referral_discounts WHERE phone = ? LIMIT 1`
+  ).bind(p).first();
+
+  const currentExpiry = Number(existing?.expires_at || 0);
+  const base = Math.max(currentExpiry, now);
+  let next = base + addMs;
+  if (next - now > capMs) next = now + capMs;
+
+  await env.DB.prepare(`
+    INSERT INTO referral_discounts (phone, expires_at, updated_at)
+    VALUES (?, ?, ?)
+    ON CONFLICT(phone) DO UPDATE SET
+    expires_at = excluded.expires_at,
+    updated_at = excluded.updated_at
+  `).bind(p, next, now).run();
+
+  return next;
+}
+
+async function hasOrderedBefore(env, phone) {
+  const p = normalizePhone(phone);
+  if (!p) return false;
+  const row = await env.DB.prepare(`
+    SELECT 1 AS hit FROM orders
+    WHERE phone = ?
+    AND (payment_status IS NULL OR payment_status != 'PAYMENT_SETUP_FAILED')
+    LIMIT 1
+  `).bind(p).first();
+  return Boolean(row?.hit);
+}
+
+/* =========================================================
+DENZGAINS
+========================================================= */
+
+async function getDenzGainsServices(env) {
+  const response = await denzGainsRequest(env, { action: "services" });
+  if (Array.isArray(response)) return response;
+  if (Array.isArray(response?.services)) return response.services;
+  throw new Error(`DenzGains services response is not an array`);
+}
+
+async function getOrderByTrackingId(env, trackingId) {
+  if (!trackingId) return null;
+  return await env.DB.prepare(`SELECT * FROM orders WHERE tracking_id = ? LIMIT 1`)
+    .bind(trackingId).first();
+}
+
+async function getOrderByPesapalTrackingId(env, pesapalTrackingId) {
+  if (!pesapalTrackingId) return null;
+  return await env.DB.prepare(`SELECT * FROM orders WHERE pesapal_order_tracking_id = ? LIMIT 1`)
+    .bind(pesapalTrackingId).first();
+}
+
+async function getOrderByMerchantReference(env, merchantReference) {
+  if (!merchantReference) return null;
+  return await env.DB.prepare(
+    `SELECT * FROM orders WHERE pesapal_merchant_reference = ? OR tracking_id = ? LIMIT 1`
+  ).bind(merchantReference, merchantReference).first();
+}
+
+async function getOrderByMpesaCheckoutId(env, checkoutId) {
+  if (!checkoutId) return null;
+  return await env.DB.prepare(`SELECT * FROM orders WHERE mpesa_checkout_request_id = ? LIMIT 1`)
+    .bind(checkoutId).first();
+}
+
+async function updateOrder(env, trackingId, values) {
+  const entries = Object.entries(values || {}).filter(([, value]) => value !== undefined);
+  if (!entries.length) return;
+  const assignments = entries.map(([key]) => `${key} = ?`).join(", ");
+  const params = entries.map(([, value]) => value);
+  await env.DB.prepare(
+    `UPDATE orders SET ${assignments}, updated_at = CURRENT_TIMESTAMP WHERE tracking_id = ?`
+  ).bind(...params, trackingId).run();
+}
+
+async function claimSupplierSubmission(env, trackingId) {
+  const result = await env.DB.prepare(`
+    UPDATE orders
+    SET payment_status = 'COMPLETED', order_status = 'Submitting',
+    error_message = NULL, updated_at = CURRENT_TIMESTAMP
+    WHERE tracking_id = ? AND supplier_order_id IS NULL
+    AND (order_status IS NULL OR order_status != 'Submitting')
+  `).bind(trackingId).run();
+  return Number(result?.meta?.changes || 0) > 0;
+}
+
+async function denzGainsRequest(env, payload) {
+  const apiKey = text(env.DENZGAINS_API_KEY);
+  if (!apiKey) throw new Error("DENZGAINS_API_KEY is not configured.");
+
+  const params = new URLSearchParams();
+  params.set("key", apiKey);
+  for (const [key, value] of Object.entries(payload || {})) {
+    if (value !== undefined && value !== null && value !== "") {
+      params.set(key, String(value));
+    }
+  }
+
+  const url = `${DENZGAINS_BASE}?${params.toString()}`;
+  console.log("DenzGains request:", { action: payload?.action, apiKey: maskSecret(apiKey) });
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: { Accept: "application/json", "User-Agent": "HUPPY-CUBE/1.0" },
+  });
+
+  const raw = await response.text();
+  let data;
+  try { data = JSON.parse(raw); } catch { data = { raw }; }
+
+  if (!response.ok) {
+    throw new Error(`DenzGains HTTP ${response.status}: ${raw.slice(0, 1000)}`);
+  }
+  if (data && (data.error || data.errors || data.success === false)) {
+    throw new Error(
+      typeof data.error === "string" ? data.error
+      : data.error?.message || data.message || data.errors?.message || JSON.stringify(data)
+    );
+  }
+  return data;
+}
+
+function normalizeSupplierService(service) {
+  const serviceId = service?.service ?? service?.service_id ?? service?.id;
+  const rate = service?.rate ?? service?.price ?? service?.cost ?? 0;
+  const min = service?.min ?? service?.minimum ?? service?.min_quantity ?? 1;
+  const max = service?.max ?? service?.maximum ?? service?.max_quantity ?? 1000000;
+
+  return {
+    service_id: String(serviceId ?? ""),
+    name: text(service?.name),
+    rate: number(rate),
+    min: number(min, 1), max: number(max, 1000000),
+    min_quantity: number(min, 1), max_quantity: number(max, 1000000),
+    category: text(service?.category), type: text(service?.type),
+    refill: service?.refill, cancel: service?.cancel, raw: service,
+  };
+}
+
+async function findSupplierService(env, serviceId) {
+  const services = await getDenzGainsServices(env);
+  const requested = String(serviceId);
+  const found = services.find((service) => {
+    const id = service?.service ?? service?.service_id ?? service?.id;
+    return String(id) === requested;
+  });
+  if (!found) throw new Error(`DenzGains service ${requested} was not found.`);
+  return normalizeSupplierService(found);
+}
+
+async function addDenzGainsOrder(env, serviceId, link, quantity) {
+  return await denzGainsRequest(env, {
+    action: "add", service: String(serviceId),
+    link: String(link), quantity: Number(quantity),
+  });
+}
+
+async function getDenzGainsOrderStatus(env, supplierOrderId) {
+  return await denzGainsRequest(env, {
+    action: "status", order: String(supplierOrderId),
+  });
+}
+
+async function getDenzGainsBalance(env) {
+  return await denzGainsRequest(env, { action: "balance" });
+}
+
+function extractSupplierOrderId(response) {
+  if (!response) return "";
+  const candidates = [response.order, response.order_id, response.id,
+    response.orderId, response.supplier_order_id];
+  for (const value of candidates) {
+    if (value !== undefined && value !== null && String(value).trim() !== "") {
+      return String(value).trim();
+    }
+  }
+  return "";
+}
+
+/* =========================================================
+M-PESA DARAJA (STK PUSH)
+========================================================= */
+
+function getMpesaBase(env) {
+  return text(env.MPESA_ENVIRONMENT).toLowerCase() === "production" ? "https://api.safaricom.co.ke" : "https://sandbox.safaricom.co.ke";
+}
+
+function getMpesaTimestamp() {
+  const date = new Date();
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  const h = String(date.getHours()).padStart(2, "0");
+  const min = String(date.getMinutes()).padStart(2, "0");
+  const s = String(date.getSeconds()).padStart(2, "0");
+  return `${y}${m}${d}${h}${min}${s}`;
+}
+
+async function getMpesaToken(env) {
+  const auth = btoa(`${text(env.MPESA_CONSUMER_KEY)}:${text(env.MPESA_CONSUMER_SECRET)}`);
+  const response = await fetch(`${getMpesaBase(env)}/oauth/v1/generate?grant_type=client_credentials`, {
+    method: "GET", headers: { Authorization: `Basic ${auth}`, Accept: "application/json" }
+  });
+  const raw = await response.text();
+  let data;
+  try { data = JSON.parse(raw); } catch { data = { raw }; }
+  if (!response.ok || !data.access_token) throw new Error(`M-Pesa Auth Failed: ${raw.slice(0, 1000)}`);
+  return data.access_token;
+}
+
+async function initiateMpesaStkPush(env, phone, amount, accountRef, description, callbackUrl) {
+  const token = await getMpesaToken(env);
+  const timestamp = getMpesaTimestamp();
+  const shortcode = text(env.MPESA_SHORTCODE);
+  const passkey = text(env.MPESA_PASSKEY);
+  const password = btoa(`${shortcode}${passkey}${timestamp}`);
+
+  const mpesaAmount = Math.max(1, Math.ceil(amount));
+
+  const payload = {
+    BusinessShortCode: shortcode,
+    Password: password,
+    Timestamp: timestamp,
+    TransactionType: "CustomerPayBillOnline", 
+    Amount: mpesaAmount,
+    PartyA: phone,
+    PartyB: shortcode,
+    PhoneNumber: phone,
+    CallBackURL: callbackUrl,
+    AccountReference: accountRef.slice(0, 12),
+    TransactionDesc: description.slice(0, 13)
+  };
+
+  const response = await fetch(`${getMpesaBase(env)}/mpesa/stkpush/v1/processrequest`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  const raw = await response.text();
+  let data;
+  try { data = JSON.parse(raw); } catch { data = { raw }; }
+  if (!response.ok) throw new Error(`STK Push Error: ${raw.slice(0, 1000)}`);
+  return data;
+}
+
+async function handleMpesaCallback(env, request) {
+  const body = await request.json().catch(() => ({}));
+  const stkCallback = body?.Body?.stkCallback;
+  const ackResponse = { ResultCode: 0, ResultDesc: "Accepted" };
+
+  if (!stkCallback) return json(ackResponse, 200);
+
+  const checkoutId = stkCallback.CheckoutRequestID;
+  const resultCode = stkCallback.ResultCode;
+
+  if (resultCode !== 0) {
+    console.log(`M-Pesa Failed: ${stkCallback.ResultDesc}`);
+    const order = await getOrderByMpesaCheckoutId(env, checkoutId);
+    if (order) await updateOrder(env, order.tracking_id, { payment_status: "FAILED", order_status: "Payment Failed", error_message: stkCallback.ResultDesc });
+    return json(ackResponse, 200);
+  }
+
+  const items = stkCallback.CallbackMetadata?.Item || [];
+  const getVal = (name) => items.find(i => i.Name === name)?.Value;
+  const mpesaReceipt = getVal("MpesaReceiptNumber");
+  const amountPaid = getVal("Amount");
+
+  const order = await getOrderByMpesaCheckoutId(env, checkoutId);
+  if (!order) return json(ackResponse, 200);
+
+  if (amountPaid >= order.customer_amount) {
+    await updateOrder(env, order.tracking_id, { mpesa_receipt_number: mpesaReceipt });
+    const claimed = await claimSupplierSubmission(env, order.tracking_id);
+    
+    if (claimed) {
+      try { await creditReferrerForOrder(env, order); } catch (e) {}
+      try {
+        const supplierResponse = await addDenzGainsOrder(env, order.service_id, order.link, order.quantity);
+        const supplierOrderId = extractSupplierOrderId(supplierResponse);
+        await updateOrder(env, order.tracking_id, { 
+          order_status: supplierOrderId ? "Processing" : "Supplier Error",
+          supplier_order_id: supplierOrderId || null,
+          supplier_response: JSON.stringify(supplierResponse) 
+        });
+      } catch (err) {
+        await updateOrder(env, order.tracking_id, { order_status: "Supplier Error", error_message: errorMessage(err) });
+      }
+    }
+  } else {
+    await updateOrder(env, order.tracking_id, { payment_status: "PAYMENT_MISMATCH", order_status: "Payment Error", error_message: "Amount mismatch" });
+  }
+
+  return json(ackResponse, 200);
+}
+
+// =========================================================
+// === INTASEND INTEGRATION ===
+// =========================================================
+
+async function createIntaSendCheckout(env, phone, amount, trackingId, origin) {
+  const secretKey = text(env.INTASEND_SECRET_KEY);
+  const publicKey = text(env.INTASEND_PUBLISHABLE_KEY);
+  
+  if (!secretKey || !publicKey) {
+    throw new Error("IntaSend API keys are not configured in Cloudflare.");
+  }
+
+  const response = await fetch("https://api.intasend.com/api/v1/checkout/", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${secretKey}`
+    },
+    body: JSON.stringify({
+      public_key: publicKey,
+      currency: "KES",
+      amount: Math.ceil(amount),
+      email: "customer@huppycube.com", 
+      phone_number: phone,
+      api_ref: trackingId,
+      redirect_url: `${origin}/?tracking_id=${trackingId}`
+    })
+  });
+
+  const data = await response.json();
+  if (!response.ok || !data.url) {
+    throw new Error(`IntaSend Error: ${JSON.stringify(data)}`);
+  }
+  
+  return data.url;
+}
+
+async function handleIntaSendWebhook(env, request) {
+  if (request.method !== "POST") {
+    return json({ success: false, error: "Method Not Allowed" }, 405);
+  }
+
+  try {
+    const payload = await request.json();
+
+    const expectedChallenge = text(env.INTASEND_CHALLENGE);
+    if (!expectedChallenge || payload.challenge !== expectedChallenge) {
+      console.error("IntaSend Webhook: Invalid or missing challenge");
+      return json({ success: false, error: "Unauthorized" }, 401);
+    }
+
+    console.log("IntaSend Webhook received:", payload);
+
+    if (payload.state === "COMPLETE") {
+      const trackingId = text(payload.api_ref);
+      const amountPaid = number(payload.value);
+      const receipt = text(payload.provider_ref || payload.mpesa_reference || "");
+
+      if (!trackingId) {
+        return json({ success: true, message: "No api_ref provided" }, 200);
+      }
+
+      const order = await getOrderByTrackingId(env, trackingId);
+      if (!order) {
+        return json({ success: true, message: "Order not found" }, 200);
+      }
+
+      if (order.payment_status === "COMPLETED") {
+        return json({ success: true, message: "Order already processed" }, 200);
+      }
+
+      if (amountPaid >= order.customer_amount) {
+        await updateOrder(env, order.tracking_id, { 
+          payment_status: "COMPLETED",
+          mpesa_receipt_number: receipt 
+        });
+        
+        const claimed = await claimSupplierSubmission(env, order.tracking_id);
+        
+        if (claimed) {
+          try { await creditReferrerForOrder(env, order); } catch (e) { console.error("Referral error:", e); }
+          
+          try {
+            const supplierResponse = await addDenzGainsOrder(env, order.service_id, order.link, order.quantity);
+            const supplierOrderId = extractSupplierOrderId(supplierResponse);
+            await updateOrder(env, order.tracking_id, { 
+              order_status: supplierOrderId ? "Processing" : "Supplier Error",
+              supplier_order_id: supplierOrderId || null,
+              supplier_response: JSON.stringify(supplierResponse) 
+            });
+          } catch (err) {
+            await updateOrder(env, order.tracking_id, { order_status: "Supplier Error", error_message: errorMessage(err) });
+          }
+        }
+      } else {
+        await updateOrder(env, order.tracking_id, { 
+          payment_status: "PAYMENT_MISMATCH", 
+          order_status: "Payment Error", 
+          error_message: `IntaSend amount mismatch. Expected ${order.customer_amount}, got ${amountPaid}` 
+        });
+      }
+    } else if (payload.state === "FAILED") {
+      const trackingId = text(payload.api_ref);
+      if (trackingId) {
+        await updateOrder(env, trackingId, { 
+          payment_status: "FAILED", 
+          order_status: "Payment Failed", 
+          error_message: "IntaSend payment failed." 
+        });
+      }
+    }
+
+    return json({ status: "success", message: "Webhook received" }, 200);
+
+  } catch (error) {
+    console.error("IntaSend Webhook Error:", errorMessage(error));
+    return json({ success: false, error: "Internal Server Error" }, 500);
+  }
+}
+
+// =========================================================
+// === END INTASEND INTEGRATION ===
+// =========================================================
+
+
+// ------------------------------------------------------------
+// PESAPAL
+// ------------------------------------------------------------
+
+function getPesapalBase(env) {
+  const mode = text(env.PESAPAL_MODE).toLowerCase();
+  if (mode === "sandbox" || mode === "test" || mode === "demo") return PESAPAL_SANDBOX_BASE;
+  return PESAPAL_LIVE_BASE;
+}
+
+async function pesapalAuth(env) {
+  const consumerKey = text(env.PESAPAL_CONSUMER_KEY);
+  const consumerSecret = text(env.PESAPAL_CONSUMER_SECRET);
+  if (!consumerKey || !consumerSecret) throw new Error("PESAPAL_CONSUMER_KEY or PESAPAL_CONSUMER_SECRET is missing.");
+
+  const base = getPesapalBase(env);
+  const response = await fetch(`${base}/api/Auth/RequestToken`, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify({ consumer_key: consumerKey, consumer_secret: consumerSecret }),
+  });
+
+  const raw = await response.text();
+  let data;
+  try { data = JSON.parse(raw); } catch { data = { raw }; }
+
+  if (!response.ok) throw new Error(`PesaPal authentication HTTP ${response.status}: ${raw.slice(0, 1000)}`);
+  const token = data?.token || data?.access_token;
+  if (!token) throw new Error(`PesaPal authentication failed: ${JSON.stringify(data).slice(0, 1000)}`);
+  return token;
+}
+
+async function pesapalRequest(env, path, options = {}) {
+  const token = await pesapalAuth(env);
+  const base = getPesapalBase(env);
+
+  const response = await fetch(`${base}${path}`, {
+    method: options.method || "GET",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+      ...(options.headers || {}),
+    },
+    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+  });
+
+  const raw = await response.text();
+  let data;
+  try { data = JSON.parse(raw); } catch { data = { raw }; }
+
+  if (!response.ok) throw new Error(`PesaPal HTTP ${response.status}: ${raw.slice(0, 1500)}`);
+
+  const errMsg = data?.error?.message || data?.error_description
+    || (typeof data?.error === "string" ? data.error : null);
+  if (errMsg) throw new Error(errMsg);
+  return data;
+}
+
+async function submitPesapalOrder(env, { merchantReference, amount, description, callbackUrl, cancellationUrl, phone, firstName, lastName }) {
+  const notificationId = text(env.PESAPAL_IPN_ID);
+  if (!notificationId) throw new Error("PESAPAL_IPN_ID is not configured.");
+  if (!merchantReference) throw new Error("Missing PesaPal merchant reference.");
+  if (!amount || amount <= 0) throw new Error("Invalid PesaPal payment amount.");
+
+  const billingPhone = normalizePhone(phone);
+  const billingAddress = {
+    email_address: text(env.PESAPAL_BILLING_EMAIL) || "customer@huppycube.com",
+    phone_number: billingPhone, country_code: "KE",
+    first_name: text(firstName) || "HUPPY", middle_name: "",
+    last_name: text(lastName) || "Customer",
+    line_1: "HUPPY CUBE", line_2: "", city: "Nairobi",
+    state: "", postal_code: "", zip_code: "",
+  };
+
+  return await pesapalRequest(env, "/api/Transactions/SubmitOrderRequest", {
+    method: "POST",
+    body: {
+      id: merchantReference, currency: "KES",
+      amount: roundMoney(amount),
+      description: String(description).slice(0, 100),
+      callback_url: callbackUrl,
+      cancellation_url: cancellationUrl || callbackUrl,
+      redirect_mode: "TOP_WINDOW",
+      notification_id: notificationId,
+      billing_address: billingAddress,
+    },
+  });
+}
+
+async function getPesapalTransactionStatus(env, pesapalTrackingId) {
+  if (!pesapalTrackingId) throw new Error("Missing PesaPal OrderTrackingId.");
+  return await pesapalRequest(env,
+    `/api/Transactions/GetTransactionStatus?orderTrackingId=${encodeURIComponent(pesapalTrackingId)}`,
+    { method: "GET" });
+}
+
+async function readPesapalNotification(request) {
+  const url = new URL(request.url);
+  let body = {};
+
+  if (request.method.toUpperCase() === "POST") {
+    const contentType = request.headers.get("content-type") || "";
+    try {
+      if (contentType.toLowerCase().includes("application/json")) {
+        body = await request.json();
+      } else if (contentType.toLowerCase().includes("application/x-www-form-urlencoded")) {
+        const form = await request.formData();
+        body = Object.fromEntries(form.entries());
+      } else {
+        const raw = await request.text();
+        if (raw) {
+          const parsedJson = safeJsonParse(raw, null);
+          if (parsedJson) body = parsedJson;
+          else {
+            const params = new URLSearchParams(raw);
+            body = Object.fromEntries(params.entries());
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Could not parse PesaPal notification:", error);
+    }
+  }
+
+  const pick = (...keys) => {
+    for (const key of keys) {
+      const fromUrl = url.searchParams.get(key);
+      if (fromUrl !== null && String(fromUrl).trim() !== "") return String(fromUrl).trim();
+      const fromBody = body?.[key];
+      if (fromBody !== undefined && fromBody !== null && String(fromBody).trim() !== "") {
+        return String(fromBody).trim();
+      }
+    }
+    return "";
+  };
+
+  return {
+    merchantReference: pick("OrderMerchantReference", "orderMerchantReference", "pesapal_merchant_reference"),
+    orderTrackingId: pick("OrderTrackingId", "orderTrackingId", "pesapal_transaction_tracking_id"),
+    notificationType: pick("OrderNotificationType", "orderNotificationType", "pesapal_notification_type"),
+  };
+}
+
+function pesapalStatusCode(data) {
+  const value = data?.status_code ?? data?.statusCode ?? data?.payment_status_code;
+  if (value !== undefined && value !== null && String(value) !== "") return Number(value);
+  return null;
+}
+
+function pesapalStatusDescription(data) {
+  return text(data?.payment_status_description || data?.paymentStatusDescription
+    || data?.description || data?.status_description).toUpperCase();
+}
+
+function isPesapalCompleted(data) {
+  const code = pesapalStatusCode(data);
+  const description = pesapalStatusDescription(data);
+  return code === 1 || description === "COMPLETED" || description.includes("COMPLETED");
+}
+
+function isPesapalFailed(data) {
+  const code = pesapalStatusCode(data);
+  const description = pesapalStatusDescription(data);
+  return code === 2 || description === "FAILED" || description.includes("FAILED");
+}
+
+function isPesapalReversed(data) {
+  const code = pesapalStatusCode(data);
+  const description = pesapalStatusDescription(data);
+  return code === 3 || description === "REVERSED" || description.includes("REVERSED");
+}
+
+async function verifyPesapalPayment(env, order) {
+  if (!order?.pesapal_order_tracking_id) {
+    throw new Error("This order does not have a PesaPal tracking ID yet.");
+  }
+  const status = await getPesapalTransactionStatus(env, order.pesapal_order_tracking_id);
+  const returnedMerchantReference = text(status?.merchant_reference);
+  if (returnedMerchantReference && order.pesapal_merchant_reference &&
+    returnedMerchantReference !== order.pesapal_merchant_reference) {
+    throw new Error("PesaPal merchant reference does not match this order.");
+  }
+  const returnedCurrency = text(status?.currency).toUpperCase();
+  if (returnedCurrency && returnedCurrency !== "KES") {
+    throw new Error(`Unexpected PesaPal currency: ${returnedCurrency}`);
+  }
   return status;
 }
 
-const STATUS_PROGRESS = {
-  "payment pending": { current_step: 1, progress: 15 },
-  pending: { current_step: 1, progress: 20 },
-  "payment received": { current_step: 1, progress: 20 },
-  "payment failed": { current_step: 1, progress: 10 },
-  "payment error": { current_step: 1, progress: 10 },
-  "payment mismatch": { current_step: 1, progress: 10 },
-  "payment reversed": { current_step: 1, progress: 10 },
-  submitting: { current_step: 2, progress: 45 },
-  "supplier error": { current_step: 2, progress: 35 },
-  processing: { current_step: 3, progress: 70 },
-  completed: { current_step: 4, progress: 100 },
-  partial: { current_step: 4, progress: 100 },
-  cancelled: { current_step: 4, progress: 100 },
-  failed: { current_step: 4, progress: 100 }
-};
+/* =========================================================
+REFERRAL — credit referrer once payment is confirmed
+========================================================= */
 
-function deriveTracking(order) {
-  const key = String(order?.order_status || "payment pending").toLowerCase().trim();
-  const direct = STATUS_PROGRESS[key];
-  if (direct) {
-    return { current_step: direct.current_step, progress: direct.progress,
-      status_label: statusLabel(order?.order_status) };
+async function creditReferrerForOrder(env, order) {
+  if (!order) return { credited: false };
+
+  const referrer = normalizePhone(order.referral_referrer_phone);
+  const referee = normalizePhone(order.phone);
+  const code = text(order.referral_code);
+
+  if (!referrer || !referee || !code) return { credited: false };
+  if (referrer === referee) return { credited: false };
+
+  const flip = await env.DB.prepare(`
+    UPDATE referrals
+    SET status = 'CONFIRMED', updated_at = ?
+    WHERE referrer_phone = ? AND referee_phone = ? AND status = 'PENDING'
+  `).bind(Date.now(), referrer, referee).run();
+
+  if (Number(flip?.meta?.changes || 0) === 0) {
+    return { credited: false, already: true };
   }
-  const matched = Object.entries(STATUS_PROGRESS).find(([k]) => key.includes(k));
-  const match = matched?.[1] || { current_step: 1, progress: 15 };
-  return { current_step: match.current_step, progress: match.progress,
-    status_label: statusLabel(order?.order_status) };
+
+  const expiresAt = await extendReferralDiscount(env, referrer);
+  console.log("Referral credited:", { referrer, referee, expiresAt });
+  return { credited: true, expires_at: expiresAt, referrer };
 }
 
-function TrackingProgress({ tracking }) {
-  const currentStep = Number(tracking?.current_step || 1);
-  const steps = [
-    { number: 1, title: "Payment Received", icon: CreditCard },
-    { number: 2, title: "Order Submitted", icon: PackageCheck },
-    { number: 3, title: "Processing", icon: Loader2 },
-    { number: 4, title: "Completed", icon: CheckCircle2 }
-  ];
+async function processPaidOrder(env, originalOrder) {
+  let order = originalOrder;
+  if (!order) return { success: false, message: "Order not found." };
 
-  return (
-    <div className="tracking-progress">
-      {steps.map((step, index) => {
-        const Icon = step.icon;
-        const active = currentStep >= step.number;
-        const current = currentStep === step.number;
-        return (
-          <React.Fragment key={step.number}>
-            <div className={`tracking-step ${active ? "active" : ""} ${current ? "current" : ""}`}>
-              <div className="tracking-step-icon"><Icon size={19} /></div>
-              <span>{step.title}</span>
-            </div>
-            {index < steps.length - 1 && (
-              <div className={`tracking-line ${currentStep > step.number ? "active" : ""}`} />
-            )}
-          </React.Fragment>
-        );
-      })}
-    </div>
-  );
-}
-
-function OrderTracking({ trackingId, initialData, onClose }) {
-  const [trackingData, setTrackingData] = useState(initialData);
-  const [loading, setLoading] = useState(!initialData);
-  const [trackingError, setTrackingError] = useState("");
-  const [toast, setToast] = useState("");
-
-  function copyTrackingId(value) {
-    try {
-      navigator.clipboard?.writeText(value);
-      setToast("Tracking ID copied");
-      setTimeout(() => setToast(""), 1800);
-    } catch {}
+  if (order.supplier_order_id) {
+    return { success: true, paid: true, submitted: true,
+      supplier_order_id: order.supplier_order_id,
+      order_status: order.order_status || "Processing" };
   }
 
-  async function loadTracking(showLoader = false) {
-    try {
-      if (showLoader) setLoading(true);
-      setTrackingError("");
-      if (!trackingId) throw new Error("Tracking ID is missing.");
-      const response = await fetch(
-        `/api/order-status?tracking_id=${encodeURIComponent(trackingId)}`,
-        { credentials: "same-origin", cache: "no-store" }
-      );
-      const responseText = await response.text();
-      let data = null;
-      try { data = responseText ? JSON.parse(responseText) : null; }
-      catch { throw new Error("The tracking server returned an invalid response."); }
-      if (!response.ok || !data || !data.success) {
-        throw new Error(data?.error || "Unable to load order status.");
-      }
-      setTrackingData(data);
-    } catch (err) {
-      setTrackingError(err?.message || "Unable to load order status.");
-    } finally {
-      setLoading(false);
-    }
+  if (String(order.order_status || "").toLowerCase() === "submitting") {
+    return { success: true, paid: true, submitting: true,
+      tracking_id: order.tracking_id, order_status: "Submitting" };
   }
 
-  const order = trackingData?.order;
-  const tracking = trackingData?.tracking || deriveTracking(order);
-  const orderStatusKey = String(order?.order_status || "").toLowerCase();
-  const terminal =
-    orderStatusKey.includes("completed") || orderStatusKey.includes("partial") ||
-    orderStatusKey.includes("cancel") || orderStatusKey.includes("failed") ||
-    orderStatusKey.includes("reversed") || orderStatusKey.includes("supplier error");
-
-  useEffect(() => {
-    loadTracking(true);
-    if (terminal) return;
-    const interval = setInterval(() => loadTracking(false), 15000);
-    return () => clearInterval(interval);
-  }, [trackingId, terminal]);
-
-  const whatsappUrl = trackingData?.whatsapp?.url || getWhatsAppUrl(trackingId);
-
-  if (loading && !trackingData) {
-    return (
-      <div className="tracking-screen">
-        <div className="tracking-loading">
-          <Loader2 className="spin" size={35} />
-          <h2>Loading your order...</h2>
-          <p>Please wait while we check your order status.</p>
-        </div>
-      </div>
-    );
+  if (!order.pesapal_order_tracking_id) {
+    return { success: false, paid: false, pending: true, message: "Waiting for PesaPal tracking ID." };
   }
 
-  const discountPct = Number(order?.discount_pct || 0);
-  const originalAmount = Number(order?.original_amount || 0);
-
-  return (
-    <div className="tracking-screen">
-      <div className="tracking-header">
-        <button type="button" className="tracking-back" onClick={onClose}>
-          <X size={19} /> Close
-        </button>
-        <div className="tracking-title">
-          <span className="section-kicker">ORDER TRACKING</span>
-          <h2>Track your order</h2>
-          <p>Your order status updates automatically.</p>
-        </div>
-      </div>
-
-      {trackingError && (
-        <div className="form-error">
-          <span>{trackingError}</span>
-          <button type="button" onClick={() => loadTracking(true)}>Try Again</button>
-        </div>
-      )}
-
-      {order && (
-        <>
-          <div className="tracking-id-box">
-            <div>
-              <span>Tracking ID</span>
-              <strong>{order.tracking_id}</strong>
-            </div>
-            <button type="button" onClick={() => copyTrackingId(order.tracking_id)}>
-              Copy
-            </button>
-          </div>
-
-          <div className="tracking-status-card">
-            <div className="tracking-status-top">
-              <div>
-                <span>Current status</span>
-                <strong>{statusLabel(order.order_status)}</strong>
-              </div>
-              <div className="tracking-percent">{Number(tracking?.progress || 0)}%</div>
-            </div>
-            <div className="progress-bar">
-              <div className="progress-fill" style={{ width: `${Number(tracking?.progress || 0)}%` }} />
-            </div>
-          </div>
-
-          <TrackingProgress tracking={tracking} />
-
-          <div className="tracking-details">
-            <div className="tracking-detail">
-              <span>Service</span>
-              <strong>{order.service_name}</strong>
-            </div>
-            <div className="tracking-detail">
-              <span>Quantity</span>
-              <strong>{Number(order.quantity || 0).toLocaleString()}</strong>
-            </div>
-            <div className="tracking-detail">
-              <span>Payment</span>
-              <strong>
-                {discountPct > 0 && originalAmount > 0 ? (
-                  <>
-                    <s className="price-strike">{formatKES(originalAmount)}</s>
-                    {" "}{formatKES(order.customer_amount)}
-                    <span className="discount-pill">-{discountPct}%</span>
-                  </>
-                ) : (
-                  order.payment_status || "Pending"
-                )}
-              </strong>
-            </div>
-            <div className="tracking-detail">
-              <span>Supplier Order</span>
-              <strong>{order.supplier_order_id || "Being submitted"}</strong>
-            </div>
-          </div>
-
-          {order.error_message && (
-            <div className="form-error"><span>{order.error_message}</span></div>
-          )}
-
-          <div className="tracking-auto">
-            <Clock3 size={17} />
-            <span>
-              {terminal
-                ? "This order is complete. No further updates expected."
-                : "Status checks automatically every 15 seconds."}
-            </span>
-            <button type="button" onClick={() => loadTracking(true)}>Refresh</button>
-          </div>
-
-          <a className="whatsapp-help" href={whatsappUrl} target="_blank" rel="noreferrer">
-            <WhatsAppIcon size={20} />
-            <div>
-              <strong>WhatsApp Help</strong>
-              <span>Need help with this order?</span>
-            </div>
-            <ChevronRight size={19} />
-          </a>
-        </>
-      )}
-
-      <div className={`toast ${toast ? "visible" : ""}`} role="status" aria-live="polite">
-        {toast}
-      </div>
-    </div>
-  );
-}
-
-function App() {
-  const [services, setServices] = useState([]);
-  const [selectedPlatform, setSelectedPlatform] = useState("All");
-  const [selectedType, setSelectedType] = useState(null);
-  const [selectedSubType, setSelectedSubType] = useState(null);
-  const [search, setSearch] = useState("");
-  const [selectedService, setSelectedService] = useState(null);
-  const [quantity, setQuantity] = useState("");
-  const [link, setLink] = useState("");
-  const [phone, setPhone] = useState("");
-  // DEFAULT PAYMENT METHOD CHANGED TO INTASEND
-  const [paymentMethod, setPaymentMethod] = useState("intasend");
-  const [loadingServices, setLoadingServices] = useState(true);
-  const [ordering, setOrdering] = useState(false);
-  const [orderResult, setOrderResult] = useState(null);
-  const [trackingId, setTrackingId] = useState("");
-  const [error, setError] = useState("");
-  const [showTracking, setShowTracking] = useState(false);
-
-  // Referral state
-  const [refCode, setRefCode] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
-  const [referralInfo, setReferralInfo] = useState(null);
-  const [referralLoading, setReferralLoading] = useState(false);
-
-  useEffect(() => {
-    loadServices();
-
-    const code = readRefCodeFromUrl();
-    if (code) setRefCode(code);
-
-    const storedPhone = readStoredPhone();
-    if (storedPhone) {
-      setCustomerPhone(storedPhone);
-      setPhone(storedPhone);
-      loadReferralInfo(storedPhone);
-    }
-
-    const params = new URLSearchParams(window.location.search);
-    const returnedTrackingId = params.get("tracking_id");
-    if (returnedTrackingId) {
-      setTrackingId(returnedTrackingId);
-      try { localStorage.setItem("huppy_cube_tracking_id", returnedTrackingId); } catch {}
-      setShowTracking(true);
-    }
-  }, []);
-
-  async function loadReferralInfo(phoneValue) {
-    if (!phoneValue) return;
-    setReferralLoading(true);
-    try {
-      const res = await fetch(
-        `/api/referral-info?phone=${encodeURIComponent(phoneValue)}`,
-        { credentials: "same-origin", cache: "no-store" }
-      );
-      const data = await res.json();
-      if (res.ok && data?.success) {
-        setReferralInfo(data);
-      }
-    } catch (err) {
-      console.error("Referral info load failed:", err);
-    } finally {
-      setReferralLoading(false);
-    }
+  let payment;
+  try {
+    payment = await verifyPesapalPayment(env, order);
+  } catch (error) {
+    console.error("PesaPal verification error:", error);
+    await updateOrder(env, order.tracking_id, { error_message: errorMessage(error) });
+    throw error;
   }
 
-  async function loadServices() {
-    try {
-      setLoadingServices(true);
-      setError("");
-      const response = await fetch("/api/services", {
-        credentials: "same-origin", cache: "no-store"
+  console.log("PesaPal transaction status:", JSON.stringify(payment));
+
+  if (isPesapalCompleted(payment)) {
+    const paidAmount = number(payment?.amount, 0);
+    const expectedAmount = number(order.customer_amount, 0);
+    const difference = paidAmount - expectedAmount;
+    const realMismatch = paidAmount > 0 && expectedAmount > 0 &&
+      (difference < -1.0 || difference > 5.0);
+
+    if (realMismatch) {
+      const message = `Payment amount mismatch. Expected KES ${expectedAmount}, received KES ${paidAmount}.`;
+      await updateOrder(env, order.tracking_id, {
+        payment_status: "PAYMENT_MISMATCH", order_status: "Payment Error",
+        error_message: message, supplier_response: JSON.stringify(payment),
       });
-      const responseText = await response.text();
-      let data = null;
-      try { data = responseText ? JSON.parse(responseText) : null; }
-      catch { throw new Error("The services server returned an invalid response."); }
-      if (!response.ok) throw new Error(data?.error || "Unable to load services");
-      const serviceList = Array.isArray(data) ? data
-        : Array.isArray(data?.services) ? data.services : [];
-      setServices(serviceList);
-    } catch (err) {
-      setError(err?.message || "Unable to load services");
-    } finally {
-      setLoadingServices(false);
+      throw new Error(message);
+    }
+
+    if (paidAmount > 0 && Math.abs(difference) > 0.01) {
+      await updateOrder(env, order.tracking_id, { customer_amount: paidAmount });
+      order = await getOrderByTrackingId(env, order.tracking_id);
+    }
+
+    const claimed = await claimSupplierSubmission(env, order.tracking_id);
+    if (!claimed) {
+      const latest = await getOrderByTrackingId(env, order.tracking_id);
+      if (latest?.supplier_order_id) {
+        return { success: true, paid: true, submitted: true,
+          supplier_order_id: latest.supplier_order_id, order_status: latest.order_status };
+      }
+      return { success: true, paid: true, submitting: true,
+        tracking_id: order.tracking_id, order_status: latest?.order_status || "Submitting" };
+    }
+
+    try {
+      await creditReferrerForOrder(env, order);
+    } catch (refErr) {
+      console.error("Referral credit failed:", errorMessage(refErr));
+    }
+
+    order = await getOrderByTrackingId(env, order.tracking_id);
+    if (!order) throw new Error("Order disappeared after submission lock.");
+
+    let supplierResponse;
+    try {
+      supplierResponse = await addDenzGainsOrder(env, order.service_id, order.link, order.quantity);
+    } catch (error) {
+      const message = errorMessage(error);
+      console.error("DenzGains order submission failed:", message);
+      await updateOrder(env, order.tracking_id, {
+        payment_status: "COMPLETED", order_status: "Supplier Error",
+        error_message: message, supplier_response: JSON.stringify({ error: message }),
+      });
+      throw error;
+    }
+
+    const supplierOrderId = extractSupplierOrderId(supplierResponse);
+    if (!supplierOrderId) {
+      const message = "DenzGains accepted the request but did not return a supplier order ID.";
+      await updateOrder(env, order.tracking_id, {
+        payment_status: "COMPLETED", order_status: "Supplier Error",
+        error_message: message, supplier_response: JSON.stringify(supplierResponse),
+      });
+      throw new Error(message);
+    }
+
+    await updateOrder(env, order.tracking_id, {
+      payment_status: "COMPLETED", order_status: "Processing",
+      supplier_order_id: supplierOrderId,
+      supplier_response: JSON.stringify(supplierResponse), error_message: null,
+    });
+
+    return { success: true, paid: true, submitted: true,
+      supplier_order_id: supplierOrderId, order_status: "Processing" };
+  }
+
+  if (isPesapalFailed(payment)) {
+    await updateOrder(env, order.tracking_id, {
+      payment_status: "FAILED", order_status: "Payment Failed",
+      supplier_response: JSON.stringify(payment),
+      error_message: text(payment?.description) || "PesaPal payment failed.",
+    });
+    return { success: false, paid: false, failed: true,
+      order_status: "Payment Failed", payment_status: "FAILED" };
+  }
+
+  if (isPesapalReversed(payment)) {
+    await updateOrder(env, order.tracking_id, {
+      payment_status: "REVERSED", order_status: "Payment Reversed",
+      supplier_response: JSON.stringify(payment),
+      error_message: text(payment?.description) || "PesaPal payment was reversed.",
+    });
+    return { success: false, paid: false, reversed: true,
+      order_status: "Payment Reversed", payment_status: "REVERSED" };
+  }
+
+  await updateOrder(env, order.tracking_id, {
+    payment_status: "PENDING", order_status: "Payment Pending",
+    supplier_response: JSON.stringify(payment),
+  });
+  return { success: true, paid: false, pending: true,
+    order_status: "Payment Pending", payment_status: "PENDING" };
+}
+
+/* =========================================================
+SERVICES — uses live markup multiplier
+========================================================= */
+
+async function handleServices(env, request) {
+  try {
+    const services = await getDenzGainsServices(env);
+    const markup = await getMarkupMultiplier(env);
+    const normalized = services.map(normalizeSupplierService)
+      .filter((s) => s.service_id && s.name);
+
+    return corsJson({
+      success: true,
+      markup,
+      services: normalized.map((service) => ({
+        service_id: service.service_id,
+        name: service.name,
+        category: service.category,
+        type: service.type,
+        rate: roundMoney(service.rate * markup),
+        min: service.min, max: service.max,
+        min_quantity: service.min_quantity, max_quantity: service.max_quantity,
+        refill: service.refill, cancel: service.cancel,
+      })),
+    }, 200, request.headers.get("Origin") || "*");
+
+  } catch (error) {
+    console.error("Services error:", error);
+    return corsJson({ success: false, error: errorMessage(error) },
+      500, request.headers.get("Origin") || "*");
+  }
+}
+
+/* =========================================================
+REFERRAL INFO — code + share URL + discount status
+========================================================= */
+
+async function handleReferralInfo(env, request) {
+  try {
+    const url = new URL(request.url);
+    const phone = normalizePhone(url.searchParams.get("phone"));
+
+    if (!isValidPhone(phone)) {
+      return corsJson({ success: false, error: "Enter a valid Kenyan phone number." },
+        400, request.headers.get("Origin") || "*");
+    }
+
+    const code = await getOrCreateReferralCode(env, phone);
+    if (!code) {
+      return corsJson({ success: false, error: "Could not create referral code." },
+        500, request.headers.get("Origin") || "*");
+    }
+
+    const discount = await getReferralDiscount(env, phone);
+
+    const totals = await env.DB.prepare(`
+      SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN status = 'CONFIRMED' THEN 1 ELSE 0 END) AS confirmed
+      FROM referrals WHERE referrer_phone = ?
+    `).bind(phone).first();
+
+    const origin = getEnvOrigin(env, request);
+    return corsJson({
+      success: true,
+      phone,
+      code,
+      share_url: `${origin}/r/${code}`,
+      discount: {
+        active: Boolean(discount?.active),
+        percent: REFERRAL_DISCOUNT_PCT,
+        expires_at: discount?.expires_at || 0,
+      },
+      referrals: {
+        total: Number(totals?.total || 0),
+        confirmed: Number(totals?.confirmed || 0),
+      },
+    }, 200, request.headers.get("Origin") || "*");
+
+  } catch (error) {
+    console.error("Referral info error:", error);
+    return corsJson({ success: false, error: errorMessage(error) },
+      500, request.headers.get("Origin") || "*");
+  }
+}
+
+/* =========================================================
+ORDER PAYMENT — apply referrer discount, tag referral
+========================================================= */
+
+async function handleOrderPayment(env, request) {
+  let body;
+  try { body = await request.json(); }
+  catch { return corsJson({ success: false, error: "Invalid JSON request." }, 400); }
+
+  const serviceId = text(body?.service_id);
+  const serviceName = text(body?.service_name);
+  const link = text(body?.link);
+  const phone = normalizePhone(body?.phone);
+  const quantity = Math.floor(number(body?.quantity, 0));
+  const refCodeIn = text(body?.ref_code).toUpperCase();
+  const paymentMethod = text(body?.payment_method).toLowerCase() || "pesapal";
+
+  if (!serviceId) return corsJson({ success: false, error: "Service ID is required." }, 400);
+  if (!link) return corsJson({ success: false, error: "Service link is required." }, 400);
+  if (!quantity || quantity <= 0) return corsJson({ success: false, error: "A valid quantity is required." }, 400);
+  if (!isValidPhone(phone)) return corsJson({ success: false, error: "Enter a valid Kenyan phone number." }, 400);
+
+  let supplierService;
+  try { supplierService = await findSupplierService(env, serviceId); }
+  catch (error) { return corsJson({ success: false, error: errorMessage(error) }, 400); }
+
+  const min = number(supplierService.min_quantity, 1);
+  const max = number(supplierService.max_quantity, 1000000);
+
+  if (quantity < min || quantity > max) {
+    return corsJson({
+      success: false,
+      error: `Quantity must be between ${min} and ${max}.`,
+      min_quantity: min, max_quantity: max,
+    }, 400);
+  }
+
+  const supplierRate = number(supplierService.rate, 0);
+  if (!Number.isFinite(supplierRate) || supplierRate <= 0) {
+    return corsJson({ success: false, error: "Supplier returned an invalid service rate." }, 400);
+  }
+
+  const markup = await getMarkupMultiplier(env);
+  const customerRate = supplierRate * markup;
+  const supplierAmount = roundMoney((supplierRate * quantity) / 1000);
+  let customerAmount = roundMoney((customerRate * quantity) / 1000);
+
+  if (!customerAmount || customerAmount <= 0) {
+    return corsJson({ success: false, error: "Calculated payment amount is invalid." }, 400);
+  }
+
+  if (customerAmount < 1) {
+    return corsJson({ success: false, error: "Minimum order amount is 1 KES. Please increase the quantity." }, 400);
+  }
+
+  let discountPct = 0;
+  let originalAmount = customerAmount;
+  try {
+    const myDiscount = await getReferralDiscount(env, phone);
+    if (myDiscount?.active) {
+      const candidate = roundMoney(customerAmount * (100 - REFERRAL_DISCOUNT_PCT) / 100);
+      if (candidate >= MIN_CHARGE_KES) {
+        discountPct = REFERRAL_DISCOUNT_PCT;
+        originalAmount = customerAmount;
+        customerAmount = candidate;
+      }
+    }
+  } catch (e) {
+    console.error("Discount lookup failed:", e);
+  }
+
+  let referralReferrerPhone = null;
+  let referralCodeUsed = null;
+  if (refCodeIn) {
+    try {
+      const referrerPhone = await resolveReferralCode(env, refCodeIn);
+      if (referrerPhone && referrerPhone !== phone) {
+        const alreadyOrdered = await hasOrderedBefore(env, phone);
+        if (!alreadyOrdered) {
+          const existing = await env.DB.prepare(
+            `SELECT status FROM referrals WHERE referrer_phone = ? AND referee_phone = ? LIMIT 1`
+          ).bind(referrerPhone, phone).first();
+          if (!existing) {
+            referralReferrerPhone = referrerPhone;
+            referralCodeUsed = refCodeIn;
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Referral attribution failed:", e);
     }
   }
 
-  const enrichedServices = useMemo(() => {
-    return services.map((service) => {
-      const platform = detectPlatform(service);
-      const serviceType = detectServiceType(service);
-      const subType = detectServiceSubType(service, serviceType);
-      return { ...service, platform, serviceType, serviceSubType: subType };
-    });
-  }, [services]);
+  await ensureOrdersTable(env);
+  const trackingId = randomId("HUPPY");
+  const merchantReference = trackingId.slice(0, 48);
 
-  const platformServices = useMemo(() => {
-    return enrichedServices.filter((service) => {
-      if (selectedPlatform === "All") return true;
-      return service.platform === selectedPlatform;
-    });
-  }, [enrichedServices, selectedPlatform]);
+  await env.DB.prepare(`
+    INSERT INTO orders (
+      tracking_id, service_id, service_name, link, quantity, phone,
+      supplier_rate, customer_rate, supplier_amount, customer_amount,
+      payment_status, order_status, pesapal_merchant_reference,
+      referral_code, discount_pct, original_amount, referral_referrer_phone,
+      created_at, updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', 'Pending', ?,
+      ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+  `).bind(
+    trackingId, supplierService.service_id,
+    serviceName || supplierService.name, link, quantity, phone,
+    supplierRate, customerRate, supplierAmount, customerAmount,
+    merchantReference,
+    referralCodeUsed, discountPct, originalAmount,
+    referralReferrerPhone
+  ).run();
 
-  const availableTypes = useMemo(() => {
-    const counts = {};
-    for (const s of platformServices) {
-      const t = s.serviceType || "Other";
-      counts[t] = (counts[t] || 0) + 1;
+  if (referralCodeUsed && referralReferrerPhone) {
+    try {
+      await env.DB.prepare(`
+        INSERT INTO referrals (
+          referrer_phone, referee_phone, referral_code,
+          referee_order_tracking_id, status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, 'PENDING', ?, ?)
+      `).bind(
+        referralReferrerPhone, phone, referralCodeUsed,
+        trackingId, Date.now(), Date.now()
+      ).run();
+    } catch (e) {
+      console.error("Referral row insert failed:", e);
     }
-    return TYPE_ORDER.filter((t) => counts[t] > 0).map((t) => ({
-      type: t, count: counts[t], ...TYPE_META[t]
+  }
+
+  const origin = getEnvOrigin(env, request);
+
+  // ==========================================
+  // MPESA FLOW (Legacy - kept for safety)
+  // ==========================================
+  if (paymentMethod === "mpesa") {
+    const callbackUrl = `${origin}/api/mpesa-callback`;
+    try {
+      const stkResponse = await initiateMpesaStkPush(env, phone, customerAmount, trackingId, `HUPPY CUBE - ${supplierService.name}`, callbackUrl);
+      
+      const checkoutRequestId = text(stkResponse?.CheckoutRequestID);
+      if (!checkoutRequestId) throw new Error("M-Pesa did not return a CheckoutRequestID.");
+
+      await updateOrder(env, trackingId, { mpesa_checkout_request_id: checkoutRequestId, order_status: "Payment Pending (STK Push Sent)" });
+
+      return corsJson({
+        success: true, tracking_id: trackingId, payment_method: "mpesa", message: "STK Push sent. Please enter your M-Pesa PIN.", amount: customerAmount
+      }, 200, request.headers.get("Origin") || "*");
+
+    } catch (error) {
+      const message = errorMessage(error);
+      await updateOrder(env, trackingId, { payment_status: "PAYMENT_SETUP_FAILED", order_status: "Payment Setup Error", error_message: message });
+      return corsJson({ success: false, tracking_id: trackingId, error: "Could not initiate M-Pesa payment.", details: message }, 500, request.headers.get("Origin") || "*");
+    }
+  }
+
+  // ==========================================
+  // INTASEND FLOW (NEW)
+  // ==========================================
+  if (paymentMethod === "intasend") {
+    try {
+      const checkoutUrl = await createIntaSendCheckout(env, phone, customerAmount, trackingId, origin);
+      
+      await updateOrder(env, trackingId, { 
+        order_status: "Payment Pending (IntaSend)" 
+      });
+
+      return corsJson({
+        success: true, 
+        tracking_id: trackingId, 
+        payment_method: "intasend", 
+        redirect_url: checkoutUrl
+      }, 200, request.headers.get("Origin") || "*");
+
+    } catch (error) {
+      const message = errorMessage(error);
+      await updateOrder(env, trackingId, { 
+        payment_status: "PAYMENT_SETUP_FAILED", 
+        order_status: "Payment Setup Error", 
+        error_message: message 
+      });
+      return corsJson({ 
+        success: false, 
+        tracking_id: trackingId, 
+        error: "Could not initiate IntaSend payment.", 
+        details: message 
+      }, 500, request.headers.get("Origin") || "*");
+    }
+  }
+
+  // ==========================================
+  // PESAPAL FLOW (Default)
+  // ==========================================
+  const callbackUrl = `${origin}/api/payment-callback?tracking_id=${encodeURIComponent(trackingId)}`;
+  const cancellationUrl = `${origin}/?tracking_id=${encodeURIComponent(trackingId)}&payment=cancelled`;
+
+  let pesapal;
+  try {
+    pesapal = await submitPesapalOrder(env, {
+      merchantReference, amount: customerAmount,
+      description: `HUPPY CUBE - ${(serviceName || supplierService.name).slice(0, 70)}`,
+      callbackUrl, cancellationUrl, phone,
+      firstName: "HUPPY", lastName: "Customer",
+    });
+  } catch (error) {
+    const message = errorMessage(error);
+    console.error("PesaPal order creation failed:", message);
+    await updateOrder(env, trackingId, {
+      payment_status: "PAYMENT_SETUP_FAILED",
+      order_status: "Payment Setup Error",
+      error_message: message,
+    });
+    if (referralCodeUsed && referralReferrerPhone) {
+      try {
+        await env.DB.prepare(
+          `DELETE FROM referrals WHERE referrer_phone = ? AND referee_phone = ? AND status = 'PENDING'`
+        ).bind(referralReferrerPhone, phone).run();
+      } catch (e) { console.error("Referral cleanup failed:", e); }
+    }
+    return corsJson({
+      success: false, tracking_id: trackingId,
+      error: "Could not create the PesaPal payment.", details: message,
+    }, 500);
+  }
+
+  const pesapalTrackingId = text(
+    pesapal?.order_tracking_id || pesapal?.orderTrackingId ||
+    pesapal?.tracking_id || pesapal?.TrackingId ||
+    pesapal?.data?.order_tracking_id || pesapal?.data?.orderTrackingId
+  );
+  const redirectUrl = text(
+    pesapal?.redirect_url || pesapal?.redirectUrl ||
+    pesapal?.data?.redirect_url || pesapal?.data?.redirectUrl
+  );
+  const returnedMerchantReference = text(
+    pesapal?.merchant_reference || pesapal?.merchantReference
+  );
+
+  if (!pesapalTrackingId) {
+    const message = `PesaPal did not return an order tracking ID`;
+    await updateOrder(env, trackingId, {
+      payment_status: "PAYMENT_SETUP_FAILED",
+      order_status: "Payment Setup Error",
+      error_message: message, supplier_response: JSON.stringify(pesapal),
+    });
+    if (referralCodeUsed && referralReferrerPhone) {
+      try {
+        await env.DB.prepare(
+          `DELETE FROM referrals WHERE referrer_phone = ? AND referee_phone = ? AND status = 'PENDING'`
+        ).bind(referralReferrerPhone, phone).run();
+      } catch (e) { console.error("Referral cleanup failed:", e); }
+    }
+    return corsJson({
+      success: false, tracking_id: trackingId,
+      error: "PesaPal did not return a tracking ID.", details: message,
+    }, 500);
+  }
+
+  await updateOrder(env, trackingId, {
+    pesapal_order_tracking_id: pesapalTrackingId,
+    pesapal_merchant_reference: returnedMerchantReference || merchantReference,
+    payment_status: "PENDING", order_status: "Payment Pending",
+    error_message: null,
+  });
+
+  return corsJson({
+    success: true, tracking_id: trackingId,
+    pesapal_order_tracking_id: pesapalTrackingId,
+    merchant_reference: returnedMerchantReference || merchantReference,
+    redirect_url: redirectUrl,
+    amount: customerAmount, currency: "KES",
+    original_amount: originalAmount,
+    discount_pct: discountPct,
+    service_id: supplierService.service_id,
+    service_name: supplierService.name,
+    quantity, min_quantity: min, max_quantity: max,
+  }, 200, request.headers.get("Origin") || "*");
+}
+
+async function handleOrderStatus(env, request) {
+  const url = new URL(request.url);
+  const trackingId = text(url.searchParams.get("tracking_id"));
+  if (!trackingId) return corsJson({ success: false, error: "tracking_id is required." }, 400);
+
+  let order = await getOrderByTrackingId(env, trackingId);
+  if (!order) return corsJson({ success: false, error: "Order not found." }, 404);
+
+  if (order.supplier_order_id) {
+    const alreadyTerminal = isTerminalStatus(order.order_status);
+    if (!alreadyTerminal) {
+      try {
+        const supplierStatus = await getDenzGainsOrderStatus(env, order.supplier_order_id);
+        const rawStatus = text(supplierStatus?.status ?? supplierStatus?.order_status);
+        const normalized = normalizeSupplierStatus(rawStatus);
+        const updates = {
+          supplier_response: JSON.stringify(supplierStatus),
+          error_message: null,
+        };
+        if (normalized) updates.order_status = normalized;
+        if (!normalized && rawStatus) updates.error_message = `Unknown supplier status: ${rawStatus}`;
+        await updateOrder(env, trackingId, updates);
+        order = await getOrderByTrackingId(env, trackingId);
+      } catch (error) {
+        const msg = errorMessage(error);
+        console.error("Supplier status sync failed:", msg);
+        if (!isTerminalStatus(order.order_status)) {
+          await updateOrder(env, trackingId, { error_message: `Supplier status check failed: ${msg}` });
+          order = await getOrderByTrackingId(env, trackingId);
+        }
+      }
+    }
+  }
+
+  if (order?.pesapal_order_tracking_id && !order?.supplier_order_id &&
+    String(order?.order_status || "").toLowerCase() !== "submitting" &&
+    !recentlyFailedSubmission(order)) {
+    try { await processPaidOrder(env, order); }
+    catch (error) { console.error("Order status payment processing:", errorMessage(error)); }
+    order = await getOrderByTrackingId(env, trackingId);
+  }
+
+  const latest = order;
+  if (!latest) return corsJson({ success: false, error: "Order not found." }, 404);
+
+  return corsJson({
+    success: true,
+    order: {
+      tracking_id: latest.tracking_id, service_id: latest.service_id,
+      service_name: latest.service_name, quantity: latest.quantity,
+      link: latest.link, phone: latest.phone,
+      customer_amount: latest.customer_amount, currency: "KES",
+      original_amount: latest.original_amount,
+      discount_pct: latest.discount_pct,
+      payment_status: latest.payment_status, order_status: latest.order_status,
+      pesapal_order_tracking_id: latest.pesapal_order_tracking_id,
+      mpesa_checkout_request_id: latest.mpesa_checkout_request_id,
+      mpesa_receipt_number: latest.mpesa_receipt_number,
+      supplier_order_id: latest.supplier_order_id,
+      error_message: latest.error_message,
+      created_at: latest.created_at, updated_at: latest.updated_at,
+    },
+  }, 200, request.headers.get("Origin") || "*");
+}
+
+async function handlePaymentCallback(env, request) {
+  const notification = await readPesapalNotification(request);
+  let order = null;
+
+  if (notification.merchantReference) order = await getOrderByTrackingId(env, notification.merchantReference);
+  if (!order && notification.merchantReference) order = await getOrderByMerchantReference(env, notification.merchantReference);
+  if (!order && notification.orderTrackingId) order = await getOrderByPesapalTrackingId(env, notification.orderTrackingId);
+
+  if (order && notification.orderTrackingId) {
+    await updateOrder(env, order.tracking_id, {
+      pesapal_order_tracking_id: notification.orderTrackingId,
+      pesapal_merchant_reference: notification.merchantReference || order.pesapal_merchant_reference,
+    });
+    order = await getOrderByTrackingId(env, order.tracking_id);
+  }
+
+  if (order) {
+    try { await processPaidOrder(env, order); }
+    catch (error) { console.error("Callback payment processing:", errorMessage(error)); }
+  }
+
+  const redirectTrackingId = order?.tracking_id || notification.merchantReference || "";
+  const origin = getEnvOrigin(env, request);
+  return Response.redirect(`${origin}/?tracking_id=${encodeURIComponent(redirectTrackingId)}`, 302);
+}
+
+async function handlePesapalIpn(env, request) {
+  const notification = await readPesapalNotification(request);
+  console.log("PesaPal IPN:", JSON.stringify({ method: request.method, notification }));
+
+  if (!notification.orderTrackingId && !notification.merchantReference) {
+    return json({
+      orderNotificationType: notification.notificationType || "IPNCHANGE",
+      orderTrackingId: notification.orderTrackingId || "",
+      orderMerchantReference: notification.merchantReference || "",
+      status: 500, message: "Missing PesaPal notification identifiers.",
+    }, 400);
+  }
+
+  let order = null;
+  if (notification.merchantReference) order = await getOrderByMerchantReference(env, notification.merchantReference);
+  if (!order && notification.orderTrackingId) order = await getOrderByPesapalTrackingId(env, notification.orderTrackingId);
+
+  if (!order) {
+    return json({
+      orderNotificationType: notification.notificationType || "IPNCHANGE",
+      orderTrackingId: notification.orderTrackingId,
+      orderMerchantReference: notification.merchantReference,
+      status: 200, message: "Notification received; order not found.",
+    });
+  }
+
+  if (notification.orderTrackingId) {
+    await updateOrder(env, order.tracking_id, {
+      pesapal_order_tracking_id: notification.orderTrackingId,
+      pesapal_merchant_reference: notification.merchantReference || order.pesapal_merchant_reference,
+    });
+  }
+
+  try {
+    const latest = await getOrderByTrackingId(env, order.tracking_id);
+    await processPaidOrder(env, latest);
+    return json({
+      orderNotificationType: notification.notificationType || "IPNCHANGE",
+      orderTrackingId: notification.orderTrackingId,
+      orderMerchantReference: notification.merchantReference,
+      status: 200,
+    });
+  } catch (error) {
+    console.error("PesaPal IPN processing failed:", errorMessage(error));
+    return json({
+      orderNotificationType: notification.notificationType || "IPNCHANGE",
+      orderTrackingId: notification.orderTrackingId,
+      orderMerchantReference: notification.merchantReference,
+      status: 200, message: "IPN received but order processing failed.",
+    });
+  }
+}
+
+// ------------------------------------------------------------
+// ADMIN — BALANCE
+// ------------------------------------------------------------
+
+async function handleAdminBalance(env, request) {
+  if (!isAdminAuthorized(env, request)) return adminUnauthorized();
+  try {
+    const result = await getDenzGainsBalance(env);
+    return json({
+      success: true,
+      balance: Number(result?.balance ?? 0),
+      currency: text(result?.currency) || "KES",
+      fetched_at: new Date().toISOString(),
+    });
+  } catch (error) {
+    return json({ success: false, error: errorMessage(error) }, 500);
+  }
+}
+
+/* =========================================================
+ADMIN — SETTINGS (markup control)
+========================================================= */
+
+async function handleAdminGetSettings(env, request) {
+  if (!isAdminAuthorized(env, request)) return adminUnauthorized();
+  try {
+    await ensureSettingsTable(env);
+    const markup = await getMarkupMultiplier(env);
+
+    let sample = null;
+    try {
+      const services = await getDenzGainsServices(env);
+      const firstValid = services
+        .map(normalizeSupplierService)
+        .find((s) => s.service_id && s.name && s.rate > 0);
+      if (firstValid) {
+        sample = {
+          service_id: firstValid.service_id,
+          name: firstValid.name,
+          supplier_rate: firstValid.rate,
+          customer_rate_per_1000: roundMoney(firstValid.rate * markup),
+          customer_rate_per_500: roundMoney((firstValid.rate * markup) / 2),
+        };
+      }
+    } catch (err) {
+      console.error("Settings preview fetch failed:", err);
+    }
+
+    return json({
+      success: true,
+      settings: {
+        markup_multiplier: markup,
+        default_markup: DEFAULT_MARKUP,
+      },
+      preview: sample,
+    });
+
+  } catch (error) {
+    return json({ success: false, error: errorMessage(error) }, 500);
+  }
+}
+
+async function handleAdminUpdateSettings(env, request) {
+  if (!isAdminAuthorized(env, request)) return adminUnauthorized();
+
+  try {
+    await ensureSettingsTable(env);
+
+    let body;
+    try { body = await request.json(); }
+    catch { return json({ success: false, error: "Invalid JSON request." }, 400); }
+
+    const rawMarkup = body?.markup_multiplier;
+
+    if (rawMarkup === undefined || rawMarkup === null) {
+      return json({ success: false, error: "markup_multiplier is required." }, 400);
+    }
+
+    const markup = Number(rawMarkup);
+
+    if (!Number.isFinite(markup)) {
+      return json({ success: false, error: "Markup must be a valid number." }, 400);
+    }
+    if (markup < 1.0) {
+      return json({ success: false, error: "Markup must be at least 1.0 (you'd lose money below that)." }, 400);
+    }
+    if (markup > 10.0) {
+      return json({ success: false, error: "Markup cannot exceed 10.0." }, 400);
+    }
+
+    const rounded = Math.round(markup * 100) / 100;
+
+    await setSetting(env, "markup_multiplier", rounded);
+
+    let sample = null;
+    try {
+      const services = await getDenzGainsServices(env);
+      const firstValid = services
+        .map(normalizeSupplierService)
+        .find((s) => s.service_id && s.name && s.rate > 0);
+      if (firstValid) {
+        sample = {
+          service_id: firstValid.service_id,
+          name: firstValid.name,
+          supplier_rate: firstValid.rate,
+          customer_rate_per_1000: roundMoney(firstValid.rate * rounded),
+          customer_rate_per_500: roundMoney((firstValid.rate * rounded) / 2),
+        };
+      }
+    } catch (err) {
+      // ignore
+    }
+
+    return json({
+      success: true,
+      message: "Markup updated. New orders will use this rate.",
+      settings: {
+        markup_multiplier: rounded,
+        default_markup: DEFAULT_MARKUP,
+      },
+      preview: sample,
+    });
+
+  } catch (error) {
+    console.error("Admin update settings error:", error);
+    return json({ success: false, error: errorMessage(error) }, 500);
+  }
+}
+
+// ------------------------------------------------------------
+// ADMIN — STATS
+// ------------------------------------------------------------
+
+async function handleAdminStats(env, request) {
+  if (!isAdminAuthorized(env, request)) return adminUnauthorized();
+
+  try {
+    const url = new URL(request.url);
+    const { wheres, binds } = buildDateFilter(url);
+    const whereClause = wheres.length ? `WHERE ${wheres.join(" AND ")}` : "";
+
+    const totals = await env.DB.prepare(`
+      SELECT
+        COUNT(*) AS total_orders,
+        SUM(CASE WHEN LOWER(order_status) LIKE '%completed%' THEN 1 ELSE 0 END) AS completed,
+        SUM(CASE WHEN LOWER(order_status) LIKE '%processing%' THEN 1 ELSE 0 END) AS processing,
+        SUM(CASE WHEN LOWER(order_status) LIKE '%pending%' THEN 1 ELSE 0 END) AS pending,
+        SUM(CASE WHEN LOWER(order_status) LIKE '%payment%' THEN 1 ELSE 0 END) AS payment_issues,
+        SUM(CASE WHEN LOWER(order_status) LIKE '%supplier error%' THEN 1 ELSE 0 END) AS supplier_errors,
+        SUM(CASE WHEN LOWER(order_status) LIKE '%fail%' THEN 1 ELSE 0 END) AS failed,
+        SUM(CASE WHEN LOWER(order_status) LIKE '%cancel%' THEN 1 ELSE 0 END) AS cancelled,
+        SUM(CASE WHEN LOWER(payment_status) = 'completed' THEN customer_amount ELSE 0 END) AS total_revenue,
+        SUM(CASE WHEN LOWER(payment_status) = 'completed' THEN supplier_amount ELSE 0 END) AS total_cost
+      FROM orders
+      ${whereClause}
+    `).bind(...binds).first();
+
+    const today = await env.DB.prepare(`
+      SELECT
+        COUNT(*) AS today_orders,
+        SUM(CASE WHEN LOWER(payment_status) = 'completed' THEN customer_amount ELSE 0 END) AS today_revenue,
+        SUM(CASE WHEN LOWER(payment_status) = 'completed' THEN supplier_amount ELSE 0 END) AS today_cost
+      FROM orders
+      WHERE date(created_at, '+3 hours') = date('now', '+3 hours')
+    `).first();
+
+    const revenue = Number(totals?.total_revenue || 0);
+    const cost = Number(totals?.total_cost || 0);
+    const todayRevenue = Number(today?.today_revenue || 0);
+    const todayCost = Number(today?.today_cost || 0);
+
+    return json({
+      success: true,
+      stats: {
+        total_orders: Number(totals?.total_orders || 0),
+        completed: Number(totals?.completed || 0),
+        processing: Number(totals?.processing || 0),
+        pending: Number(totals?.pending || 0),
+        payment_issues: Number(totals?.payment_issues || 0),
+        supplier_errors: Number(totals?.supplier_errors || 0),
+        failed: Number(totals?.failed || 0),
+        cancelled: Number(totals?.cancelled || 0),
+        total_revenue_kes: roundMoney(revenue),
+        total_cost_kes: roundMoney(cost),
+        total_profit_kes: roundMoney(revenue - cost),
+        today_orders: Number(today?.today_orders || 0),
+        today_revenue_kes: roundMoney(todayRevenue),
+        today_cost_kes: roundMoney(todayCost),
+        today_profit_kes: roundMoney(todayRevenue - todayCost),
+        server_time_nairobi: toNairobiISO(new Date().toISOString()),
+      },
+    });
+
+  } catch (error) {
+    console.error("Admin stats error:", error);
+    return json({ success: false, error: errorMessage(error) }, 500);
+  }
+}
+
+// ------------------------------------------------------------
+// ADMIN — TOP SERVICES
+// ------------------------------------------------------------
+
+async function handleAdminTopServices(env, request) {
+  if (!isAdminAuthorized(env, request)) return adminUnauthorized();
+
+  try {
+    const url = new URL(request.url);
+    const { wheres, binds } = buildDateFilter(url);
+    wheres.push(`service_name IS NOT NULL`);
+    wheres.push(`service_name != ''`);
+
+    const result = await env.DB.prepare(`
+      SELECT service_id, service_name,
+        COUNT(*) AS order_count,
+        SUM(CASE WHEN LOWER(payment_status) = 'completed' THEN customer_amount ELSE 0 END) AS revenue,
+        SUM(CASE WHEN LOWER(payment_status) = 'completed' THEN supplier_amount ELSE 0 END) AS cost
+      FROM orders
+      WHERE ${wheres.join(" AND ")}
+      GROUP BY service_name
+      ORDER BY order_count DESC
+      LIMIT 5
+    `).bind(...binds).all();
+
+    const rows = (result.results || []).map((r) => ({
+      service_id: r.service_id,
+      service_name: r.service_name,
+      order_count: Number(r.order_count || 0),
+      revenue: roundMoney(Number(r.revenue || 0)),
+      cost: roundMoney(Number(r.cost || 0)),
+      profit: roundMoney(Number(r.revenue || 0) - Number(r.cost || 0)),
     }));
-  }, [platformServices]);
 
-  const typeServices = useMemo(() => {
-    if (!selectedType) return platformServices;
-    return platformServices.filter((s) => s.serviceType === selectedType);
-  }, [platformServices, selectedType]);
+    return json({ success: true, services: rows });
 
-  const availableSubTypes = useMemo(() => {
-    if (!selectedType) return [];
-    const subTypeOrder = SUB_TYPE_ORDER[selectedType];
-    if (!subTypeOrder) return [];
-    const counts = {};
-    for (const s of typeServices) {
-      const st = s.serviceSubType;
-      if (!st) continue;
-      counts[st] = (counts[st] || 0) + 1;
+  } catch (error) {
+    console.error("Admin top services error:", error);
+    return json({ success: false, error: errorMessage(error) }, 500);
+  }
+}
+
+// ------------------------------------------------------------
+// ADMIN — ORDERS LIST
+// ------------------------------------------------------------
+
+async function handleAdminOrdersList(env, request) {
+  if (!isAdminAuthorized(env, request)) return adminUnauthorized();
+
+  try {
+    const url = new URL(request.url);
+    const statusFilter = text(url.searchParams.get("status")).toLowerCase();
+    const search = text(url.searchParams.get("search"));
+    const limit = Math.min(Math.max(number(url.searchParams.get("limit"), 100), 1), 500);
+
+    const { wheres, binds } = buildDateFilter(url);
+
+    if (statusFilter && statusFilter !== "all") {
+      wheres.push(`LOWER(order_status) LIKE ?`);
+      binds.push(`%${statusFilter}%`);
     }
-    return subTypeOrder
-      .filter((st) => counts[st] > 0)
-      .map((st) => ({ subType: st, count: counts[st], ...(SUB_TYPE_META[st] || {}) }));
-  }, [typeServices, selectedType]);
+    if (search) {
+      wheres.push(`(tracking_id LIKE ? OR phone LIKE ? OR supplier_order_id LIKE ? OR link LIKE ?)`);
+      const like = `%${search}%`;
+      binds.push(like, like, like, like);
+    }
 
-  const shouldSkipTypeStage = availableTypes.length <= 1;
-  const shouldSkipSubTypeStage =
-    !SUB_TYPE_ORDER[selectedType] || availableSubTypes.length <= 1;
+    let sql = `SELECT * FROM orders`;
+    if (wheres.length) sql += ` WHERE ` + wheres.join(" AND ");
+    sql += ` ORDER BY id DESC LIMIT ?`;
+    binds.push(limit);
 
-  const filteredServices = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    const activeType = shouldSkipTypeStage ? availableTypes[0]?.type || null : selectedType;
+    const result = await env.DB.prepare(sql).bind(...binds).all();
+    const rows = result.results || [];
 
-    const activeSubType = (() => {
-      if (!activeType) return null;
-      if (shouldSkipSubTypeStage) return availableSubTypes[0]?.subType || null;
-      return selectedSubType;
-    })();
-
-    const matched = platformServices.filter((service) => {
-      const matchesType = !activeType || service.serviceType === activeType;
-      const matchesSubType = !activeSubType || service.serviceSubType === activeSubType;
-      const matchesSearch = !query ||
-        `${service.name} ${service.category} ${service.type} ${service.platform}`
-          .toLowerCase().includes(query);
-      return matchesType && matchesSubType && matchesSearch;
+    return json({
+      success: true,
+      count: rows.length,
+      orders: rows.map((o) => ({
+        tracking_id: o.tracking_id, service_id: o.service_id,
+        service_name: o.service_name, link: o.link,
+        quantity: o.quantity, phone: o.phone,
+        supplier_rate: o.supplier_rate, customer_rate: o.customer_rate,
+        supplier_amount: o.supplier_amount, customer_amount: o.customer_amount,
+        original_amount: o.original_amount,
+        discount_pct: o.discount_pct,
+        referral_code: o.referral_code,
+        profit: roundMoney(Number(o.customer_amount || 0) - Number(o.supplier_amount || 0)),
+        payment_status: o.payment_status, order_status: o.order_status,
+        pesapal_order_tracking_id: o.pesapal_order_tracking_id,
+        supplier_order_id: o.supplier_order_id,
+        error_message: o.error_message,
+        created_at: o.created_at, updated_at: o.updated_at,
+        created_at_nairobi: toNairobiISO(o.created_at),
+        updated_at_nairobi: toNairobiISO(o.updated_at),
+      })),
     });
 
-    return matched
-      .sort((a, b) => {
-        const ra = Number(getCustomerRate(a) || 0);
-        const rb = Number(getCustomerRate(b) || 0);
-        return ra - rb;
-      })
-      .slice(0, 60);
-  }, [
-    platformServices, availableTypes, availableSubTypes,
-    shouldSkipTypeStage, shouldSkipSubTypeStage,
-    selectedType, selectedSubType, search
-  ]);
-
-  useEffect(() => {
-    setSelectedType(null);
-    setSelectedSubType(null);
-    setSearch("");
-  }, [selectedPlatform]);
-
-  const activeDiscountPct = referralInfo?.discount?.active
-    ? Number(referralInfo.discount.percent || REF_DISCOUNT_PCT)
-    : 0;
-  const discountExpiresAt = referralInfo?.discount?.expires_at || 0;
-
-  function openOrder(service) {
-    setSelectedService(service);
-    setQuantity(String(service.min_quantity ?? service.min ?? ""));
-    setLink("");
-    setPhone(customerPhone || phone || "");
-    setError("");
-    setOrderResult(null);
-    setPaymentMethod("intasend"); // Default to IntaSend
+  } catch (error) {
+    console.error("Admin orders list error:", error);
+    return json({ success: false, error: errorMessage(error) }, 500);
   }
+}
 
-  function closeOrder() {
-    if (ordering) return;
-    setSelectedService(null);
-    setOrderResult(null);
-    setError("");
+// ------------------------------------------------------------
+// ADMIN — LIVE FEED
+// ------------------------------------------------------------
+
+async function handleAdminLive(env, request) {
+  if (!isAdminAuthorized(env, request)) return adminUnauthorized();
+
+  try {
+    const url = new URL(request.url);
+    const sinceMs = number(url.searchParams.get("since"), 0);
+
+    let sql, binds;
+    if (sinceMs > 0) {
+      const sinceIso = new Date(sinceMs).toISOString().replace("T", " ").slice(0, 19);
+      sql = `SELECT * FROM orders WHERE updated_at > ? ORDER BY updated_at ASC LIMIT 200`;
+      binds = [sinceIso];
+    } else {
+      sql = `SELECT * FROM orders ORDER BY updated_at DESC LIMIT 50`;
+      binds = [];
+    }
+
+    const result = await env.DB.prepare(sql).bind(...binds).all();
+    const rows = result.results || [];
+
+    return json({
+      success: true,
+      server_time_ms: Date.now(),
+      events: rows.map((o) => ({
+        tracking_id: o.tracking_id, service_name: o.service_name,
+        quantity: o.quantity, phone: o.phone, link: o.link,
+        customer_amount: o.customer_amount,
+        payment_status: o.payment_status, order_status: o.order_status,
+        supplier_order_id: o.supplier_order_id,
+        error_message: o.error_message,
+        updated_at: o.updated_at,
+        updated_at_nairobi: toNairobiISO(o.updated_at),
+      })),
+    });
+
+  } catch (error) {
+    console.error("Admin live error:", error);
+    return json({ success: false, error: errorMessage(error) }, 500);
   }
+}
 
-  function openTracking(id = trackingId) {
-    if (!id) {
-      setError("Your tracking number has not been created yet.");
-      return;
+// ------------------------------------------------------------
+// ADMIN — RETRY
+// ------------------------------------------------------------
+
+async function handleAdminRetry(env, request) {
+  if (!isAdminAuthorized(env, request)) return adminUnauthorized();
+
+  try {
+    const url = new URL(request.url);
+    const trackingId = text(url.searchParams.get("tracking_id"));
+    if (!trackingId) return json({ success: false, error: "tracking_id is required." }, 400);
+
+    const order = await getOrderByTrackingId(env, trackingId);
+    if (!order) return json({ success: false, error: "Order not found." }, 404);
+
+    if (order.supplier_order_id) {
+      return json({ success: true, message: "Supplier order already exists.",
+        supplier_order_id: order.supplier_order_id });
     }
-    setTrackingId(id);
-    setShowTracking(true);
-    setSelectedService(null);
-    setOrderResult(null);
-    setError("");
+    if (String(order.order_status || "").toLowerCase() === "submitting") {
+      return json({ success: false,
+        error: "Order is currently submitting. Try again in a few seconds." });
+    }
+
+    await updateOrder(env, trackingId, {
+      order_status: "Payment Pending", error_message: null,
+    });
+
+    const refreshed = await getOrderByTrackingId(env, trackingId);
+    const result = await processPaidOrder(env, refreshed);
+
+    return json({ success: true, result,
+      order: await getOrderByTrackingId(env, trackingId) });
+
+  } catch (error) {
+    console.error("Admin retry error:", error);
+    return json({ success: false, error: errorMessage(error) }, 500);
   }
+}
 
-  function handleReferralPhoneSubmit(phoneValue) {
-    const clean = phoneValue.replace(/\s+/g, "");
-    if (!clean) return;
-    setCustomerPhone(clean);
-    saveStoredPhone(clean);
-    setPhone(clean);
-    loadReferralInfo(clean);
+// ------------------------------------------------------------
+// HEALTH + INFO
+// ------------------------------------------------------------
+
+async function handleHealth(env, request) {
+  let database = false;
+  try {
+    await env.DB.prepare("SELECT 1 AS ok").first();
+    database = true;
+  } catch (error) {
+    console.error("Health D1 error:", error);
   }
+  return corsJson({
+    success: true, online: true, service: "HUPPY CUBE",
+    database, timestamp: new Date().toISOString(),
+  }, 200, request.headers.get("Origin") || "*");
+}
 
-  async function submitOrder(event) {
-    event.preventDefault();
-    if (!selectedService) return;
+async function handleApiInfo() {
+  return json({
+    success: true, name: "HUPPY CUBE API", version: "1.8.0", currency: "KES",
+    routes: {
+      health: "/api/health",
+      services: "/api/services",
+      order_payment: "POST /api/order-payment { service_id, service_name, quantity, link, phone, ref_code?, payment_method? }",
+      order_status: "/api/order-status?tracking_id=...",
+      referral_info: "/api/referral-info?phone=...",
+      pesapal_callback: "/api/payment-callback",
+      pesapal_ipn: "/api/pesapal-ipn",
+      mpesa_callback: "/api/mpesa-callback",
+      intasend_webhook: "/api/intasend-webhook",
+      admin_stats: "/api/admin-stats?secret=...&from=&to=",
+      admin_balance: "/api/admin-balance?secret=...",
+      admin_top_services: "/api/admin-top-services?secret=...&from=&to=",
+      admin_orders: "/api/admin-orders-list?secret=...&status=&search=&from=&to=&limit=",
+      admin_live: "/api/admin-live?secret=...&since=<unix_ms>",
+      admin_retry: "/api/admin-retry?secret=...&tracking_id=...",
+      admin_settings_get: "/api/admin-settings?secret=...",
+      admin_settings_update: "POST /api/admin-settings?secret=... { markup_multiplier: 2.5 }",
+    },
+  });
+}
 
-    const qty = Number(quantity);
-    const minimum = Number(selectedService.min_quantity ?? selectedService.min ?? 0);
-    const maximum = Number(selectedService.max_quantity ?? selectedService.max ?? 0);
+// ------------------------------------------------------------
+// REFERRAL SHORT LINK — /r/<code> -> /?ref=<code>
+// ------------------------------------------------------------
 
-    if (!qty || qty < minimum) {
-      setError(`Minimum quantity is ${minimum.toLocaleString()}`);
-      return;
-    }
-    if (maximum && qty > maximum) {
-      setError(`Maximum quantity is ${maximum.toLocaleString()}`);
-      return;
-    }
-    if (!link.trim()) {
-      setError("Please enter the target link.");
-      return;
-    }
-    if (!phone.trim()) {
-      setError("Please enter your phone number.");
-      return;
+function handleReferralShortLink(request) {
+  const url = new URL(request.url);
+  const match = url.pathname.match(/^\/r\/([A-Za-z0-9]{4,12})\/?$/);
+  if (!match) return null;
+  const code = match[1].toUpperCase();
+  const target = new URL("/", url.origin);
+  target.searchParams.set("ref", code);
+  return Response.redirect(target.toString(), 302);
+}
+
+// ------------------------------------------------------------
+// MAIN WORKER
+// ------------------------------------------------------------
+
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    const method = request.method.toUpperCase();
+    const origin = request.headers.get("Origin") || "*";
+
+    if (method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: corsHeaders(origin) });
     }
 
-    setError("");
-    setOrdering(true);
+    const shortLink = handleReferralShortLink(request);
+    if (shortLink) return shortLink;
 
     try {
-      const response = await fetch("/api/order-payment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({
-          service_id: selectedService.service_id,
-          service_name: selectedService.name,
-          quantity: qty,
-          link: link.trim(),
-          phone: phone.trim(),
-          payment_method: paymentMethod,
-          ref_code: refCode || undefined
-        })
+      await ensureOrdersTable(env);
+      await ensureSettingsTable(env);
+      await ensureReferralTables(env);
+
+      if (url.pathname === "/api/health" && method === "GET") return await handleHealth(env, request);
+      if (url.pathname === "/api/services" && method === "GET") return await handleServices(env, request);
+      if (url.pathname === "/api/order-payment" && method === "POST") return await handleOrderPayment(env, request);
+      if (url.pathname === "/api/order-status" && method === "GET") return await handleOrderStatus(env, request);
+      if (url.pathname === "/api/referral-info" && method === "GET") return await handleReferralInfo(env, request);
+      if (url.pathname === "/api/payment-callback") return await handlePaymentCallback(env, request);
+      if (url.pathname === "/api/pesapal-ipn") return await handlePesapalIpn(env, request);
+      if (url.pathname === "/api/mpesa-callback" && method === "POST") return await handleMpesaCallback(env, request);
+      
+      // INTASEND WEBHOOK ROUTE
+      if (url.pathname === "/api/intasend-webhook" && method === "POST") return await handleIntaSendWebhook(env, request);
+
+      if (url.pathname === "/api/admin-balance" && method === "GET") return await handleAdminBalance(env, request);
+      if (url.pathname === "/api/admin-settings" && method === "GET") return await handleAdminGetSettings(env, request);
+      if (url.pathname === "/api/admin-settings" && method === "POST") return await handleAdminUpdateSettings(env, request);
+      if (url.pathname === "/api/admin-stats" && method === "GET") return await handleAdminStats(env, request);
+      if (url.pathname === "/api/admin-top-services" && method === "GET") return await handleAdminTopServices(env, request);
+      if (url.pathname === "/api/admin-orders-list" && method === "GET") return await handleAdminOrdersList(env, request);
+      if (url.pathname === "/api/admin-live" && method === "GET") return await handleAdminLive(env, request);
+      if (url.pathname === "/api/admin-retry" && method === "GET") return await handleAdminRetry(env, request);
+
+      if (url.pathname === "/api" && method === "GET") return await handleApiInfo();
+
+      if (env.ASSETS) return await env.ASSETS.fetch(request);
+
+      return json({ success: false, error: "Not found." }, 404);
+    } catch (error) {
+      console.error("Worker unhandled error:", error);
+
+      if (url.pathname.startsWith("/api/")) {
+        return corsJson({ success: false, error: errorMessage(error) }, 500, origin);
+      }
+      if (env.ASSETS) {
+        try { return await env.ASSETS.fetch(request); } catch {}
+      }
+      return new Response("HUPPY CUBE server error.", {
+        status: 500,
+        headers: { "Content-Type": "text/plain; charset=utf-8" },
       });
-
-      const responseText = await response.text();
-      let data = null;
-      try { data = responseText ? JSON.parse(responseText) : null; }
-      catch {
-        throw new Error(
-          `The payment server returned an invalid response: ${responseText.slice(0, 300)}`
-        );
-      }
-      if (!data || typeof data !== "object") {
-        throw new Error("The payment server returned an empty response. Please try again.");
-      }
-      if (!response.ok || data.success === false) {
-        const errMsg = data.details
-          ? `${data.error} (Details: ${data.details})`
-          : (data.error || "Unable to create payment.");
-        throw new Error(errMsg);
-      }
-      if (!data.tracking_id) {
-        throw new Error(
-          "Payment was created without a tracking ID. Please contact support before trying again."
-        );
-      }
-
-      const cleanPhone = phone.trim();
-      if (cleanPhone && !customerPhone) {
-        setCustomerPhone(cleanPhone);
-        saveStoredPhone(cleanPhone);
-      }
-
-      setTrackingId(data.tracking_id);
-      try { localStorage.setItem("huppy_cube_tracking_id", data.tracking_id); } catch {}
-
-      if (data.redirect_url) {
-        window.location.href = data.redirect_url;
-        return;
-      }
-      setOrderResult(data);
-    } catch (err) {
-      console.error("Order payment error:", err);
-      setError(err?.message || "Something went wrong while creating your order.");
-    } finally {
-      setOrdering(false);
     }
-  }
-
-  useEffect(() => {
-    if (trackingId) return;
-    try {
-      const saved = localStorage.getItem("huppy_cube_tracking_id");
-      if (saved) setTrackingId(saved);
-    } catch {}
-  }, [trackingId]);
-
-  useEffect(() => {
-    if (!selectedService) return;
-    const onKey = (e) => {
-      if (e.key === "Escape" && !ordering) {
-        setSelectedService(null);
-        setOrderResult(null);
-        setError("");
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [selectedService, ordering]);
-
-  if (showTracking && trackingId) {
-    return (
-      <div className="app-shell">
-        <div className="ambient ambient-one" />
-        <div className="ambient ambient-two" />
-        <div className="ambient ambient-three" />
-
-        <header className="topbar">
-          <div className="brand">
-            <div className="brand-icon"><Sparkles size={22} /></div>
-            <div>
-              <div className="brand-name">HUPPY CUBE</div>
-              <div className="brand-subtitle">SOCIAL MEDIA SERVICES</div>
-            </div>
-          </div>
-          <a className="support-button support-button-wa"
-             href={getWhatsAppUrl(trackingId)} target="_blank" rel="noreferrer">
-            <WhatsAppIcon size={18} />
-            <span>WhatsApp Support</span>
-          </a>
-        </header>
-
-        <main className="main-content">
-          <OrderTracking
-            trackingId={trackingId}
-            onClose={() => {
-              setShowTracking(false);
-              window.history.replaceState({}, "", window.location.pathname);
-            }}
-          />
-        </main>
-      </div>
-    );
-  }
-
-  if (selectedPlatform === "All" && !selectedType) {
-    return (
-      <div className="app-shell">
-        <div className="ambient ambient-one" />
-        <div className="ambient ambient-two" />
-        <div className="ambient ambient-three" />
-
-        <header className="topbar">
-          <div className="brand">
-            <div className="brand-icon"><Sparkles size={22} /></div>
-            <div>
-              <div className="brand-name">HUPPY CUBE</div>
-              <div className="brand-subtitle">SOCIAL MEDIA SERVICES</div>
-            </div>
-          </div>
-          <a className="support-button support-button-wa"
-             href={getWhatsAppUrl()} target="_blank" rel="noreferrer">
-            <WhatsAppIcon size={18} />
-            <span>WhatsApp Support</span>
-          </a>
-        </header>
-
-        <main className="main-content">
-          <ReferralBanner
-            discount={referralInfo?.discount}
-            expiresAt={discountExpiresAt}
-          />
-
-          <section className="hero-section">
-            <div className="hero-glow">
-              <Sparkles size={18} />
-              Fast • Simple • Secure
-            </div>
-            <h1>Grow your<span> social presence.</span></h1>
-            <p>
-              Choose a platform, select your service, enter your details and
-              complete your order in seconds.
-            </p>
-            <div className="hero-stats">
-              <div className="hero-stat">
-                <strong>{services.length || "500+"}</strong>
-                <span>Services</span>
-              </div>
-              <div className="hero-stat">
-                <strong>24/7</strong>
-                <span>Ordering</span>
-              </div>
-              <div className="hero-stat">
-                <strong>⚡</strong>
-                <span>Fast Delivery</span>
-              </div>
-            </div>
-          </section>
-
-          <TrackOrderCard
-            hasTrackingId={Boolean(trackingId)}
-            onTrack={() => openTracking()}
-          />
-
-          <MyReferralsCard
-            phone={customerPhone}
-            onPhoneSubmit={handleReferralPhoneSubmit}
-            referralInfo={referralInfo}
-            loading={referralLoading}
-          />
-
-          <section className="services-section">
-            <div className="section-heading">
-              <div>
-                <span className="section-kicker">EXPLORE</span>
-                <h2>Choose a platform</h2>
-              </div>
-              <div className="service-count">{enrichedServices.length} services</div>
-            </div>
-
-            <div className="platform-grid">
-              {PLATFORM_ORDER.map((platform) => {
-                if (platform === "All") return null;
-                const Icon = PLATFORM_ICONS[platform] || Globe;
-                const count = enrichedServices.filter((service) => service.platform === platform).length;
-                return (
-                  <button key={platform} type="button" className="platform-card"
-                          onClick={(e) => bounceThen(e, () => setSelectedPlatform(platform))}>
-                    <span className="platform-icon"><Icon size={21} /></span>
-                    <span className="platform-info">
-                      <strong>{platform}</strong>
-                      <small>{count} services</small>
-                    </span>
-                    <ChevronRight size={17} className="platform-arrow" />
-                  </button>
-                );
-              })}
-            </div>
-
-            <TrustBadges />
-          </section>
-
-          <OrderPopup />
-        </main>
-
-        <footer className="footer">
-          <span>© {new Date().getFullYear()} HUPPY CUBE</span>
-          <span>Secure payments • Fast delivery</span>
-        </footer>
-      </div>
-    );
-  }
-
-  if (!shouldSkipTypeStage && !selectedType && selectedPlatform !== "All") {
-    return (
-      <div className="app-shell">
-        <div className="ambient ambient-one" />
-        <div className="ambient ambient-two" />
-        <div className="ambient ambient-three" />
-
-        <header className="topbar">
-          <div className="brand">
-            <div className="brand-icon"><Sparkles size={22} /></div>
-            <div>
-              <div className="brand-name">HUPPY CUBE</div>
-              <div className="brand-subtitle">SOCIAL MEDIA SERVICES</div>
-            </div>
-          </div>
-          <a className="support-button support-button-wa"
-             href={getWhatsAppUrl()} target="_blank" rel="noreferrer">
-            <WhatsAppIcon size={18} />
-            <span>WhatsApp Support</span>
-          </a>
-        </header>
-
-        <main className="main-content">
-          <ReferralBanner discount={referralInfo?.discount} expiresAt={discountExpiresAt} />
-          <section className="services-section">
-            <div className="section-heading">
-              <div>
-                <button type="button" className="tracking-back"
-                        onClick={() => { setSelectedPlatform("All"); setSelectedType(null); setSelectedSubType(null); }}
-                        style={{ marginBottom: "12px" }}>
-                  <ChevronLeft size={16} />
-                  Back to platforms
-                </button>
-                <span className="section-kicker">EXPLORE</span>
-                <h2>{selectedPlatform}</h2>
-                <p style={{ marginTop: "6px", opacity: 0.7 }}>
-                  What type of engagement do you need?
-                </p>
-              </div>
-            </div>
-
-            <div className="type-grid">
-              {availableTypes.map((t) => {
-                const Icon = t.icon;
-                return (
-                  <button key={t.type} type="button" className="type-card"
-                          onClick={(e) => bounceThen(e, () => { setSelectedType(t.type); setSelectedSubType(null); })}>
-                    <span className="type-emoji">{t.emoji}</span>
-                    <span className="type-info">
-                      <strong><Icon size={17} />{t.type}</strong>
-                      <small>{t.count} services</small>
-                    </span>
-                    <ChevronRight size={18} className="type-arrow" />
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        </main>
-
-        <footer className="footer">
-          <span>© {new Date().getFullYear()} HUPPY CUBE</span>
-          <span>Secure payments • Fast delivery</span>
-        </footer>
-      </div>
-    );
-  }
-
-  if (!shouldSkipSubTypeStage && !selectedSubType && selectedPlatform !== "All" && selectedType) {
-    return (
-      <div className="app-shell">
-        <div className="ambient ambient-one" />
-        <div className="ambient ambient-two" />
-        <div className="ambient ambient-three" />
-
-        <header className="topbar">
-          <div className="brand">
-            <div className="brand-icon"><Sparkles size={22} /></div>
-            <div>
-              <div className="brand-name">HUPPY CUBE</div>
-              <div className="brand-subtitle">SOCIAL MEDIA SERVICES</div>
-            </div>
-          </div>
-          <a className="support-button support-button-wa"
-             href={getWhatsAppUrl()} target="_blank" rel="noreferrer">
-            <WhatsAppIcon size={18} />
-            <span>WhatsApp Support</span>
-          </a>
-        </header>
-
-        <main className="main-content">
-          <section className="services-section">
-            <div className="section-heading">
-              <div>
-                <button type="button" className="tracking-back"
-                        onClick={() => { setSelectedType(null); setSelectedSubType(null); }}
-                        style={{ marginBottom: "12px" }}>
-                  <ChevronLeft size={16} />
-                  Back to {selectedPlatform} types
-                </button>
-                <span className="section-kicker">{selectedPlatform.toUpperCase()}</span>
-                <h2>{TYPE_META[selectedType]?.emoji} {selectedType}</h2>
-                <p style={{ marginTop: "6px", opacity: 0.7 }}>
-                  Choose the exact type of {selectedType.toLowerCase()} you need.
-                </p>
-              </div>
-            </div>
-
-            <div className="type-grid">
-              {availableSubTypes.map((st) => (
-                <button key={st.subType} type="button" className="type-card"
-                        onClick={(e) => bounceThen(e, () => setSelectedSubType(st.subType))}>
-                  <span className="type-emoji">{st.emoji || "•"}</span>
-                  <span className="type-info">
-                    <strong>{st.subType}</strong>
-                    <small>{st.count} service{st.count !== 1 ? "s" : ""}</small>
-                  </span>
-                  <ChevronRight size={18} className="type-arrow" />
-                </button>
-              ))}
-            </div>
-          </section>
-        </main>
-
-        <footer className="footer">
-          <span>© {new Date().getFullYear()} HUPPY CUBE</span>
-          <span>Secure payments • Fast delivery</span>
-        </footer>
-      </div>
-    );
-  }
-
-  const activeType = shouldSkipTypeStage ? availableTypes[0]?.type || null : selectedType;
-  const activeSubType = shouldSkipSubTypeStage
-    ? availableSubTypes[0]?.subType || null
-    : selectedSubType;
-
-  return (
-    <div className="app-shell">
-      <div className="ambient ambient-one" />
-      <div className="ambient ambient-two" />
-      <div className="ambient ambient-three" />
-
-      <header className="topbar">
-        <div className="brand">
-          <div className="brand-icon"><Sparkles size={22} /></div>
-          <div>
-            <div className="brand-name">HUPPY CUBE</div>
-            <div className="brand-subtitle">SOCIAL MEDIA SERVICES</div>
-          </div>
-        </div>
-        <a className="support-button support-button-wa"
-           href={getWhatsAppUrl()} target="_blank" rel="noreferrer">
-          <WhatsAppIcon size={18} />
-          <span>WhatsApp Support</span>
-        </a>
-      </header>
-
-      <main className="main-content">
-        <ReferralBanner discount={referralInfo?.discount} expiresAt={discountExpiresAt} />
-        <section className="services-section">
-          <div className="section-heading">
-            <div>
-              <button type="button" className="tracking-back"
-                      onClick={() => {
-                        if (shouldSkipTypeStage) {
-                          setSelectedPlatform("All");
-                        } else if (shouldSkipSubTypeStage) {
-                          setSelectedType(null);
-                          setSelectedSubType(null);
-                        } else {
-                          setSelectedSubType(null);
-                        }
-                      }}
-                      style={{ marginBottom: "12px" }}>
-                <ChevronLeft size={16} />
-                {shouldSkipTypeStage
-                  ? "Back to platforms"
-                  : shouldSkipSubTypeStage
-                  ? `Back to ${selectedPlatform} types`
-                  : `Back to ${activeType} types`}
-              </button>
-
-              <span className="section-kicker">
-                {selectedPlatform.toUpperCase()}
-              </span>
-              <h2>
-                {activeSubType
-                  ? `${SUB_TYPE_META[activeSubType]?.emoji || ""} ${activeSubType}`
-                  : activeType
-                  ? `${TYPE_META[activeType]?.emoji || ""} ${activeType}`
-                  : selectedPlatform}
-              </h2>
-            </div>
-
-            <div className="service-count">
-              {filteredServices.length} services
-            </div>
-          </div>
-
-          <div className="search-box">
-            <Search size={20} />
-            <input type="text"
-                   placeholder={`Search ${activeSubType || activeType || "services"}...`}
-                   value={search}
-                   onChange={(event) => setSearch(event.target.value)} />
-            {search && (
-              <button type="button" className="clear-search"
-                      aria-label="Clear search" onClick={() => setSearch("")}>
-                <X size={17} />
-              </button>
-            )}
-          </div>
-
-          {loadingServices ? (
-            <div className="services-grid" aria-busy="true" aria-label="Loading services">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="skeleton-card" />
-              ))}
-            </div>
-          ) : error && !selectedService ? (
-            <div className="error-state">
-              <strong>Unable to load services</strong>
-              <span>{error}</span>
-              <button type="button" onClick={loadServices}>Try Again</button>
-            </div>
-          ) : filteredServices.length === 0 ? (
-            <div className="empty-state">
-              <Search size={35} />
-              <strong>No services found</strong>
-              <span>Try another search or platform.</span>
-            </div>
-          ) : (
-            <div className="services-grid">
-              {filteredServices.map((service) => {
-                const Icon = PLATFORM_ICONS[service.platform] || Globe;
-                const customerRate = getCustomerRate(service);
-                const unitPrice = customerRate / 2;
-                const discounted = activeDiscountPct > 0
-                  ? applyDiscount(unitPrice, activeDiscountPct)
-                  : unitPrice;
-
-                return (
-                  <article className="service-card" key={service.service_id}>
-                    <div className="service-card-top">
-                      <div className="service-platform">
-                        <span className="service-platform-icon"><Icon size={19} /></span>
-                        {service.platform}
-                      </div>
-                      <span className="service-number">#{service.service_id}</span>
-                    </div>
-
-                    <h3>{service.name}</h3>
-
-                    <div className="service-meta">
-                      <span>Min {Number(service.min_quantity ?? service.min ?? 0).toLocaleString()}</span>
-                      <span>Max {Number(service.max_quantity ?? service.max ?? 0).toLocaleString()}</span>
-                    </div>
-
-                    <div className="service-bottom">
-                      <div>
-                        <small>Starting from</small>
-                        {activeDiscountPct > 0 ? (
-                          <>
-                            <s className="price-strike">{formatKES(unitPrice)}</s>{" "}
-                            <strong>
-                              {formatKES(discounted)}
-                              <em>/500</em>
-                            </strong>
-                          </>
-                        ) : (
-                          <strong>
-                            {formatKES(unitPrice)}
-                            <em>/500</em>
-                          </strong>
-                        )}
-                      </div>
-                      <button type="button" className="order-button"
-                              onClick={(e) => bounceThen(e, () => openOrder(service))}>
-                        Order <ShoppingCart size={17} />
-                      </button>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      </main>
-
-      <footer className="footer">
-        <span>© {new Date().getFullYear()} HUPPY CUBE</span>
-        <span>Secure payments • Fast delivery</span>
-      </footer>
-
-      {selectedService && (
-        <div className="modal-backdrop" onClick={closeOrder}>
-          <div
-            className="order-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Order service"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button
-              type="button"
-              className="modal-close"
-              aria-label="Close"
-              onClick={closeOrder}
-              disabled={ordering}
-            >
-              <X size={20} />
-            </button>
-
-            {!orderResult ? (
-              <>
-                <div className="modal-header">
-                  <div className="modal-service-icon">
-                    {React.createElement(
-                      PLATFORM_ICONS[selectedService.platform] || Globe,
-                      { size: 25 }
-                    )}
-                  </div>
-                  <div>
-                    <span>{selectedService.platform}</span>
-                    <h2>Order service</h2>
-                  </div>
-                </div>
-
-                <div className="selected-service-name">{selectedService.name}</div>
-
-                <form onSubmit={submitOrder}>
-                  <label className="field">
-                    <span><Hash size={16} />Quantity</span>
-                    <input
-                      type="number"
-                      min={selectedService.min_quantity ?? selectedService.min}
-                      max={selectedService.max_quantity ?? selectedService.max}
-                      value={quantity}
-                      onChange={(event) => setQuantity(event.target.value)}
-                      placeholder="Enter quantity"
-                    />
-                    <small>
-                      Min {Number(selectedService.min_quantity ?? selectedService.min ?? 0).toLocaleString()} • Max{" "}
-                      {Number(selectedService.max_quantity ?? selectedService.max ?? 0).toLocaleString()}
-                    </small>
-                  </label>
-
-                  <label className="field">
-                    <span><LinkIcon size={16} />Target link</span>
-                    <input
-                      type="url"
-                      value={link}
-                      onChange={(event) => setLink(event.target.value)}
-                      placeholder="https://..."
-                    />
-                  </label>
-
-                  <label className="field">
-                    <span><Phone size={16} />Phone number</span>
-                    <input
-                      type="tel"
-                      value={phone}
-                      onChange={(event) => setPhone(event.target.value)}
-                      placeholder="07XXXXXXXX"
-                    />
-                  </label>
-
-                  <div className="pay-section-title">
-                    <span>Payment method</span>
-                  </div>
-                  <div className="pay-methods" role="radiogroup" aria-label="Payment method">
-                    
-                    {/* REPLACED MPESA WITH INTASEND */}
-                    <button
-                      type="button"
-                      role="radio"
-                      aria-checked={paymentMethod === "intasend"}
-                      className={`pay-method ${paymentMethod === "intasend" ? "selected" : ""}`}
-                      onClick={() => setPaymentMethod("intasend")}
-                    >
-                      <span className="pay-method-icon"><CreditCard size={19} /></span>
-                      <span className="pay-method-text">
-                        <strong>Pay with IntaSend</strong>
-                        <small>Secure checkout (Card / Bank / M-Pesa)</small>
-                      </span>
-                      <span className="pay-method-radio" />
-                    </button>
-
-                    <button
-                      type="button"
-                      role="radio"
-                      aria-checked={paymentMethod === "pesapal"}
-                      className={`pay-method ${paymentMethod === "pesapal" ? "selected" : ""}`}
-                      onClick={() => setPaymentMethod("pesapal")}
-                    >
-                      <span className="pay-method-icon"><CreditCard size={19} /></span>
-                      <span className="pay-method-text">
-                        <strong>Card / Bank (PesaPal)</strong>
-                        <small>Secure checkout via PesaPal</small>
-                      </span>
-                      <span className="pay-method-radio" />
-                    </button>
-                  </div>
-
-                  {(() => {
-                    const rawTotal = priceFor(selectedService, quantity);
-                    const shown = activeDiscountPct > 0
-                      ? applyDiscount(rawTotal, activeDiscountPct)
-                      : rawTotal;
-                    return (
-                      <div className="total-box" style={{ marginTop: "16px" }}>
-                        <div>
-                          <span>Total</span>
-                          <small>{Number(quantity || 0).toLocaleString()} units</small>
-                        </div>
-                        {activeDiscountPct > 0 ? (
-                          <strong>
-                            <s className="price-strike">{formatKES(rawTotal)}</s>{" "}
-                            {formatKES(shown)}
-                            <span className="discount-pill">-{activeDiscountPct}%</span>
-                          </strong>
-                        ) : (
-                          <strong>{formatKES(rawTotal)}</strong>
-                        )}
-                      </div>
-                    );
-                  })()}
-
-                  {error && <div className="form-error">{error}</div>}
-
-                  <button type="submit" className="pay-button" disabled={ordering}>
-                    {ordering ? (
-                      <><Loader2 className="spin" size={19} />Preparing payment...</>
-                    ) : (
-                      <>
-                        {paymentMethod === "intasend" ? "Pay with IntaSend" : "Pay with Card / Bank"}
-                        <ChevronRight size={20} />
-                      </>
-                    )}
-                  </button>
-
-                  <div className="secure-note">🔒 Secure payment</div>
-
-                  <div className="help-divider">Need help paying?</div>
-                  <a
-                    className="wa-call-button"
-                    href={getWhatsAppUrl()}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    <WhatsAppIcon size={20} /> Call on WhatsApp
-                  </a>
-                  <div className="wa-call-note">Replies within minutes</div>
-                </form>
-              </>
-            ) : (
-              <div className="success-screen">
-                <div className="success-icon"><CheckCircle2 size={48} /></div>
-                <h2>Order Created!</h2>
-                <p>Your order has been created. Use the tracking page to follow its progress.</p>
-
-                <div className="success-details">
-                  <div>
-                    <span>Tracking ID</span>
-                    <strong>{orderResult.tracking_id}</strong>
-                  </div>
-                  <div>
-                    <span>Service</span>
-                    <strong>{selectedService.name}</strong>
-                  </div>
-                  <div>
-                    <span>Quantity</span>
-                    <strong>{Number(quantity).toLocaleString()}</strong>
-                  </div>
-                  <div>
-                    <span>Amount</span>
-                    <strong>{formatKES(orderResult.amount ?? priceFor(selectedService, quantity))}</strong>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  className="pay-button"
-                  onClick={() => openTracking(orderResult.tracking_id)}
-                >
-                  Track My Order <ChevronRight size={20} />
-                </button>
-
-                <a
-                  className="whatsapp-help"
-                  href={getWhatsAppUrl(orderResult.tracking_id)}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <WhatsAppIcon size={20} />
-                  <div>
-                    <strong>WhatsApp Help</strong>
-                    <span>Need help with this order?</span>
-                  </div>
-                  <ChevronRight size={19} />
-                </a>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function Root() {
-  if (window.location.pathname === "/admin") {
-    return <AdminDashboard />;
-  }
-  return <App />;
-}
-
-createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <Root />
-  </React.StrictMode>
-);
+  },
+};
