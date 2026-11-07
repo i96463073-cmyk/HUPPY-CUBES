@@ -712,8 +712,9 @@ async function intasendPost(env, path, body) {
       Authorization: `Bearer ${secret}`,
       "Content-Type": "application/json",
       Accept: "application/json",
-      // 👇 THIS IS THE FIX FOR ERROR 1106 👇
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      "Referer": "https://sandbox.intasend.com/",
+      "Origin": "https://sandbox.intasend.com"
     },
     body: JSON.stringify(body),
   });
