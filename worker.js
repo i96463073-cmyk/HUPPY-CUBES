@@ -1,5 +1,5 @@
 // ============================================================
-// HUPPY CUBE - COMPLETE CLOUDFLARE WORKER (with IntaSend)
+// HUPPY CUBE - COMPLETE CLOUDFLARE WORKER (with IntaSend Relay)
 // ============================================================
 
 const PESAPAL_LIVE_BASE = "https://pay.pesapal.com/v3";
@@ -693,36 +693,30 @@ async function handleMpesaCallback(env, request) {
 }
 
 /* =========================================================
-INTASEND M-PESA STK PUSH
+INTASEND M-PESA STK PUSH (VIA RELAY)
 ========================================================= */
 
-function getIntasendBase(env) {
-  return text(env.INTASEND_ENVIRONMENT).toLowerCase() === "production"
-    ? "https://payment.intasend.com"
-    : "https://sandbox.intasend.com";
-}
-
 async function intasendPost(env, path, body) {
-  const secret = text(env.INTASEND_SECRET_KEY);
-  if (!secret) throw new Error("INTASEND_SECRET_KEY is not configured.");
+  const relayUrl = text(env.INTASEND_RELAY_URL);
+  const relaySecret = text(env.INTASEND_RELAY_SECRET);
+  
+  if (!relayUrl || !relaySecret) {
+    throw new Error("IntaSend Relay is not configured in Cloudflare.");
+  }
 
-  const response = await fetch(`${getIntasendBase(env)}${path}`, {
+  const response = await fetch(relayUrl, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${secret}`,
       "Content-Type": "application/json",
-      Accept: "application/json",
-      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      "Referer": "https://sandbox.intasend.com/",
-      "Origin": "https://sandbox.intasend.com"
+      "x-relay-secret": relaySecret,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ path, body }),
   });
 
   const raw = await response.text();
   let data;
   try { data = JSON.parse(raw); } catch { data = { raw }; }
-  if (!response.ok) throw new Error(`IntaSend HTTP ${response.status}: ${raw.slice(0, 800)}`);
+  if (!response.ok) throw new Error(`IntaSend Relay HTTP ${response.status}: ${raw.slice(0, 800)}`);
   return data;
 }
 
@@ -1440,7 +1434,7 @@ async function handleOrderPayment(env, request) {
   }
 
   // ==========================================
-  // INTASEND FLOW
+  // INTASEND FLOW (via Relay)
   // ==========================================
   if (paymentMethod === "intasend") {
     try {
