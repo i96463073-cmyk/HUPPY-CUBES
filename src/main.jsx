@@ -1107,11 +1107,10 @@ function App() {
     if (!selectedService) return;
 
     const qty = Number(quantity);
-    const minimum = Number(selectedService.min_quantity ?? selectedService.min ?? 0);
     const maximum = Number(selectedService.max_quantity ?? selectedService.max ?? 0);
 
-    if (!qty || qty < minimum) {
-      setError(`Minimum quantity is ${minimum.toLocaleString()}`);
+    if (!qty || qty <= 0) {
+      setError("Please enter a valid quantity.");
       return;
     }
     if (maximum && qty > maximum) {
@@ -1603,15 +1602,13 @@ function App() {
                     <span><Hash size={16} />Quantity</span>
                     <input
                       type="number"
-                      min={selectedService.min_quantity ?? selectedService.min}
                       max={selectedService.max_quantity ?? selectedService.max}
                       value={quantity}
                       onChange={(event) => setQuantity(event.target.value)}
                       placeholder="Enter quantity"
                     />
                     <small>
-                      Min {Number(selectedService.min_quantity ?? selectedService.min ?? 0).toLocaleString()} • Max{" "}
-                      {Number(selectedService.max_quantity ?? selectedService.max ?? 0).toLocaleString()}
+                      Max {Number(selectedService.max_quantity ?? selectedService.max ?? 0).toLocaleString()} • No minimum restriction
                     </small>
                   </label>
 
