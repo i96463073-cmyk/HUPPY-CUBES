@@ -1,11 +1,10 @@
 // ============================================================
-// HUPPY CUBE - COMPLETE CLOUDFLARE WORKER (with IntaSend Relay)
+// HUPPY CUBE - CLOUDFLARE WORKER (PesaPal Only)
 // ============================================================
 
 const PESAPAL_LIVE_BASE = "https://pay.pesapal.com/v3";
 const PESAPAL_SANDBOX_BASE = "https://cybqa.pesapal.com/pesapalv3";
 const DENZGAINS_BASE = "https://denzgains.com/api/v2";
-const WHATSAPP_NUMBER = "254796681162";
 
 // Default markup: 2x supplier rate
 const DEFAULT_MARKUP = 2.0;
@@ -166,8 +165,6 @@ const REQUIRED_ORDER_COLUMNS = {
   supplier_rate: "REAL", customer_rate: "REAL", supplier_amount: "REAL", customer_amount: "REAL",
   payment_status: "TEXT", order_status: "TEXT",
   pesapal_order_tracking_id: "TEXT", pesapal_merchant_reference: "TEXT",
-  mpesa_checkout_request_id: "TEXT", mpesa_receipt_number: "TEXT",
-  intasend_invoice_id: "TEXT",
   supplier_order_id: "TEXT", supplier_response: "TEXT",
   error_message: "TEXT", created_at: "TEXT", updated_at: "TEXT",
   referral_code: "TEXT", discount_pct: "INTEGER DEFAULT 0",
@@ -188,8 +185,6 @@ async function ensureOrdersTable(env) {
       supplier_amount REAL DEFAULT 0, customer_amount REAL DEFAULT 0,
       payment_status TEXT DEFAULT 'PENDING', order_status TEXT DEFAULT 'Pending',
       pesapal_order_tracking_id TEXT, pesapal_merchant_reference TEXT,
-      mpesa_checkout_request_id TEXT, mpesa_receipt_number TEXT,
-      intasend_invoice_id TEXT,
       supplier_order_id TEXT, supplier_response TEXT, error_message TEXT,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
@@ -449,18 +444,6 @@ async function getOrderByMerchantReference(env, merchantReference) {
   ).bind(merchantReference, merchantReference).first();
 }
 
-async function getOrderByMpesaCheckoutId(env, checkoutId) {
-  if (!checkoutId) return null;
-  return await env.DB.prepare(`SELECT * FROM orders WHERE mpesa_checkout_request_id = ? LIMIT 1`)
-    .bind(checkoutId).first();
-}
-
-async function getOrderByIntasendInvoiceId(env, invoiceId) {
-  if (!invoiceId) return null;
-  return await env.DB.prepare(`SELECT * FROM orders WHERE intasend_invoice_id = ? LIMIT 1`)
-    .bind(invoiceId).first();
-}
-
 async function updateOrder(env, trackingId, values) {
   const entries = Object.entries(values || {}).filter(([, value]) => value !== undefined);
   if (!entries.length) return;
@@ -573,282 +556,6 @@ function extractSupplierOrderId(response) {
     }
   }
   return "";
-}
-
-/* =========================================================
-M-PESA DARAJA (STK PUSH)
-========================================================= */
-
-function getMpesaBase(env) {
-  return text(env.MPESA_ENVIRONMENT).toLowerCase() === "production" ? "https://api.safaricom.co.ke" : "https://sandbox.safaricom.co.ke";
-}
-
-function getMpesaTimestamp() {
-  const date = new Date();
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  const h = String(date.getHours()).padStart(2, "0");
-  const min = String(date.getMinutes()).padStart(2, "0");
-  const s = String(date.getSeconds()).padStart(2, "0");
-  return `${y}${m}${d}${h}${min}${s}`;
-}
-
-async function getMpesaToken(env) {
-  const auth = btoa(`${text(env.MPESA_CONSUMER_KEY)}:${text(env.MPESA_CONSUMER_SECRET)}`);
-  const response = await fetch(`${getMpesaBase(env)}/oauth/v1/generate?grant_type=client_credentials`, {
-    method: "GET", headers: { Authorization: `Basic ${auth}`, Accept: "application/json" }
-  });
-  const raw = await response.text();
-  let data;
-  try { data = JSON.parse(raw); } catch { data = { raw }; }
-  if (!response.ok || !data.access_token) throw new Error(`M-Pesa Auth Failed: ${raw.slice(0, 1000)}`);
-  return data.access_token;
-}
-
-async function initiateMpesaStkPush(env, phone, amount, accountRef, description, callbackUrl) {
-  const token = await getMpesaToken(env);
-  const timestamp = getMpesaTimestamp();
-  const shortcode = text(env.MPESA_SHORTCODE);
-  const passkey = text(env.MPESA_PASSKEY);
-  const password = btoa(`${shortcode}${passkey}${timestamp}`);
-
-  const mpesaAmount = Math.max(1, Math.ceil(amount));
-
-  const payload = {
-    BusinessShortCode: shortcode,
-    Password: password,
-    Timestamp: timestamp,
-    TransactionType: "CustomerPayBillOnline", 
-    Amount: mpesaAmount,
-    PartyA: phone,
-    PartyB: shortcode,
-    PhoneNumber: phone,
-    CallBackURL: callbackUrl,
-    AccountReference: accountRef.slice(0, 12),
-    TransactionDesc: description.slice(0, 13)
-  };
-
-  const response = await fetch(`${getMpesaBase(env)}/mpesa/stkpush/v1/processrequest`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
-
-  const raw = await response.text();
-  let data;
-  try { data = JSON.parse(raw); } catch { data = { raw }; }
-  if (!response.ok) throw new Error(`STK Push Error: ${raw.slice(0, 1000)}`);
-  return data;
-}
-
-async function handleMpesaCallback(env, request) {
-  const body = await request.json().catch(() => ({}));
-  const stkCallback = body?.Body?.stkCallback;
-  const ackResponse = { ResultCode: 0, ResultDesc: "Accepted" };
-
-  if (!stkCallback) return json(ackResponse, 200);
-
-  const checkoutId = stkCallback.CheckoutRequestID;
-  const resultCode = stkCallback.ResultCode;
-
-  if (resultCode !== 0) {
-    console.log(`M-Pesa Failed: ${stkCallback.ResultDesc}`);
-    const order = await getOrderByMpesaCheckoutId(env, checkoutId);
-    if (order) await updateOrder(env, order.tracking_id, { payment_status: "FAILED", order_status: "Payment Failed", error_message: stkCallback.ResultDesc });
-    return json(ackResponse, 200);
-  }
-
-  const items = stkCallback.CallbackMetadata?.Item || [];
-  const getVal = (name) => items.find(i => i.Name === name)?.Value;
-  const mpesaReceipt = getVal("MpesaReceiptNumber");
-  const amountPaid = getVal("Amount");
-
-  const order = await getOrderByMpesaCheckoutId(env, checkoutId);
-  if (!order) return json(ackResponse, 200);
-
-  if (amountPaid >= order.customer_amount) {
-    await updateOrder(env, order.tracking_id, { mpesa_receipt_number: mpesaReceipt });
-    const claimed = await claimSupplierSubmission(env, order.tracking_id);
-
-    if (claimed) {
-      try { await creditReferrerForOrder(env, order); } catch (e) {}
-      try {
-        const supplierResponse = await addDenzGainsOrder(env, order.service_id, order.link, order.quantity);
-        const supplierOrderId = extractSupplierOrderId(supplierResponse);
-        await updateOrder(env, order.tracking_id, {
-          order_status: supplierOrderId ? "Processing" : "Supplier Error",
-          supplier_order_id: supplierOrderId || null,
-          supplier_response: JSON.stringify(supplierResponse)
-        });
-      } catch (err) {
-        await updateOrder(env, order.tracking_id, { order_status: "Supplier Error", error_message: errorMessage(err) });
-      }
-    }
-  } else {
-    await updateOrder(env, order.tracking_id, { payment_status: "PAYMENT_MISMATCH", order_status: "Payment Error", error_message: "Amount mismatch" });
-  }
-
-  return json(ackResponse, 200);
-}
-
-/* =========================================================
-INTASEND M-PESA STK PUSH (VIA RELAY)
-========================================================= */
-
-async function intasendPost(env, path, body) {
-  const relayUrl = text(env.INTASEND_RELAY_URL);
-  const relaySecret = text(env.INTASEND_RELAY_SECRET);
-  
-  if (!relayUrl || !relaySecret) {
-    throw new Error("IntaSend Relay is not configured in Cloudflare.");
-  }
-
-  const response = await fetch(relayUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-relay-secret": relaySecret,
-    },
-    body: JSON.stringify({ path, body }),
-  });
-
-  const raw = await response.text();
-  let data;
-  try { data = JSON.parse(raw); } catch { data = { raw }; }
-  if (!response.ok) throw new Error(`IntaSend Relay HTTP ${response.status}: ${raw.slice(0, 800)}`);
-  return data;
-}
-
-async function initiateIntasendStk(env, { phone, amount, trackingId, name }) {
-  const publicKey = text(env.INTASEND_PUBLIC_KEY);
-  if (!publicKey) throw new Error("INTASEND_PUBLIC_KEY is not configured.");
-
-  return await intasendPost(env, "/api/v1/payment/mpesa-stk-push/", {
-    public_key: publicKey,
-    currency: "KES",
-    amount: Math.max(1, Math.ceil(amount)),
-    phone_number: phone,
-    api_ref: trackingId,
-    narrative: String(name || "HUPPY CUBE").slice(0, 60),
-  });
-}
-
-async function getIntasendStatus(env, invoiceId) {
-  return await intasendPost(env, "/api/v1/payment/status/", { invoice_id: invoiceId });
-}
-
-async function processIntasendOrder(env, order) {
-  if (!order) return { success: false, message: "Order not found." };
-  if (order.supplier_order_id) {
-    return { success: true, paid: true, submitted: true, supplier_order_id: order.supplier_order_id };
-  }
-  if (String(order.order_status || "").toLowerCase() === "submitting") {
-    return { success: true, paid: true, submitting: true };
-  }
-  if (!order.intasend_invoice_id) {
-    return { success: false, pending: true, message: "Waiting for IntaSend invoice ID." };
-  }
-
-  const result = await getIntasendStatus(env, order.intasend_invoice_id);
-  const inv = result?.invoice || result;
-  const state = text(inv?.state).toUpperCase();
-  console.log("IntaSend status:", JSON.stringify({ invoice: order.intasend_invoice_id, state }));
-
-  if (state === "FAILED") {
-    await updateOrder(env, order.tracking_id, {
-      payment_status: "FAILED", order_status: "Payment Failed",
-      supplier_response: JSON.stringify(result),
-      error_message: text(inv?.failed_reason) || "M-Pesa payment failed.",
-    });
-    return { success: false, paid: false, failed: true };
-  }
-
-  if (state !== "COMPLETE") {
-    await updateOrder(env, order.tracking_id, {
-      payment_status: "PENDING", order_status: "Payment Pending",
-    });
-    return { success: true, paid: false, pending: true };
-  }
-
-  const expected = Math.max(1, Math.ceil(number(order.customer_amount, 0)));
-  const paid = number(inv?.value, 0);
-  const currency = text(inv?.currency).toUpperCase();
-  const apiRef = text(inv?.api_ref);
-  const invoiceId = text(inv?.invoice_id);
-
-  let problem = "";
-  if (currency && currency !== "KES") problem = `Unexpected currency ${currency}.`;
-  else if (apiRef && apiRef !== order.tracking_id) problem = "Reference does not match this order.";
-  else if (invoiceId && invoiceId !== order.intasend_invoice_id) problem = "Invoice ID does not match.";
-  else if (paid + 0.01 < expected) problem = `Amount mismatch. Expected KES ${expected}, received KES ${paid}.`;
-
-  if (problem) {
-    await updateOrder(env, order.tracking_id, {
-      payment_status: "PAYMENT_MISMATCH", order_status: "Payment Error",
-      error_message: problem, supplier_response: JSON.stringify(result),
-    });
-    throw new Error(problem);
-  }
-
-  const claimed = await claimSupplierSubmission(env, order.tracking_id);
-  if (!claimed) {
-    const latest = await getOrderByTrackingId(env, order.tracking_id);
-    if (latest?.supplier_order_id) {
-      return { success: true, paid: true, submitted: true, supplier_order_id: latest.supplier_order_id };
-    }
-    return { success: true, paid: true, submitting: true };
-  }
-
-  await updateOrder(env, order.tracking_id, {
-    mpesa_receipt_number: text(inv?.mpesa_reference) || null,
-  });
-
-  try {
-    await creditReferrerForOrder(env, order);
-  } catch (e) {
-    console.error("Referral credit failed:", errorMessage(e));
-  }
-
-  try {
-    const resp = await addDenzGainsOrder(env, order.service_id, order.link, order.quantity);
-    const supplierOrderId = extractSupplierOrderId(resp);
-    if (!supplierOrderId) throw new Error("DenzGains did not return a supplier order ID.");
-    await updateOrder(env, order.tracking_id, {
-      payment_status: "COMPLETED", order_status: "Processing",
-      supplier_order_id: supplierOrderId,
-      supplier_response: JSON.stringify(resp), error_message: null,
-    });
-    return { success: true, paid: true, submitted: true, supplier_order_id: supplierOrderId };
-  } catch (err) {
-    await updateOrder(env, order.tracking_id, {
-      payment_status: "COMPLETED", order_status: "Supplier Error",
-      error_message: errorMessage(err),
-    });
-    throw err;
-  }
-}
-
-async function handleIntasendWebhook(env, request) {
-  const body = await request.json().catch(() => ({}));
-  const ack = json({ received: true }, 200);
-
-  const expectedChallenge = text(env.INTASEND_WEBHOOK_CHALLENGE);
-  if (expectedChallenge && text(body?.challenge) !== expectedChallenge) {
-    return json({ error: "Invalid challenge" }, 401);
-  }
-
-  const invoiceId = text(body?.invoice_id);
-  const apiRef = text(body?.api_ref);
-
-  let order = null;
-  if (apiRef) order = await getOrderByTrackingId(env, apiRef);
-  if (!order && invoiceId) order = await getOrderByIntasendInvoiceId(env, invoiceId);
-  if (!order) return ack;
-
-  try { await processIntasendOrder(env, order); }
-  catch (e) { console.error("IntaSend webhook processing:", errorMessage(e)); }
-  return ack;
 }
 
 // ------------------------------------------------------------
@@ -1303,7 +1010,6 @@ async function handleOrderPayment(env, request) {
   const phone = normalizePhone(body?.phone);
   const quantity = Math.floor(number(body?.quantity, 0));
   const refCodeIn = text(body?.ref_code).toUpperCase();
-  const paymentMethod = text(body?.payment_method).toLowerCase() || "pesapal";
 
   if (!serviceId) return corsJson({ success: false, error: "Service ID is required." }, 400);
   if (!link) return corsJson({ success: false, error: "Service link is required." }, 400);
@@ -1434,75 +1140,7 @@ async function handleOrderPayment(env, request) {
   }
 
   // ==========================================
-  // INTASEND FLOW (via Relay)
-  // ==========================================
-  if (paymentMethod === "intasend") {
-    try {
-      const resp = await initiateIntasendStk(env, {
-        phone, amount: customerAmount, trackingId,
-        name: `HUPPY CUBE - ${supplierService.name}`,
-      });
-
-      const invoiceId = text(resp?.invoice?.invoice_id || resp?.invoice_id);
-      if (!invoiceId) throw new Error("IntaSend did not return an invoice ID.");
-
-      await updateOrder(env, trackingId, {
-        intasend_invoice_id: invoiceId,
-        payment_status: "PENDING",
-        order_status: "Payment Pending",
-        error_message: null,
-      });
-
-      return corsJson({
-        success: true, tracking_id: trackingId, payment_method: "intasend",
-        message: "STK Push sent. Please enter your M-Pesa PIN.",
-        amount: customerAmount,
-        original_amount: originalAmount,
-        discount_pct: discountPct,
-      }, 200, corsOrigin);
-
-    } catch (error) {
-      const message = errorMessage(error);
-      console.error("IntaSend STK failed:", message);
-      await updateOrder(env, trackingId, {
-        payment_status: "PAYMENT_SETUP_FAILED",
-        order_status: "Payment Setup Error",
-        error_message: message,
-      });
-      await cleanupPendingReferral();
-      return corsJson({
-        success: false, tracking_id: trackingId,
-        error: "Could not start IntaSend M-Pesa payment.", details: message,
-      }, 500, corsOrigin);
-    }
-  }
-
-  // ==========================================
-  // MPESA (DARAJA) FLOW
-  // ==========================================
-  if (paymentMethod === "mpesa") {
-    const callbackUrl = `${origin}/api/mpesa-callback`;
-    try {
-      const stkResponse = await initiateMpesaStkPush(env, phone, customerAmount, trackingId, `HUPPY CUBE - ${supplierService.name}`, callbackUrl);
-
-      const checkoutRequestId = text(stkResponse?.CheckoutRequestID);
-      if (!checkoutRequestId) throw new Error("M-Pesa did not return a CheckoutRequestID.");
-
-      await updateOrder(env, trackingId, { mpesa_checkout_request_id: checkoutRequestId, order_status: "Payment Pending (STK Push Sent)" });
-
-      return corsJson({
-        success: true, tracking_id: trackingId, payment_method: "mpesa", message: "STK Push sent. Please enter your M-Pesa PIN.", amount: customerAmount
-      }, 200, corsOrigin);
-
-    } catch (error) {
-      const message = errorMessage(error);
-      await updateOrder(env, trackingId, { payment_status: "PAYMENT_SETUP_FAILED", order_status: "Payment Setup Error", error_message: message });
-      return corsJson({ success: false, tracking_id: trackingId, error: "Could not initiate M-Pesa payment.", details: message }, 500, corsOrigin);
-    }
-  }
-
-  // ==========================================
-  // PESAPAL FLOW (Default)
+  // PESAPAL FLOW (Only Payment Method)
   // ==========================================
   const callbackUrl = `${origin}/api/payment-callback?tracking_id=${encodeURIComponent(trackingId)}`;
   const cancellationUrl = `${origin}/?tracking_id=${encodeURIComponent(trackingId)}&payment=cancelled`;
@@ -1620,15 +1258,6 @@ async function handleOrderStatus(env, request) {
     order = await getOrderByTrackingId(env, trackingId);
   }
 
-  if (order?.intasend_invoice_id && !order?.supplier_order_id &&
-    String(order?.order_status || "").toLowerCase() !== "submitting" &&
-    !isTerminalStatus(order?.order_status) &&
-    !recentlyFailedSubmission(order)) {
-    try { await processIntasendOrder(env, order); }
-    catch (error) { console.error("IntaSend status processing:", errorMessage(error)); }
-    order = await getOrderByTrackingId(env, trackingId);
-  }
-
   const latest = order;
   if (!latest) return corsJson({ success: false, error: "Order not found." }, 404);
 
@@ -1643,9 +1272,6 @@ async function handleOrderStatus(env, request) {
       discount_pct: latest.discount_pct,
       payment_status: latest.payment_status, order_status: latest.order_status,
       pesapal_order_tracking_id: latest.pesapal_order_tracking_id,
-      mpesa_checkout_request_id: latest.mpesa_checkout_request_id,
-      mpesa_receipt_number: latest.mpesa_receipt_number,
-      intasend_invoice_id: latest.intasend_invoice_id,
       supplier_order_id: latest.supplier_order_id,
       error_message: latest.error_message,
       created_at: latest.created_at, updated_at: latest.updated_at,
@@ -2005,7 +1631,6 @@ async function handleAdminOrdersList(env, request) {
         profit: roundMoney(Number(o.customer_amount || 0) - Number(o.supplier_amount || 0)),
         payment_status: o.payment_status, order_status: o.order_status,
         pesapal_order_tracking_id: o.pesapal_order_tracking_id,
-        intasend_invoice_id: o.intasend_invoice_id,
         supplier_order_id: o.supplier_order_id,
         error_message: o.error_message,
         created_at: o.created_at, updated_at: o.updated_at,
@@ -2066,7 +1691,7 @@ async function handleAdminLive(env, request) {
 }
 
 // ------------------------------------------------------------
-// ADMIN — RETRY (works for PesaPal and IntaSend orders)
+// ADMIN — RETRY
 // ------------------------------------------------------------
 
 async function handleAdminRetry(env, request) {
@@ -2094,9 +1719,7 @@ async function handleAdminRetry(env, request) {
     });
 
     const refreshed = await getOrderByTrackingId(env, trackingId);
-    const result = refreshed?.intasend_invoice_id
-      ? await processIntasendOrder(env, refreshed)
-      : await processPaidOrder(env, refreshed);
+    const result = await processPaidOrder(env, refreshed);
 
     return json({ success: true, result,
       order: await getOrderByTrackingId(env, trackingId) });
@@ -2131,13 +1754,11 @@ async function handleApiInfo() {
     routes: {
       health: "/api/health",
       services: "/api/services",
-      order_payment: "POST /api/order-payment { service_id, service_name, quantity, link, phone, payment_method: 'mpesa'|'pesapal'|'intasend', ref_code? }",
+      order_payment: "POST /api/order-payment { service_id, service_name, quantity, link, phone, ref_code? }",
       order_status: "/api/order-status?tracking_id=...",
       referral_info: "/api/referral-info?phone=...",
       pesapal_callback: "/api/payment-callback",
       pesapal_ipn: "/api/pesapal-ipn",
-      mpesa_callback: "/api/mpesa-callback",
-      intasend_webhook: "POST /api/intasend-webhook",
       admin_stats: "/api/admin-stats?secret=...&from=&to=",
       admin_balance: "/api/admin-balance?secret=...",
       admin_top_services: "/api/admin-top-services?secret=...&from=&to=",
@@ -2193,8 +1814,6 @@ export default {
       if (url.pathname === "/api/referral-info" && method === "GET") return await handleReferralInfo(env, request);
       if (url.pathname === "/api/payment-callback") return await handlePaymentCallback(env, request);
       if (url.pathname === "/api/pesapal-ipn") return await handlePesapalIpn(env, request);
-      if (url.pathname === "/api/mpesa-callback" && method === "POST") return await handleMpesaCallback(env, request);
-      if (url.pathname === "/api/intasend-webhook" && method === "POST") return await handleIntasendWebhook(env, request);
 
       if (url.pathname === "/api/admin-balance" && method === "GET") return await handleAdminBalance(env, request);
       if (url.pathname === "/api/admin-settings" && method === "GET") return await handleAdminGetSettings(env, request);
