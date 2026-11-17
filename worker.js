@@ -18,7 +18,7 @@ const REFERRAL_CODE_LENGTH = 6;
 const REFERRAL_WINDOW_HOURS = 24;
 const REFERRAL_MAX_WINDOW_HOURS = 24 * 7; // 7-day rolling cap
 const REFERRAL_DISCOUNT_PCT = 10;
-const MIN_CHARGE_KES = 4;
+const MIN_CHARGE_KES = 0.01; // no whole-shilling floor
 
 function json(data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
@@ -629,7 +629,8 @@ async function submitPesapalOrder(env, { merchantReference, amount, description,
     phone_number: billingPhone, country_code: "KE",
     first_name: text(firstName) || "HUPPY", middle_name: "",
     last_name: text(lastName) || "Customer",
-    line_1: "HUPPY CUBE", line_2: "", city: "Nairobi",
+    // PesaPal only allows alphanumerics, dashes, underscores, dots and colons here (no spaces)
+    line_1: "HUPPY-CUBE", line_2: "", city: "Nairobi",
     state: "", postal_code: "", zip_code: "",
   };
 
@@ -1040,12 +1041,9 @@ async function handleOrderPayment(env, request) {
   const supplierAmount = roundMoney((supplierRate * quantity) / 1000);
   let customerAmount = roundMoney((customerRate * quantity) / 1000);
 
+  // Price follows quantity exactly. No whole-shilling minimum.
   if (!customerAmount || customerAmount <= 0) {
     return corsJson({ success: false, error: "Calculated payment amount is invalid." }, 400);
-  }
-
-  if (customerAmount < 1) {
-    return corsJson({ success: false, error: "Minimum order amount is 1 KES. Please increase the quantity." }, 400);
   }
 
   let discountPct = 0;
@@ -1749,7 +1747,7 @@ async function handleHealth(env, request) {
 
 async function handleApiInfo() {
   return json({
-    success: true, name: "HUPPY CUBE API", version: "1.8.0", currency: "KES",
+    success: true, name: "HUPPY CUBE API", version: "1.8.1", currency: "KES",
     routes: {
       health: "/api/health",
       services: "/api/services",
