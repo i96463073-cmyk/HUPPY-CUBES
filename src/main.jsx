@@ -881,10 +881,8 @@ function Ambient() {
   );
 }
 
-function payButtonLabel(method) {
-  if (method === "pesapal") return "Pay with Card / Bank";
-  if (method === "intasend") return "Pay with IntaSend M-Pesa";
-  return "Pay with M-Pesa";
+function payButtonLabel() {
+  return "Continue to PesaPal";
 }
 
 function App() {
@@ -897,7 +895,6 @@ function App() {
   const [quantity, setQuantity] = useState("");
   const [link, setLink] = useState("");
   const [phone, setPhone] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("mpesa"); // "mpesa" | "intasend" | "pesapal"
   const [loadingServices, setLoadingServices] = useState(true);
   const [ordering, setOrdering] = useState(false);
   const [orderResult, setOrderResult] = useState(null);
@@ -1075,7 +1072,6 @@ function App() {
     setPhone(customerPhone || phone || "");
     setError("");
     setOrderResult(null);
-    setPaymentMethod("mpesa");
   }
 
   function closeOrder() {
@@ -1145,7 +1141,7 @@ function App() {
           quantity: qty,
           link: link.trim(),
           phone: phone.trim(),
-          payment_method: paymentMethod,
+          payment_method: "pesapal",
           ref_code: refCode || undefined
         })
       });
@@ -1427,8 +1423,6 @@ function App() {
     ? availableSubTypes[0]?.subType || null
     : selectedSubType;
 
-  const isInstantPhonePay = paymentMethod === "mpesa" || paymentMethod === "intasend";
-
   return (
     <div className="app-shell">
       <Ambient />
@@ -1644,51 +1638,16 @@ function App() {
                   <div className="pay-section-title">
                     <span>Payment method</span>
                   </div>
-                  <div className="pay-methods" role="radiogroup" aria-label="Payment method">
-                    <button
-                      type="button"
-                      role="radio"
-                      aria-checked={paymentMethod === "mpesa"}
-                      className={`pay-method ${paymentMethod === "mpesa" ? "selected" : ""}`}
-                      onClick={() => setPaymentMethod("mpesa")}
-                    >
-                      <span className="pay-method-icon"><Phone size={19} /></span>
-                      <span className="pay-method-text">
-                        <strong>M-Pesa payment</strong>
-                        <small>Instant prompt on your phone</small>
-                      </span>
-                      <span className="pay-method-radio" />
-                    </button>
 
-                    <button
-                      type="button"
-                      role="radio"
-                      aria-checked={paymentMethod === "intasend"}
-                      className={`pay-method ${paymentMethod === "intasend" ? "selected" : ""}`}
-                      onClick={() => setPaymentMethod("intasend")}
-                    >
-                      <span className="pay-method-icon"><Phone size={19} /></span>
-                      <span className="pay-method-text">
-                        <strong>M-Pesa via IntaSend</strong>
-                        <small>Instant prompt on your phone</small>
-                      </span>
-                      <span className="pay-method-radio" />
-                    </button>
-
-                    <button
-                      type="button"
-                      role="radio"
-                      aria-checked={paymentMethod === "pesapal"}
-                      className={`pay-method ${paymentMethod === "pesapal" ? "selected" : ""}`}
-                      onClick={() => setPaymentMethod("pesapal")}
-                    >
-                      <span className="pay-method-icon"><CreditCard size={19} /></span>
-                      <span className="pay-method-text">
-                        <strong>Card / Bank</strong>
-                        <small>Secure checkout via PesaPal</small>
-                      </span>
-                      <span className="pay-method-radio" />
-                    </button>
+                  <div className="pay-pesapal-only">
+                    <span className="pay-pesapal-icon"><CreditCard size={22} /></span>
+                    <div className="pay-pesapal-text">
+                      <strong>Pay securely with PesaPal</strong>
+                      <small>
+                        You'll be redirected to PesaPal's secure page to pay with M-Pesa, card, or bank.
+                      </small>
+                    </div>
+                    <span className="pay-pesapal-badge">SECURE</span>
                   </div>
 
                   {(() => {
@@ -1719,10 +1678,10 @@ function App() {
 
                   <button type="submit" className="pay-button" disabled={ordering}>
                     {ordering ? (
-                      <><Loader2 className="spin" size={19} />Preparing payment...</>
+                      <><Loader2 className="spin" size={19} />Redirecting to PesaPal...</>
                     ) : (
                       <>
-                        {payButtonLabel(paymentMethod)}
+                        {payButtonLabel()}
                         <ChevronRight size={20} />
                       </>
                     )}
@@ -1747,9 +1706,8 @@ function App() {
                 <div className="success-icon"><CheckCircle2 size={48} /></div>
                 <h2>Order Created!</h2>
                 <p>
-                  {isInstantPhonePay || orderResult.payment_method === "mpesa" || orderResult.payment_method === "intasend"
-                    ? "Check your phone and enter your M-Pesa PIN. Use the tracking page to follow your order."
-                    : "Your order has been created. Use the tracking page to follow its progress."}
+                  Your order has been created. Continue to the tracking page to follow its progress.
+                  If you were not redirected to PesaPal automatically, use the button below.
                 </p>
 
                 <div className="success-details">
