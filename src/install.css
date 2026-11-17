@@ -1,178 +1,150 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Download, X, Share, PlusSquare, MoreVertical, CheckCircle2 } from "lucide-react";
-import "./install.css";
-
-const INSTALLED_KEY = "huppy_cube_installed";
-
-function isStandalone() {
-  try {
-    return (
-      window.matchMedia?.("(display-mode: standalone)").matches ||
-      window.matchMedia?.("(display-mode: fullscreen)").matches ||
-      window.navigator.standalone === true
-    );
-  } catch {
-    return false;
-  }
+/* ===== HUPPY CUBE – Install App ===== */
+.install-fab {
+  position: fixed;
+  right: 14px;
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  z-index: 900;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px 10px 10px;
+  border: 1px solid rgba(34, 211, 238, 0.45);
+  border-radius: 999px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  background: linear-gradient(135deg, #0ea5e9, #2563eb);
+  box-shadow: 0 8px 24px rgba(14, 165, 233, 0.35);
+  cursor: pointer;
+  animation: install-float 3.2s ease-in-out infinite;
+  -webkit-tap-highlight-color: transparent;
 }
-
-function isIOS() {
-  const ua = navigator.userAgent || "";
-  const iDevice = /iPad|iPhone|iPod/.test(ua);
-  const iPadOS = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
-  return iDevice || iPadOS;
+.install-fab-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
 }
-
-function readInstalledFlag() {
-  try { return localStorage.getItem(INSTALLED_KEY) === "1"; } catch { return false; }
+@keyframes install-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
 }
-function writeInstalledFlag(v) {
-  try { v ? localStorage.setItem(INSTALLED_KEY, "1") : localStorage.removeItem(INSTALLED_KEY); } catch {}
+@media (prefers-reduced-motion: reduce) {
+  .install-fab { animation: none; }
 }
+/* never sit on top of the checkout / order modal */
+body:has(.modal-backdrop) .install-fab { display: none; }
 
-export default function InstallApp() {
-  const deferredRef = useRef(null);
-  const [canPrompt, setCanPrompt] = useState(false);
-  const [installed, setInstalled] = useState(() => isStandalone() || readInstalledFlag());
-  const [open, setOpen] = useState(false);
-  const [ios] = useState(() => isIOS());
-  const [result, setResult] = useState("");
-
-  // Register the service worker (needed for installability)
-  useEffect(() => {
-    if (!("serviceWorker" in navigator)) return;
-    const register = () =>
-      navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch((e) =>
-        console.warn("Service worker registration failed:", e)
-      );
-    if (document.readyState === "complete") register();
-    else window.addEventListener("load", register, { once: true });
-  }, []);
-
-  // Install events
-  useEffect(() => {
-    const onBeforeInstall = (e) => {
-      e.preventDefault();               // keep the event so WE trigger it from our button
-      deferredRef.current = e;
-      setCanPrompt(true);
-      // The browser only fires this when the app is NOT installed.
-      writeInstalledFlag(false);
-      setInstalled(isStandalone());
-    };
-    const onInstalled = () => {
-      writeInstalledFlag(true);
-      deferredRef.current = null;
-      setCanPrompt(false);
-      setInstalled(true);
-      setOpen(false);
-    };
-    const mq = window.matchMedia?.("(display-mode: standalone)");
-    const onMode = () => { if (isStandalone()) setInstalled(true); };
-
-    window.addEventListener("beforeinstallprompt", onBeforeInstall);
-    window.addEventListener("appinstalled", onInstalled);
-    mq?.addEventListener?.("change", onMode);
-    return () => {
-      window.removeEventListener("beforeinstallprompt", onBeforeInstall);
-      window.removeEventListener("appinstalled", onInstalled);
-      mq?.removeEventListener?.("change", onMode);
-    };
-  }, []);
-
-  // Close with Escape
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open]);
-
-  async function handleInstall() {
-    setResult("");
-    const evt = deferredRef.current;
-    if (!evt) return; // iOS / manual cases show instructions instead
-    try {
-      await evt.prompt();
-      const choice = await evt.userChoice;
-      deferredRef.current = null;
-      setCanPrompt(false);
-      if (choice?.outcome === "accepted") {
-        setResult("Installing… look for HUPPY CUBE on your home screen.");
-      } else {
-        setResult("No problem. You can install any time from the GET APP button.");
-      }
-    } catch (e) {
-      console.warn("Install prompt failed:", e);
-      setResult("Could not open the install prompt. Use the manual steps below.");
-    }
-  }
-
-  if (installed) return null;
-
-  return (
-    <>
-      <button
-        type="button"
-        className="install-fab"
-        aria-label="Get the HUPPY CUBE app"
-        onClick={() => setOpen(true)}
-      >
-        <span className="install-fab-icon"><Download size={18} /></span>
-        <span className="install-fab-text">GET APP</span>
-      </button>
-
-      {open && (
-        <div className="install-backdrop" onClick={() => setOpen(false)}>
-          <div
-            className="install-panel"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Install HUPPY CUBE"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button type="button" className="install-close" aria-label="Close" onClick={() => setOpen(false)}>
-              <X size={18} />
-            </button>
-
-            <img className="install-logo" src="/icons/icon-192.png" alt="" width="64" height="64" />
-            <h3>Your favourite panel, one tap away.</h3>
-            <p className="install-desc">
-              Install HUPPY CUBE for faster access, convenient ordering and a better experience.
-            </p>
-
-            {ios ? (
-              <ol className="install-steps">
-                <li><span>1</span> Open HUPPY CUBE in <b>Safari</b>.</li>
-                <li><span>2</span> Tap the <b>Share</b> button <Share size={15} className="inline-ic" />.</li>
-                <li><span>3</span> Choose <b>Add to Home Screen</b> <PlusSquare size={15} className="inline-ic" />.</li>
-                <li><span>4</span> Tap <b>Add</b> to confirm.</li>
-              </ol>
-            ) : canPrompt ? (
-              <button type="button" className="install-primary" onClick={handleInstall}>
-                <Download size={18} /> INSTALL APP
-              </button>
-            ) : (
-              <ol className="install-steps">
-                <li><span>1</span> Open the browser menu <MoreVertical size={15} className="inline-ic" /> (Chrome or Samsung Internet).</li>
-                <li><span>2</span> Tap <b>Install app</b> or <b>Add to Home screen</b>.</li>
-                <li><span>3</span> Confirm to add HUPPY CUBE.</li>
-              </ol>
-            )}
-
-            {result && (
-              <div className="install-result"><CheckCircle2 size={16} /> {result}</div>
-            )}
-
-            <button type="button" className="install-later" onClick={() => setOpen(false)}>
-              Maybe later
-            </button>
-
-            <small className="install-note">
-              HUPPY CUBE installs from this website using your browser. No APK or special permissions needed.
-            </small>
-          </div>
-        </div>
-      )}
-    </>
-  );
+.install-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(2, 4, 12, 0.7);
+  backdrop-filter: blur(4px);
 }
+.install-panel {
+  position: relative;
+  width: 100%;
+  max-width: 440px;
+  padding: 24px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+  border-radius: 24px 24px 0 0;
+  text-align: center;
+  color: #e6eefc;
+  background: linear-gradient(180deg, #0b1230, #070a1c);
+  border: 1px solid rgba(34, 211, 238, 0.25);
+  animation: install-up 0.25s ease-out;
+}
+@media (min-width: 560px) {
+  .install-backdrop { align-items: center; }
+  .install-panel { border-radius: 24px; }
+}
+@keyframes install-up {
+  from { transform: translateY(24px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.install-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cfe9ff;
+  background: rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+}
+.install-logo { border-radius: 16px; margin-bottom: 10px; }
+.install-panel h3 { margin: 0 0 6px; font-size: 19px; }
+.install-desc { margin: 0 0 16px; font-size: 14px; line-height: 1.5; opacity: 0.78; }
+.install-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px;
+  border: 0;
+  border-radius: 14px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  background: linear-gradient(135deg, #0ea5e9, #2563eb);
+  cursor: pointer;
+}
+.install-steps {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  text-align: left;
+  font-size: 14px;
+}
+.install-steps li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 4px;
+  line-height: 1.4;
+}
+.install-steps li span {
+  flex: 0 0 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 800;
+  color: #06223a;
+  background: #67e8f9;
+}
+.inline-ic { vertical-align: -3px; color: #67e8f9; }
+.install-result {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 12px;
+  font-size: 13px;
+  color: #34d399;
+}
+.install-later {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px;
+  border: 0;
+  background: transparent;
+  color: #9fb4d6;
+  font-size: 14px;
+  cursor: pointer;
+}
+.install-note { display: block; margin-top: 4px; font-size: 11px; opacity: 0.55; }
