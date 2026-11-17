@@ -1020,14 +1020,13 @@ async function handleOrderPayment(env, request) {
   try { supplierService = await findSupplierService(env, serviceId); }
   catch (error) { return corsJson({ success: false, error: errorMessage(error) }, 400); }
 
-  const min = number(supplierService.min_quantity, 1);
   const max = number(supplierService.max_quantity, 1000000);
 
-  if (quantity < min || quantity > max) {
+  if (quantity > max) {
     return corsJson({
       success: false,
-      error: `Quantity must be between ${min} and ${max}.`,
-      min_quantity: min, max_quantity: max,
+      error: `Quantity must not exceed ${max}.`,
+      max_quantity: max,
     }, 400);
   }
 
@@ -1212,7 +1211,7 @@ async function handleOrderPayment(env, request) {
     discount_pct: discountPct,
     service_id: supplierService.service_id,
     service_name: supplierService.name,
-    quantity, min_quantity: min, max_quantity: max,
+    quantity, max_quantity: max,
   }, 200, corsOrigin);
 }
 
