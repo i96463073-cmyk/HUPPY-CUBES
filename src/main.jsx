@@ -1632,19 +1632,11 @@ function App() {
                     />
                   </label>
 
-                  <div className="pay-section-title">
-                    <span>Payment method</span>
-                  </div>
-
-                  <div className="pay-pesapal-only">
-                    <span className="pay-pesapal-icon"><CreditCard size={22} /></span>
-                    <div className="pay-pesapal-text">
-                      <strong>Pay securely with PesaPal</strong>
-                      <small>
-                        You'll be redirected to PesaPal's secure page to pay with M-Pesa, card, or bank.
-                      </small>
-                    </div>
-                    <span className="pay-pesapal-badge">SECURE</span>
+                  {/* Compact PesaPal-only payment note */}
+                  <div className="pay-compact">
+                    <CreditCard size={16} />
+                    <span>PesaPal · M-Pesa, card, bank</span>
+                    <b>SECURE</b>
                   </div>
 
                   {(() => {
