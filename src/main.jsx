@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import AdminDashboard from "./AdminDashboard.jsx";
 import { BRAND_ICONS } from "./BrandIcons.jsx";
+import InstallApp from "./InstallApp.jsx";
 import {
   Search,
   ShoppingCart,
@@ -1752,7 +1753,12 @@ function Root() {
   if (window.location.pathname === "/admin") {
     return <AdminDashboard />;
   }
-  return <App />;
+  return (
+    <>
+      <App />
+      <InstallApp />
+    </>
+  );
 }
 
 createRoot(document.getElementById("root")).render(
